@@ -1,0 +1,87 @@
+version: "3.8"
+
+services:
+  # PostgreSQL with LIMINAL-DB schema
+  pg:
+    image: postgres:16-alpine
+    container_name: liminal-postgres
+    environment:
+      POSTGRES_USER: liminal
+      POSTGRES_PASSWORD: liminal
+      POSTGRES_DB: liminal
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./services/liminal-db/migrations:/docker-entrypoint-initdb.d:ro
+      - liminal-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liminal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - liminal
+
+  # Liminal Ingest Service (REST API)
+  ingest:
+    build:
+      context: ../services/liminal-ingest
+      dockerfile: Dockerfile
+    container_name: liminal-ingest
+    environment:
+      LIMINAL_PG_URL: postgres://liminal:liminal@pg:5432/liminal
+      LIMINAL_API_TOKEN: devtoken
+      RUST_LOG: info
+      LIMINAL_BIND_ADDR: 0.0.0.0:8088
+    ports:
+      - "8088:8088"
+    depends_on:
+      pg:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - liminal
+
+  # Selenium Grid Hub
+  selenium-hub:
+    image: selenium/hub:4.25.0
+    container_name: selenium-hub
+    ports:
+      - "4442:4442"
+      - "4443:4443"
+      - "4444:4444"
+    environment:
+      GRID_MAX_SESSION: 5
+      GRID_BROWSER_TIMEOUT: 300
+      GRID_TIMEOUT: 300
+    networks:
+      - liminal
+
+  # Chrome Node
+  chrome:
+    image: selenium/node-chrome:4.25.0
+    container_name: selenium-chrome
+    shm_size: 2gb
+    depends_on:
+      - selenium-hub
+    environment:
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: 4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+      SE_NODE_MAX_SESSIONS: 5
+      SE_NODE_SESSION_TIMEOUT: 300
+    networks:
+      - liminal
+
+volumes:
+  liminal-pg-data:
+    driver: local
+
+networks:
+  liminal:
+    driver: bridge
