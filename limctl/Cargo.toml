@@ -1,0 +1,24 @@
+[package]
+name = "limctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "limctl"
+path = "src/main.rs"
+
+[dependencies]
+liminalqa-core = { path = "../liminalqa-core" }
+liminalqa-db = { path = "../liminalqa-db" }
+liminalqa-runner = { path = "../liminalqa-runner" }
+
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+comfy-table.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true

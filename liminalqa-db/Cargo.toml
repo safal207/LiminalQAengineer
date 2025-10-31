@@ -1,0 +1,18 @@
+[package]
+name = "liminalqa-db"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+liminalqa-core = { path = "../liminalqa-core" }
+
+serde.workspace = true
+serde_json.workspace = true
+ulid.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+sled.workspace = true
+bincode.workspace = true
+tracing.workspace = true

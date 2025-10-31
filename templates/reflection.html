@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflection Report — LiminalQA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1a1a1a;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 2rem;
+            border-bottom: 4px solid #667eea;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #16213e;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .meta-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .meta-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-bottom: 0.25rem;
+        }
+
+        .meta-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+        }
+
+        .status.pass {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.flake {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .guidance {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-size: 1.125rem;
+            font-style: italic;
+            color: #0d47a1;
+        }
+
+        .causality-trail {
+            position: relative;
+            padding-left: 2rem;
+        }
+
+        .causality-node {
+            position: relative;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .causality-node::before {
+            content: '';
+            position: absolute;
+            left: -2rem;
+            top: 0;
+            bottom: -1.5rem;
+            width: 2px;
+            background: #667eea;
+        }
+
+        .causality-node:last-child::before {
+            bottom: 50%;
+        }
+
+        .causality-node::after {
+            content: '';
+            position: absolute;
+            left: -2.5rem;
+            top: 1.5rem;
+            width: 1rem;
+            height: 1rem;
+            background: #667eea;
+            border-radius: 50%;
+        }
+
+        .node-time {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-bottom: 0.25rem;
+        }
+
+        .node-event {
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 0.25rem;
+        }
+
+        .node-source {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: #667eea;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .node-impact {
+            font-size: 0.875rem;
+            color: #495057;
+        }
+
+        .signals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .signal-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border-top: 3px solid #667eea;
+        }
+
+        .signal-type {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .signal-count {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .insights-list {
+            list-style: none;
+        }
+
+        .insight {
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+        }
+
+        .patterns-list {
+            list-style: none;
+        }
+
+        .pattern {
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            border-radius: 4px;
+        }
+
+        footer {
+            background: #f8f9fa;
+            padding: 1.5rem 2rem;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 Reflection Report</h1>
+            <p class="subtitle">LiminalQA — System of Awareness</p>
+        </header>
+
+        <div class="content">
+            <!-- Meta Information -->
+            <div class="meta-grid">
+                <div class="meta-card">
+                    <div class="meta-label">Test Name</div>
+                    <div class="meta-value">{{test_name}}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Status</div>
+                    <div class="meta-value">
+                        <span class="status {{status_class}}">{{status}}</span>
+                    </div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Duration</div>
+                    <div class="meta-value">{{duration_ms}}ms</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Run ID</div>
+                    <div class="meta-value" style="font-size: 0.875rem;">{{run_id}}</div>
+                </div>
+            </div>
+
+            <!-- Guidance -->
+            <div class="section">
+                <h2 class="section-title">📋 Guidance</h2>
+                <div class="guidance">
+                    "{{guidance}}"
+                </div>
+            </div>
+
+            <!-- Causality Trail -->
+            <div class="section">
+                <h2 class="section-title">🔍 Causality Trail</h2>
+                <div class="causality-trail">
+                    {{#each causality_nodes}}
+                    <div class="causality-node">
+                        <div class="node-time">{{timestamp}}</div>
+                        <div class="node-source">{{source}}</div>
+                        <div class="node-event">{{event}}</div>
+                        {{#if impact}}
+                        <div class="node-impact">Impact: {{impact}}</div>
+                        {{/if}}
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+
+            <!-- Signal Reconciliation -->
+            <div class="section">
+                <h2 class="section-title">📊 Signal Reconciliation</h2>
+                <div class="signals-grid">
+                    {{#each signal_types}}
+                    <div class="signal-card">
+                        <div class="signal-type">{{name}}</div>
+                        <div class="signal-count">{{count}}</div>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+
+            <!-- Insights -->
+            {{#if insights}}
+            <div class="section">
+                <h2 class="section-title">💡 Insights</h2>
+                <ul class="insights-list">
+                    {{#each insights}}
+                    <li class="insight">{{this}}</li>
+                    {{/each}}
+                </ul>
+            </div>
+            {{/if}}
+
+            <!-- Patterns -->
+            {{#if patterns}}
+            <div class="section">
+                <h2 class="section-title">⚠️ Patterns Detected</h2>
+                <ul class="patterns-list">
+                    {{#each patterns}}
+                    <li class="pattern">{{this}}</li>
+                    {{/each}}
+                </ul>
+            </div>
+            {{/if}}
+        </div>
+
+        <footer>
+            <div class="logo">LiminalQA</div>
+            <p>Превращаем QA в систему памяти и причинности</p>
+        </footer>
+    </div>
+</body>
+</html>
