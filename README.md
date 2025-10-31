@@ -51,6 +51,25 @@ Guidance → Co-Navigation → Inner Council → Reflection
 
 ## 🚀 Быстрый старт
 
+### MVP-1: Полнофункциональный стек (5 минут)
+
+```bash
+# 1. Запустить все сервисы (PostgreSQL + Ingest + Selenium)
+docker compose -f deploy/docker-compose.mvp1.yml up -d
+
+# 2. Запустить демо со встроенными данными
+cd scripts && ./demo.sh
+
+# 3. Сгенерировать HTML-отчёт
+docker run --rm --network liminal \
+  -e LIMINAL_PG_URL=postgres://liminal:liminal@pg:5432/liminal \
+  liminal-report <run-id> /tmp/report.html
+```
+
+**📖 Полная инструкция**: [MVP-1 Quickstart](docs/MVP1_QUICKSTART.md)
+
+### Разработка (локально)
+
 ```bash
 # Инициализация проекта
 cargo run --bin limctl -- init my-project
@@ -130,7 +149,12 @@ impl TestCase for LoginTest {
 ## 📈 Дорожная карта
 
 - ✅ **MVP-0**: REST-ingest, smoke-тесты, локальные артефакты
-- ⏳ **MVP-1**: LIMINAL-DB с двумя осями времени, Reflection v0 (HTML)
+- ✅ **MVP-1**: LIMINAL-DB с двумя осями времени, Reflection v1 (HTML), Causality Walks
+  - Bi-temporal PostgreSQL schema с `valid_time` × `tx_time`
+  - REST API ingest service (Actix Web)
+  - HTML reflection reports с causality trails
+  - Docker Compose для быстрого старта
+  - Демо-скрипт с примерами данных
 - 🔜 **MVP-2**: gRPC-ingest, Resonance Map, baseline-детектор флейков
 - 🔜 **MVP-3**: Nix/OCI, SBOM, интеграции (GHA/GitLab/Jenkins)
 
@@ -192,6 +216,19 @@ POST /query
 ### Питч
 
 > "Мы превращаем QA в систему памяти и причинности. Продукт получает пульс и карту резонансов, команда — меньше шума, больше истины."
+
+## 📚 Документация
+
+- **[MVP-1 Quickstart](docs/MVP1_QUICKSTART.md)** — начало работы за 5 минут
+- **[Architecture](docs/ARCHITECTURE.md)** — подробная архитектура системы
+- **[Quickstart (Development)](docs/QUICKSTART.md)** — локальная разработка
+
+## 🏢 Для корпораций
+
+- **On-prem установка**: без облаков, полный контроль
+- **Совместимость**: любой CI/CD (GitHub Actions, GitLab, Jenkins)
+- **Безопасность**: маскирование секретов, хеширование артефактов
+- **Масштабирование**: PostgreSQL + горизонтально масштабируемые ingest сервисы
 
 ## 🤝 Вклад
 
