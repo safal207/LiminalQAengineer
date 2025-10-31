@@ -1,0 +1,27 @@
+# LiminalQA Runner Configuration
+
+# Ingest mode: where to send test data
+ingest:
+  # Mode: "fs" for file-system (local dev), "http" for production
+  mode: http
+
+  # File-system mode settings
+  fs:
+    root: /var/liminal/runs
+
+  # HTTP mode settings
+  http:
+    url: http://localhost:8088
+    token: devtoken
+
+# Runner settings
+runner:
+  max_retries: 3
+  retry_delay_ms: 1000
+  flexible_wait_ms: 5000
+  default_timeout_ms: 30000
+
+# Logging
+logging:
+  level: info
+  format: json

@@ -12,9 +12,11 @@ pub mod conavigation;
 pub mod council;
 pub mod reflection;
 pub mod runner;
+pub mod ingest;
 
 pub use guidance::Guidance;
 pub use conavigation::CoNavigator;
 pub use council::InnerCouncil;
 pub use reflection::Reflection;
 pub use runner::TestRunner;
+pub use ingest::{Ingest, IngestConfig, create_ingest};
