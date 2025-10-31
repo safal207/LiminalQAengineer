@@ -1,0 +1,30 @@
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# LiminalQA data
+/data
+/reports
+*.db
+*.sled
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
