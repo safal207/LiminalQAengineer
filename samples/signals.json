@@ -1,0 +1,64 @@
+{
+  "run_id": "01HJQKX8K9N7P6R5S3T2V1W0XY",
+  "signals": [
+    {
+      "test_name": "test_login_success",
+      "kind": "ui",
+      "latency_ms": 50,
+      "value": null,
+      "meta": {
+        "action": "click",
+        "selector": "#login-button"
+      },
+      "at": "2025-10-31T10:00:15.100Z"
+    },
+    {
+      "test_name": "test_login_success",
+      "kind": "api",
+      "latency_ms": 120,
+      "value": 200,
+      "meta": {
+        "method": "POST",
+        "endpoint": "/api/auth/login",
+        "status_code": 200
+      },
+      "at": "2025-10-31T10:00:15.250Z"
+    },
+    {
+      "test_name": "test_dashboard_load",
+      "kind": "network",
+      "latency_ms": 4500,
+      "value": 4500,
+      "meta": {
+        "type": "latency_spike",
+        "threshold_ms": 1000
+      },
+      "at": "2025-10-31T10:00:20.500Z"
+    },
+    {
+      "test_name": "test_dashboard_load",
+      "kind": "api",
+      "latency_ms": 4200,
+      "value": 504,
+      "meta": {
+        "method": "GET",
+        "endpoint": "/api/dashboard/widgets",
+        "status_code": 504,
+        "error": "Gateway Timeout"
+      },
+      "at": "2025-10-31T10:00:21.000Z"
+    },
+    {
+      "test_name": "test_api_user_profile",
+      "kind": "api",
+      "latency_ms": 95,
+      "value": 200,
+      "meta": {
+        "method": "GET",
+        "endpoint": "/api/user/profile",
+        "status_code": 200
+      },
+      "at": "2025-10-31T10:00:23.550Z"
+    }
+  ]
+}

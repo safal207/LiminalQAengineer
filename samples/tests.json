@@ -1,0 +1,50 @@
+{
+  "run_id": "01HJQKX8K9N7P6R5S3T2V1W0XY",
+  "valid_from": "2025-10-31T10:03:00Z",
+  "tests": [
+    {
+      "name": "test_login_success",
+      "suite": "auth",
+      "guidance": "User should be able to log in with valid credentials",
+      "status": "pass",
+      "duration_ms": 1234,
+      "error": null,
+      "started_at": "2025-10-31T10:00:15Z",
+      "completed_at": "2025-10-31T10:00:16.234Z"
+    },
+    {
+      "name": "test_login_invalid_password",
+      "suite": "auth",
+      "guidance": "System should reject invalid password",
+      "status": "pass",
+      "duration_ms": 856,
+      "error": null,
+      "started_at": "2025-10-31T10:00:16.5Z",
+      "completed_at": "2025-10-31T10:00:17.356Z"
+    },
+    {
+      "name": "test_dashboard_load",
+      "suite": "ui",
+      "guidance": "Dashboard should load and display user data",
+      "status": "fail",
+      "duration_ms": 5123,
+      "error": {
+        "type": "TimeoutError",
+        "message": "Element .dashboard-widget not found within 5000ms",
+        "stack": "at waitForElement (driver.js:123)\nat testDashboard (test.js:45)"
+      },
+      "started_at": "2025-10-31T10:00:18Z",
+      "completed_at": "2025-10-31T10:00:23.123Z"
+    },
+    {
+      "name": "test_api_user_profile",
+      "suite": "api",
+      "guidance": "API should return user profile",
+      "status": "pass",
+      "duration_ms": 145,
+      "error": null,
+      "started_at": "2025-10-31T10:00:23.5Z",
+      "completed_at": "2025-10-31T10:00:23.645Z"
+    }
+  ]
+}

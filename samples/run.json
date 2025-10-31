@@ -1,0 +1,12 @@
+{
+  "run_id": "01HJQKX8K9N7P6R5S3T2V1W0XY",
+  "build_id": "01HJQJXA9K8M7L6N5P4Q3R2S1T",
+  "plan_name": "smoke-mvp1",
+  "env": {
+    "grid_url": "http://selenium-hub:4444",
+    "base_url": "https://example.com",
+    "environment": "staging"
+  },
+  "started_at": "2025-10-31T10:00:00Z",
+  "runner_version": "0.1.0-mvp1"
+}
