@@ -84,7 +84,7 @@ impl Ingest for IngestFs {
         if signals.is_empty() {
             return Ok(());
         }
-        let run_id = signals[0].test_id; // Using test_id as proxy for run_id
+        let run_id = signals[0].run_id;
         self.write_json(&run_id, "signals.json", &signals)
     }
 
@@ -92,7 +92,7 @@ impl Ingest for IngestFs {
         if artifacts.is_empty() {
             return Ok(());
         }
-        let run_id = artifacts[0].test_id; // Using test_id as proxy for run_id
+        let run_id = artifacts[0].run_id;
         self.write_json(&run_id, "artifacts.json", &artifacts)
     }
 }
@@ -242,7 +242,7 @@ impl Ingest for IngestHttp {
             at: chrono::DateTime<chrono::Utc>,
         }
 
-        let run_id = signals[0].test_id; // TODO: should be run_id
+        let run_id = signals[0].run_id;
         let items: Vec<SignalDtoItem> = signals
             .iter()
             .map(|s| SignalDtoItem {
@@ -284,7 +284,7 @@ impl Ingest for IngestHttp {
             mime_type: Option<String>,
         }
 
-        let run_id = artifacts[0].test_id; // TODO: should be run_id
+        let run_id = artifacts[0].run_id;
         let items: Vec<ArtifactDtoItem> = artifacts
             .iter()
             .map(|a| ArtifactDtoItem {

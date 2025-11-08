@@ -36,10 +36,14 @@ impl TestCase for LoginTest {
     }
 
     async fn execute(&self, navigator: &CoNavigator, council: &mut InnerCouncil) -> Result<()> {
+        let run_id = new_entity_id();
+        let test_id = new_entity_id();
+
         // Simulate UI interaction
         let ui_signal = Signal {
             id: new_entity_id(),
-            test_id: new_entity_id(),
+            run_id,
+            test_id,
             signal_type: SignalType::UI,
             timestamp: chrono::Utc::now(),
             latency_ms: Some(50),
@@ -66,7 +70,8 @@ impl TestCase for LoginTest {
 
         let api_signal = Signal {
             id: new_entity_id(),
-            test_id: new_entity_id(),
+            run_id,
+            test_id,
             signal_type: SignalType::API,
             timestamp: chrono::Utc::now(),
             latency_ms: Some(100),
