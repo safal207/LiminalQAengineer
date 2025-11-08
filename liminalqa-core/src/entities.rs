@@ -126,6 +126,7 @@ impl Entity for Test {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Artifact {
     pub id: EntityId,
+    pub run_id: EntityId,
     pub test_id: EntityId,
     pub artifact_ref: ArtifactRef,
     pub artifact_type: ArtifactType,
@@ -158,6 +159,7 @@ impl Entity for Artifact {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signal {
     pub id: EntityId,
+    pub run_id: EntityId,
     pub test_id: EntityId,
     pub signal_type: SignalType,
     pub timestamp: chrono::DateTime<chrono::Utc>,

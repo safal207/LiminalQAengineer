@@ -1,0 +1,21 @@
+{
+  "run_id": "01HJQKX8K9N7P6R5S3T2V1W0XY",
+  "artifacts": [
+    {
+      "test_name": "test_dashboard_load",
+      "kind": "screenshot",
+      "path_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "path": "/var/liminal/runs/01HJQKX8K9N7P6R5S3T2V1W0XY/screenshots/test_dashboard_load_fail.png",
+      "size_bytes": 245678,
+      "mime_type": "image/png"
+    },
+    {
+      "test_name": "test_dashboard_load",
+      "kind": "api_response",
+      "path_sha256": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+      "path": "/var/liminal/runs/01HJQKX8K9N7P6R5S3T2V1W0XY/api/dashboard_widgets_504.json",
+      "size_bytes": 156,
+      "mime_type": "application/json"
+    }
+  ]
+}

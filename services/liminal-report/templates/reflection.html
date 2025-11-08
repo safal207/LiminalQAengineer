@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflection Report — {{plan_name}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1a1a1a;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 2rem;
+            border-bottom: 4px solid #667eea;
+        }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+        .content {
+            padding: 2rem;
+        }
+        .section {
+            margin-bottom: 2.5rem;
+        }
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #16213e;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #667eea;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .meta-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .meta-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-bottom: 0.25rem;
+        }
+        .meta-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .summary-card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-card.pass { border-top: 4px solid #28a745; }
+        .summary-card.fail { border-top: 4px solid #dc3545; }
+        .summary-card.flake { border-top: 4px solid #ffc107; }
+        .summary-card.timeout { border-top: 4px solid #fd7e14; }
+        .summary-card.skip { border-top: 4px solid #6c757d; }
+        .summary-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+        .summary-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+        .pass-rate {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .pass-rate-value {
+            font-size: 4rem;
+            font-weight: 700;
+        }
+        .pass-rate-label {
+            font-size: 1.25rem;
+            opacity: 0.9;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-badge.pass { background: #d4edda; color: #155724; }
+        .status-badge.fail { background: #f8d7da; color: #721c24; }
+        .status-badge.flake { background: #fff3cd; color: #856404; }
+        .status-badge.timeout { background: #ffe5cc; color: #cc5500; }
+        .status-badge.skip { background: #e2e3e5; color: #383d41; }
+        .causality-trail {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #dc3545;
+        }
+        .trail-header {
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 1rem;
+        }
+        .signal {
+            background: white;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid #667eea;
+        }
+        .signal-time {
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
+        .signal-kind {
+            font-weight: 600;
+            color: #667eea;
+        }
+        footer {
+            background: #f8f9fa;
+            padding: 1.5rem 2rem;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 Reflection Report</h1>
+            <p class="subtitle">LiminalQA — System of Awareness</p>
+        </header>
+
+        <div class="content">
+            <!-- Meta Information -->
+            <div class="meta-grid">
+                <div class="meta-card">
+                    <div class="meta-label">Plan</div>
+                    <div class="meta-value">{{plan_name}}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Run ID</div>
+                    <div class="meta-value" style="font-size: 0.875rem;">{{run_id}}</div>
+                </div>
+                <div class="meta-card">
+                    <div class="meta-label">Started</div>
+                    <div class="meta-value" style="font-size: 1rem;">{{started_at}}</div>
+                </div>
+                {{#if duration}}
+                <div class="meta-card">
+                    <div class="meta-label">Duration</div>
+                    <div class="meta-value">{{duration}}</div>
+                </div>
+                {{/if}}
+            </div>
+
+            <!-- Pass Rate -->
+            <div class="pass-rate">
+                <div class="pass-rate-value">{{summary.pass_rate}}%</div>
+                <div class="pass-rate-label">Pass Rate</div>
+            </div>
+
+            <!-- Summary -->
+            <div class="section">
+                <h2 class="section-title">📊 Summary</h2>
+                <div class="summary-grid">
+                    <div class="summary-card pass">
+                        <div class="summary-label">Passed</div>
+                        <div class="summary-value">{{summary.passed}}</div>
+                    </div>
+                    <div class="summary-card fail">
+                        <div class="summary-label">Failed</div>
+                        <div class="summary-value">{{summary.failed}}</div>
+                    </div>
+                    <div class="summary-card flake">
+                        <div class="summary-label">Flaky</div>
+                        <div class="summary-value">{{summary.flake}}</div>
+                    </div>
+                    <div class="summary-card timeout">
+                        <div class="summary-label">Timeout</div>
+                        <div class="summary-value">{{summary.timeout}}</div>
+                    </div>
+                    <div class="summary-card skip">
+                        <div class="summary-label">Skipped</div>
+                        <div class="summary-value">{{summary.skip}}</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Total</div>
+                        <div class="summary-value">{{summary.total}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Slow Tests -->
+            {{#if slow_tests}}
+            <div class="section">
+                <h2 class="section-title">🐌 Top Slow Tests</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Suite</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{#each slow_tests}}
+                        <tr>
+                            <td><code>{{this.name}}</code></td>
+                            <td>{{this.suite}}</td>
+                            <td>{{this.duration_sec}}</td>
+                            <td><span class="status-badge {{this.status_class}}">{{this.status}}</span></td>
+                        </tr>
+                        {{/each}}
+                    </tbody>
+                </table>
+            </div>
+            {{/if}}
+
+            <!-- Causality Trails -->
+            {{#if causality_trails}}
+            <div class="section">
+                <h2 class="section-title">🔍 Causality Trails</h2>
+                <p style="margin-bottom: 1rem; color: #6c757d;">
+                    Signals observed near test failures (±5 minutes)
+                </p>
+                {{#each causality_trails}}
+                <div class="causality-trail">
+                    <div class="trail-header">
+                        ❌ <code>{{this.test_name}}</code> failed at {{this.failed_at}}
+                    </div>
+                    {{#each this.signals}}
+                    <div class="signal">
+                        <span class="signal-kind">{{this.kind}}</span>
+                        <span class="signal-time">at {{this.at}} ({{this.time_diff}})</span>
+                        {{#if this.value}}
+                        <span> • value: {{this.value}}</span>
+                        {{/if}}
+                    </div>
+                    {{/each}}
+                </div>
+                {{/each}}
+            </div>
+            {{/if}}
+        </div>
+
+        <footer>
+            <div class="logo">LiminalQA</div>
+            <p>Превращаем QA в систему памяти и причинности</p>
+        </footer>
+    </div>
+</body>
+</html>

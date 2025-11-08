@@ -9,8 +9,10 @@ pub mod entities;
 pub mod facts;
 pub mod temporal;
 pub mod types;
+pub mod report;
 
 pub use entities::*;
 pub use facts::*;
 pub use temporal::*;
 pub use types::*;
+pub use report::*;
