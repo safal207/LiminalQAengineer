@@ -103,48 +103,88 @@ pub struct IngestHttp {
     url: String,
     token: String,
     client: reqwest::Client,
+    max_retries: u32,
 }
 
 impl IngestHttp {
     pub fn new(url: String, token: String) -> Self {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .pool_max_idle_per_host(10)
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { url, token, client }
+        Self {
+            url,
+            token,
+            client,
+            max_retries: 3,
+        }
+    }
+
+    fn is_retryable_error(status: reqwest::StatusCode) -> bool {
+        // Retry on 5xx server errors and 429 rate limiting
+        status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS
     }
 
     async fn post<T: Serialize>(&self, endpoint: &str, body: &T) -> Result<()> {
         let url = format!("{}{}", self.url, endpoint);
-        debug!("POST {}", url);
+        let mut attempt = 0;
 
-        let resp = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .json(body)
-            .send()
-            .await
-            .context(format!("Failed to POST {}", endpoint))?;
+        loop {
+            attempt += 1;
+            debug!("POST {} (attempt {}/{})", url, attempt, self.max_retries + 1);
 
-        if !resp.status().is_success() {
+            let resp = match self
+                .client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.token))
+                .json(body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) if attempt <= self.max_retries => {
+                    let backoff_ms = 2u64.pow(attempt - 1) * 1000; // Exponential: 1s, 2s, 4s
+                    debug!("Request failed: {}. Retrying in {}ms...", e, backoff_ms);
+                    tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                    continue;
+                }
+                Err(e) => {
+                    return Err(e).context(format!("Failed to POST {} after {} attempts", endpoint, attempt));
+                }
+            };
+
             let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            anyhow::bail!("HTTP {} {}: {}", status, endpoint, text);
-        }
 
-        let result: serde_json::Value = resp.json().await?;
-        if !result.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
-            let error = result
-                .get("error")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown error");
-            anyhow::bail!("Ingest failed: {}", error);
-        }
+            // Check if we should retry
+            if !status.is_success() {
+                let text = resp.text().await.unwrap_or_default();
 
-        debug!("POST {} succeeded", endpoint);
-        Ok(())
+                if Self::is_retryable_error(status) && attempt <= self.max_retries {
+                    let backoff_ms = 2u64.pow(attempt - 1) * 1000;
+                    debug!("HTTP {} {}. Retrying in {}ms...", status, endpoint, backoff_ms);
+                    tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                    continue;
+                } else {
+                    anyhow::bail!("HTTP {} {}: {}", status, endpoint, text);
+                }
+            }
+
+            // Success - parse response
+            let result: serde_json::Value = resp.json().await?;
+            if !result.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+                let error = result
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown error");
+                anyhow::bail!("Ingest failed: {}", error);
+            }
+
+            debug!("POST {} succeeded (attempt {})", endpoint, attempt);
+            return Ok(());
+        }
     }
 }
 
