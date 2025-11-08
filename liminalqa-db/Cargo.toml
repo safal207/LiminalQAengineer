@@ -16,3 +16,6 @@ anyhow.workspace = true
 sled.workspace = true
 bincode.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

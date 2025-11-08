@@ -102,7 +102,8 @@ impl LiminalDB {
     pub fn put_fact(&self, fact: &Fact) -> Result<()> {
         let fact_id = EntityId::new();
         let key = fact_id.to_bytes();
-        let value = bincode::serialize(fact)?;
+        // Use JSON for facts because Fact contains serde_json::Value which bincode can't handle
+        let value = serde_json::to_vec(fact)?;
 
         self.facts.insert(&key, value)?;
 
@@ -171,6 +172,61 @@ impl LiminalDB {
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
         Ok(())
+    }
+
+    /// Scan all facts (unfiltered)
+    pub fn scan_facts(&self) -> Result<Vec<Fact>> {
+        let mut facts = Vec::new();
+        for item in self.facts.iter() {
+            let (_, value) = item?;
+            let fact: Fact = serde_json::from_slice(&value)?;
+            facts.push(fact);
+        }
+        Ok(facts)
+    }
+
+    /// Scan facts for specific entities
+    pub fn scan_facts_by_entities(&self, entity_ids: &[EntityId]) -> Result<Vec<Fact>> {
+        let mut facts = Vec::new();
+        for item in self.facts.iter() {
+            let (_, value) = item?;
+            let fact: Fact = serde_json::from_slice(&value)?;
+            if entity_ids.contains(&fact.entity_id) {
+                facts.push(fact);
+            }
+        }
+        Ok(facts)
+    }
+
+    /// Scan facts within valid_time range
+    pub fn scan_facts_by_valid_time(
+        &self,
+        start_ms: i64,
+        end_ms: Option<i64>,
+    ) -> Result<Vec<Fact>> {
+        let mut facts = Vec::new();
+
+        // Scan all items in the valid_time_index and filter by range
+        for item in self.valid_time_index.iter() {
+            let (key, fact_key) = item?;
+            let key_str = String::from_utf8_lossy(&key);
+
+            // Parse timestamp from key: "{timestamp}:{entity_id}:{fact_id}"
+            if let Some(ts_str) = key_str.split(':').next() {
+                if let Ok(ts) = ts_str.parse::<i64>() {
+                    // Check if timestamp is in range
+                    if ts >= start_ms && end_ms.map_or(true, |end| ts <= end) {
+                        // Get the actual fact
+                        if let Some(fact_bytes) = self.facts.get(&fact_key)? {
+                            let fact: Fact = serde_json::from_slice(&fact_bytes)?;
+                            facts.push(fact);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(facts)
     }
 }
 

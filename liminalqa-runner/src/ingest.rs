@@ -1,9 +1,10 @@
 //! Ingest layer: send test data to storage
 
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use liminalqa_core::{entities::*, types::*};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tracing::{debug, info};
 
 /// Ingest mode configuration
@@ -27,17 +28,12 @@ impl Default for IngestConfig {
 }
 
 /// Unified ingest interface
+#[async_trait]
 pub trait Ingest: Send + Sync {
-    fn put_run(&self, run: &Run) -> impl std::future::Future<Output = Result<()>> + Send;
-    fn put_tests(&self, tests: &[Test]) -> impl std::future::Future<Output = Result<()>> + Send;
-    fn put_signals(
-        &self,
-        signals: &[Signal],
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
-    fn put_artifacts(
-        &self,
-        artifacts: &[Artifact],
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    async fn put_run(&self, run: &Run) -> Result<()>;
+    async fn put_tests(&self, tests: &[Test]) -> Result<()>;
+    async fn put_signals(&self, signals: &[Signal]) -> Result<()>;
+    async fn put_artifacts(&self, artifacts: &[Artifact]) -> Result<()>;
 }
 
 /// Create ingest from config
@@ -70,6 +66,7 @@ impl IngestFs {
     }
 }
 
+#[async_trait]
 impl Ingest for IngestFs {
     async fn put_run(&self, run: &Run) -> Result<()> {
         self.write_json(&run.id, "run.json", run)
@@ -151,6 +148,7 @@ impl IngestHttp {
     }
 }
 
+#[async_trait]
 impl Ingest for IngestHttp {
     async fn put_run(&self, run: &Run) -> Result<()> {
         #[derive(Serialize)]
