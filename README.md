@@ -51,24 +51,20 @@ Guidance → Co-Navigation → Inner Council → Reflection
 
 ## 🚀 Быстрый старт
 
-### MVP-1: Полнофункциональный стек (5 минут)
+### Docker-развертывание (рекомендуется)
+
+Для решения проблем с компиляцией на Windows используйте Docker:
 
 ```bash
-# 1. Запустить все сервисы (PostgreSQL + Ingest + Selenium)
-docker compose -f deploy/docker-compose.mvp1.yml up -d
+# Сборка и запуск в Docker
+docker build -t liminalqa .
+docker run -it --rm -v $(pwd)/data:/app/data -v $(pwd)/reports:/app/reports liminalqa
 
-# 2. Запустить демо со встроенными данными
-cd scripts && ./demo.sh
-
-# 3. Сгенерировать HTML-отчёт
-docker run --rm --network liminal \
-  -e LIMINAL_PG_URL=postgres://liminal:liminal@pg:5432/liminal \
-  liminal-report <run-id> /tmp/report.html
+# Или с использованием docker-compose
+docker-compose up liminalqa-build
 ```
 
-**📖 Полная инструкция**: [MVP-1 Quickstart](docs/MVP1_QUICKSTART.md)
-
-### Разработка (локально)
+### Локальная разработка (Linux/macOS)
 
 ```bash
 # Инициализация проекта
@@ -87,6 +83,23 @@ cargo run --bin limctl -- list runs
 # Генерация отчёта
 cargo run --bin limctl -- report <run-id> --format html --output reports/latest.html
 ```
+
+### MVP-1: Полнофункциональный стек (5 минут)
+
+```bash
+# 1. Запустить все сервисы (PostgreSQL + Ingest + Selenium)
+docker compose -f deploy/docker-compose.mvp1.yml up -d
+
+# 2. Запустить демо со встроенными данными
+cd scripts && ./demo.sh
+
+# 3. Сгенерировать HTML-отчёт
+docker run --rm --network liminal \
+  -e LIMINAL_PG_URL=postgres://liminal:liminal@pg:5432/liminal \
+  liminal-report <run-id> /tmp/report.html
+```
+
+**📖 Полная инструкция**: [MVP-1 Quickstart](docs/MVP1_QUICKSTART.md)
 
 ## 📊 LIMINAL-DB
 

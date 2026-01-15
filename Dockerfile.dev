@@ -1,0 +1,31 @@
+FROM rust:1.90-bullseye
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    clang \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user
+RUN useradd -m -u 1000 developer
+
+# Set up cargo directory
+ENV CARGO_HOME=/home/developer/.cargo
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+
+WORKDIR /workspace
+
+# Change ownership of workspace to developer
+RUN chown -R developer:developer /workspace
+
+USER developer
+
+# Install stable toolchain
+RUN rustup component add rustfmt clippy
+
+# Set up shell
+RUN echo 'export PS1="\[\033[01;32m\][docker] \[\033[01;34m\]\w \$\[\033[00m\] "' >> ~/.bashrc
+
+CMD ["bash"]

@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  liminalqa-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: liminalqa-builder
+    volumes:
+      - .:/usr/src/app
+      - cargo-cache:/usr/local/cargo
+    working_dir: /usr/src/app
+    command: bash -c "cargo build --release && tail -f /dev/null"
+  
+  liminalqa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: liminalqa-runtime
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./plans:/app/plans
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  cargo-cache:
