@@ -12,7 +12,11 @@ path = "src/main.rs"
 liminalqa-core = { path = "../liminalqa-core" }
 liminalqa-db = { path = "../liminalqa-db" }
 liminalqa-runner = { path = "../liminalqa-runner" }
+serde_yaml = { version = "0.9" }
 
+async-trait = { version = "0.1" }
+
+# Use workspace dependencies where available
 tokio.workspace = true
 clap.workspace = true
 serde.workspace = true

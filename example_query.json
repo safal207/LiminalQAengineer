@@ -1,0 +1,11 @@
+{
+  "entity_ids": [
+    "01HXJNXG4NQQZM7SBHRS9SNZKY",
+    "01HXJNXG4NQQZM7SBHRS9SNZKZ"
+  ],
+  "valid_time_range": {
+    "start": "2024-01-01T00:00:00Z",
+    "end": "2024-12-31T23:59:59Z"
+  },
+  "limit": 100
+}

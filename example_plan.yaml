@@ -1,0 +1,19 @@
+# LiminalQA Test Plan Example
+name: example-tests
+environment:
+  name: development
+  config:
+    base_url: "http://localhost:8080"
+
+tests:
+  - name: health_check
+    suite: smoke
+    guidance: "Application health endpoint should return OK status"
+  
+  - name: login_page_loads
+    suite: ui
+    guidance: "Login page should load without errors"
+  
+  - name: api_endpoint_responds
+    suite: api
+    guidance: "Main API endpoint should return valid response"
