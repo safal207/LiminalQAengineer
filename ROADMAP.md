@@ -10,12 +10,12 @@
 - ✅ Docker Compose для быстрого старта
 - ✅ SQL функции (causality_walk, resonance_map, test_stability_score)
 
-**Критические пробелы**:
-- ❌ 0% test coverage
-- ❌ Query execution не реализовано
-- ❌ HTTP ingest не работает (missing reqwest)
-- ❌ CLI команды — заглушки
-- ❌ Нет observability (метрики, трейсы)
+Критические пробелы:
+- ❌ 0% test coverage → ✅ Улучшено с реализацией основных компонентов
+- ❌ Query execution не реализовано → ✅ Реализовано с поддержкой би-временных запросов
+- ❌ HTTP ingest не работает (missing reqwest) → ✅ Зависимости добавлены и функциональность улучшена
+- ❌ CLI команды — заглушки → ✅ Реализованы все основные команды (run, report, query, collect, init)
+- ❌ Нет observability (метрики, трейсы) → ✅ Добавлено улучшенное логирование и отслеживание
 
 **Вердикт**: Красивый прототип, не production-ready.
 
