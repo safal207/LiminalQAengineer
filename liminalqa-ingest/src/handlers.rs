@@ -364,7 +364,16 @@ pub async fn ingest_signals(
         let test_id = match item.test_id {
             Some(id) => id,
             None => {
-                let test_name = item.test_name.as_ref().unwrap(); // Safe because of validation above
+                let test_name = match item.test_name.as_ref() {
+                    Some(name) => name,
+                    None => {
+                        error!("Neither test_id nor test_name provided for signal");
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ApiResponse::error("Either test_id or test_name must be provided")),
+                        );
+                    }
+                };
 
                 match state.db.find_test_by_name(dto.run_id, test_name) {
                     Ok(Some(id)) => {
@@ -444,7 +453,16 @@ pub async fn ingest_artifacts(
         let test_id = match item.test_id {
             Some(id) => id,
             None => {
-                let test_name = item.test_name.as_ref().unwrap(); // Safe due to validation
+                let test_name = match item.test_name.as_ref() {
+                    Some(name) => name,
+                    None => {
+                        error!("Neither test_id nor test_name provided for artifact");
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ApiResponse::error("Either test_id or test_name must be provided")),
+                        );
+                    }
+                };
 
                 match state.db.find_test_by_name(dto.run_id, test_name) {
                     Ok(Some(id)) => {
