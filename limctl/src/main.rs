@@ -10,8 +10,6 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use comfy_table::{modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL, Table};
-use liminalqa_core::{entities::*, types::*};
 use liminalqa_db::LiminalDB;
 use std::path::PathBuf;
 use tracing::Level;

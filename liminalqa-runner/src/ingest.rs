@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use liminalqa_core::{entities::*, types::*};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Ingest mode configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

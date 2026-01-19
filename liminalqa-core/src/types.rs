@@ -23,6 +23,12 @@ pub enum TestStatus {
     Skip,
 }
 
+impl TestStatus {
+    pub fn is_pass(&self) -> bool {
+        matches!(self, Self::Pass)
+    }
+}
+
 /// Signal type classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

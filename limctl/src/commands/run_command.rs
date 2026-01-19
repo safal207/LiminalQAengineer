@@ -57,7 +57,7 @@ pub async fn execute(db: &LiminalDB, plan_path: &Path) -> Result<()> {
     println!("✅ Created run: {}", run.id);
     
     // Execute tests
-    let runner = TestRunner::new(run_id);
+    let _runner = TestRunner::new(run_id);
     let mut results = Vec::new();
     
     for test_def in plan.tests {

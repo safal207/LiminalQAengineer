@@ -1,7 +1,6 @@
 //! Report command
 
 use anyhow::{Context, Result};
-use comfy_table::{modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL, Table};
 use liminalqa_core::{
     entities::{EntityType, Run, Test},
     types::EntityId,
@@ -9,7 +8,6 @@ use liminalqa_core::{
 use liminalqa_db::LiminalDB;
 use std::path::PathBuf;
 use std::fs;
-use chrono::{DateTime, Utc};
 
 pub async fn execute(
     db: &LiminalDB,
@@ -20,7 +18,7 @@ pub async fn execute(
     println!("📊 Generating reflection report for run: {}", run_id);
     println!("   Format: {:?}", format);
 
-    if let Some(path) = output {
+    if let Some(ref path) = output {
         println!("   Output: {}", path.display());
     }
 
