@@ -2,8 +2,9 @@
 
 use anyhow::Result;
 use axum::{
-    extract::State,
-    http::StatusCode,
+    extract::{Request, State},
+    http::{header, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -22,6 +23,7 @@ use handlers::*;
 #[derive(Clone)]
 struct AppState {
     db: Arc<LiminalDB>,
+    auth_token: Option<String>,
 }
 
 #[tokio::main]
@@ -42,16 +44,34 @@ async fn main() -> Result<()> {
     info!("Opening database at: {}", db_path);
     let db = LiminalDB::open(PathBuf::from(db_path))?;
 
-    let state = AppState { db: Arc::new(db) };
+    let auth_token = std::env::var("LIMINAL_AUTH_TOKEN").ok();
+    if auth_token.is_none() {
+        tracing::error!(
+            "LIMINAL_AUTH_TOKEN not set! Authentication is DISABLED. \
+            This is a SECURITY RISK in production. Set LIMINAL_AUTH_TOKEN \
+            environment variable to enable authentication."
+        );
+        // In production, consider making this a hard error:
+        // return Err(anyhow::anyhow!("LIMINAL_AUTH_TOKEN must be set"));
+    }
+
+    let state = AppState {
+        db: Arc::new(db),
+        auth_token,
+    };
 
     // Build router
     let app = Router::new()
-        .route("/health", get(health_check))
         .route("/ingest/run", post(ingest_run))
         .route("/ingest/tests", post(ingest_tests))
         .route("/ingest/signals", post(ingest_signals))
         .route("/ingest/artifacts", post(ingest_artifacts))
         .route("/query", post(query_handler))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
+        .route("/health", get(health_check))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -74,23 +94,53 @@ async fn health_check() -> impl IntoResponse {
     }))
 }
 
+async fn auth_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse>)> {
+    if let Some(ref expected_token) = state.auth_token {
+        let auth_header = req
+            .headers()
+            .get(header::AUTHORIZATION)
+            .and_then(|h| h.to_str().ok());
+
+        let authenticated = match auth_header {
+            Some(auth_str) if auth_str.starts_with("Bearer ") => {
+                let token = &auth_str[7..];
+                token == expected_token
+            }
+            _ => false,
+        };
+
+        if !authenticated {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(ApiResponse::error("Unauthorized: Invalid or missing token")),
+            ));
+        }
+    }
+
+    Ok(next.run(req).await)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
-struct ApiResponse {
-    success: bool,
-    message: String,
+pub struct ApiResponse {
+    pub ok: bool,
+    pub message: String,
 }
 
 impl ApiResponse {
-    fn ok(message: impl Into<String>) -> Self {
+    pub fn ok(message: impl Into<String>) -> Self {
         Self {
-            success: true,
+            ok: true,
             message: message.into(),
         }
     }
 
-    fn error(message: impl Into<String>) -> Self {
+    pub fn error(message: impl Into<String>) -> Self {
         Self {
-            success: false,
+            ok: false,
             message: message.into(),
         }
     }
