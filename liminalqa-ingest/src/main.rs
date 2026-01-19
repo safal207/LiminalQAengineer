@@ -59,6 +59,7 @@ async fn main() -> Result<()> {
         .route("/ingest/tests", post(ingest_tests))
         .route("/ingest/signals", post(ingest_signals))
         .route("/ingest/artifacts", post(ingest_artifacts))
+        .route("/ingest/batch", post(ingest_batch))
         .route("/query", post(query_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),
