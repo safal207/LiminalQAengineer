@@ -8,6 +8,8 @@ license.workspace = true
 name = "liminalqa-ingest"
 path = "src/main.rs"
 
+[dev-dependencies]
+tempfile = "3"
 [dependencies]
 liminalqa-core = { path = "../liminalqa-core" }
 liminalqa-db = { path = "../liminalqa-db" }

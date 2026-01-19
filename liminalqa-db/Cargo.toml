@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+moka = { version = "0.12", features = ["sync"] }
 liminalqa-core = { path = "../liminalqa-core" }
 
 serde.workspace = true

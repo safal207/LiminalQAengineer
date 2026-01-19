@@ -1,8 +1,9 @@
 //! Storage layer implementation
 
 use anyhow::{Context, Result};
+use moka::sync::Cache;
 use liminalqa_core::{
-    entities::*, facts::*, temporal::BiTemporalTime, types::EntityId,
+    entities::*, facts::*, types::EntityId,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -17,6 +18,10 @@ pub struct LiminalDB {
     valid_time_index: sled::Tree,
     tx_time_index: sled::Tree,
     entity_type_index: sled::Tree,
+    idx_run_test_name: sled::Tree,
+
+    // Caches
+    test_lookup_cache: Cache<(EntityId, String), EntityId>,
 }
 
 impl LiminalDB {
@@ -32,6 +37,7 @@ impl LiminalDB {
         let valid_time_index = db.open_tree("idx_valid_time")?;
         let tx_time_index = db.open_tree("idx_tx_time")?;
         let entity_type_index = db.open_tree("idx_entity_type")?;
+        let idx_run_test_name = db.open_tree("idx_run_test_name")?;
 
         Ok(Self {
             db,
@@ -40,6 +46,8 @@ impl LiminalDB {
             valid_time_index,
             tx_time_index,
             entity_type_index,
+            idx_run_test_name,
+            test_lookup_cache: Cache::new(1000),
         })
     }
 
@@ -60,7 +68,69 @@ impl LiminalDB {
 
     /// Store a test entity
     pub fn put_test(&self, test: &Test) -> Result<()> {
-        self.put_entity(EntityType::Test, test.id, test)
+        self.put_entity(EntityType::Test, test.id, test)?;
+
+        // Index: (run_id, test_name) -> test_id
+        // Key format: "{run_id}:{test_name}"
+        let index_key = format!("{}:{}", test.run_id, test.name);
+        self.idx_run_test_name.insert(index_key.as_bytes(), &test.id.to_bytes())?;
+
+        // Update in-memory cache
+        self.test_lookup_cache.insert((test.run_id, test.name.clone()), test.id);
+
+        Ok(())
+    }
+
+    /// Find a test by run_id and name
+    pub fn find_test_by_name(
+        &self,
+        run_id: EntityId,
+        test_name: &str
+    ) -> Result<Option<EntityId>> {
+        // Check cache first
+        if let Some(id) = self.test_lookup_cache.get(&(run_id, test_name.to_string())) {
+            return Ok(Some(id));
+        }
+
+        // Check index
+        let index_key = format!("{}:{}", run_id, test_name);
+        match self.idx_run_test_name.get(index_key.as_bytes())? {
+            Some(bytes) => {
+                let id_bytes: [u8; 16] = bytes.as_ref().try_into()
+                    .context("Invalid ID length in index")?;
+                let id = EntityId::from_bytes(id_bytes);
+                // Populate cache
+                self.test_lookup_cache.insert((run_id, test_name.to_string()), id);
+                Ok(Some(id))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Create a placeholder test when lookup fails
+    pub fn create_placeholder_test(&self, run_id: EntityId, name: &str) -> Result<EntityId> {
+        // Double check if it exists (race condition)
+        if let Some(id) = self.find_test_by_name(run_id, name)? {
+            return Ok(id);
+        }
+
+        let test = Test {
+            id: EntityId::new(),
+            run_id,
+            name: name.to_string(),
+            suite: "placeholder".to_string(),
+            guidance: "Auto-created placeholder for missing test definition".to_string(),
+            status: liminalqa_core::types::TestStatus::Skip,
+            duration_ms: 0,
+            error: None,
+            started_at: chrono::Utc::now(),
+            completed_at: chrono::Utc::now(),
+            created_at: liminalqa_core::temporal::BiTemporalTime::now(),
+        };
+
+        self.put_test(&test)?;
+        info!("Created placeholder test: name={}, id={}", name, test.id);
+        Ok(test.id)
     }
 
     /// Store an artifact entity
@@ -272,6 +342,43 @@ mod tests {
         let retrieved: Option<Test> = db.get_entity(test.id)?;
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name, "test_login");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_test_by_name() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let db = LiminalDB::open(temp_dir.path())?;
+
+        let run_id = EntityId::new();
+        let test = Test {
+            id: EntityId::new(),
+            run_id,
+            name: "test_lookup".to_string(),
+            suite: "core".to_string(),
+            guidance: "".to_string(),
+            status: liminalqa_core::types::TestStatus::Pass,
+            duration_ms: 100,
+            error: None,
+            started_at: chrono::Utc::now(),
+            completed_at: chrono::Utc::now(),
+            created_at: BiTemporalTime::now(),
+        };
+
+        db.put_test(&test)?;
+
+        // Lookup
+        let found_id = db.find_test_by_name(run_id, "test_lookup")?;
+        assert_eq!(found_id, Some(test.id));
+
+        // Cache hit test (implicit, but covered)
+        let found_id_2 = db.find_test_by_name(run_id, "test_lookup")?;
+        assert_eq!(found_id_2, Some(test.id));
+
+        // Not found
+        let not_found = db.find_test_by_name(run_id, "non_existent")?;
+        assert_eq!(not_found, None);
 
         Ok(())
     }
