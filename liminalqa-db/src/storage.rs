@@ -17,6 +17,7 @@ pub struct LiminalDB {
     valid_time_index: sled::Tree,
     tx_time_index: sled::Tree,
     entity_type_index: sled::Tree,
+    test_name_index: sled::Tree,
 }
 
 impl LiminalDB {
@@ -32,6 +33,7 @@ impl LiminalDB {
         let valid_time_index = db.open_tree("idx_valid_time")?;
         let tx_time_index = db.open_tree("idx_tx_time")?;
         let entity_type_index = db.open_tree("idx_entity_type")?;
+        let test_name_index = db.open_tree("idx_test_name")?;
 
         Ok(Self {
             db,
@@ -40,6 +42,7 @@ impl LiminalDB {
             valid_time_index,
             tx_time_index,
             entity_type_index,
+            test_name_index,
         })
     }
 
@@ -60,7 +63,39 @@ impl LiminalDB {
 
     /// Store a test entity
     pub fn put_test(&self, test: &Test) -> Result<()> {
-        self.put_entity(EntityType::Test, test.id, test)
+        self.put_entity(EntityType::Test, test.id, test)?;
+
+        // Create secondary index for name lookup
+        let index_key = format!("idx:test_name:{}:{}", test.run_id, test.name);
+        self.test_name_index.insert(index_key.as_bytes(), &test.id.to_bytes())?;
+
+        Ok(())
+    }
+
+    /// Find test ID by name within a specific run
+    ///
+    /// # Arguments
+    /// * `run_id` - The run to search within
+    /// * `test_name` - The name of the test
+    ///
+    /// # Returns
+    /// * `Ok(Some(test_id))` - Test found
+    /// * `Ok(None)` - Test not found
+    /// * `Err(_)` - Database error
+    pub fn find_test_by_name(
+        &self,
+        run_id: EntityId,
+        test_name: &str,
+    ) -> Result<Option<EntityId>> {
+        let index_key = format!("idx:test_name:{}:{}", run_id, test_name);
+
+        match self.test_name_index.get(index_key.as_bytes())? {
+            Some(test_id_bytes) => {
+                let test_id = EntityId::from_bytes(test_id_bytes.as_ref().try_into()?);
+                Ok(Some(test_id))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Store an artifact entity
@@ -272,6 +307,97 @@ mod tests {
         let retrieved: Option<Test> = db.get_entity(test.id)?;
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name, "test_login");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lookup_by_name_success() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let db = LiminalDB::open(temp_dir.path())?;
+
+        let run_id = EntityId::new();
+        let test = Test {
+            id: EntityId::new(),
+            run_id,
+            name: "test_user_login".to_string(),
+            suite: "auth".to_string(),
+            guidance: "User should be able to log in".to_string(),
+            status: liminalqa_core::types::TestStatus::Pass,
+            duration_ms: 100,
+            error: None,
+            started_at: chrono::Utc::now(),
+            completed_at: chrono::Utc::now(),
+            created_at: BiTemporalTime::now(),
+        };
+
+        db.put_test(&test)?;
+
+        // Lookup should succeed
+        let found = db.find_test_by_name(run_id, "test_user_login")?;
+        assert_eq!(found, Some(test.id));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lookup_by_name_not_found() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let db = LiminalDB::open(temp_dir.path())?;
+
+        let run_id = EntityId::new();
+        let found = db.find_test_by_name(run_id, "nonexistent")?;
+        assert_eq!(found, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lookup_different_runs_same_name() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let db = LiminalDB::open(temp_dir.path())?;
+
+        let run1 = EntityId::new();
+        let run2 = EntityId::new();
+
+        let test1 = Test {
+            id: EntityId::new(),
+            run_id: run1,
+            name: "shared_name".to_string(),
+            suite: "suite1".to_string(),
+            guidance: "".to_string(),
+            status: liminalqa_core::types::TestStatus::Pass,
+            duration_ms: 100,
+            error: None,
+            started_at: chrono::Utc::now(),
+            completed_at: chrono::Utc::now(),
+            created_at: BiTemporalTime::now(),
+        };
+
+        let test2 = Test {
+            id: EntityId::new(),
+            run_id: run2,
+            name: "shared_name".to_string(),
+            suite: "suite2".to_string(),
+            guidance: "".to_string(),
+            status: liminalqa_core::types::TestStatus::Pass,
+            duration_ms: 200,
+            error: None,
+            started_at: chrono::Utc::now(),
+            completed_at: chrono::Utc::now(),
+            created_at: BiTemporalTime::now(),
+        };
+
+        db.put_test(&test1)?;
+        db.put_test(&test2)?;
+
+        // Same name in different runs should resolve to different test_ids
+        let found1 = db.find_test_by_name(run1, "shared_name")?;
+        let found2 = db.find_test_by_name(run2, "shared_name")?;
+
+        assert_eq!(found1, Some(test1.id));
+        assert_eq!(found2, Some(test2.id));
+        assert_ne!(test1.id, test2.id);
 
         Ok(())
     }

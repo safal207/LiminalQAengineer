@@ -16,15 +16,8 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-mod handlers;
-
-use handlers::*;
-
-#[derive(Clone)]
-struct AppState {
-    db: Arc<LiminalDB>,
-    auth_token: Option<String>,
-}
+use liminalqa_ingest::handlers::*;
+use liminalqa_ingest::{ApiResponse, AppState};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -124,24 +117,3 @@ async fn auth_middleware(
     Ok(next.run(req).await)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ApiResponse {
-    pub ok: bool,
-    pub message: String,
-}
-
-impl ApiResponse {
-    pub fn ok(message: impl Into<String>) -> Self {
-        Self {
-            ok: true,
-            message: message.into(),
-        }
-    }
-
-    pub fn error(message: impl Into<String>) -> Self {
-        Self {
-            ok: false,
-            message: message.into(),
-        }
-    }
-}
