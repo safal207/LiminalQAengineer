@@ -1,0 +1,41 @@
+name: 📈 Performance Tracking
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  benchmark:
+    name: ⚡ Run Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 💾 Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: ⚡ Run benchmarks
+        run: cargo bench --workspace -- --output-format bencher | tee output.txt
+
+      - name: 📊 Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          # Alert if performance regresses by 20%
+          alert-threshold: '120%'
+          comment-on-alert: true
+          fail-on-alert: false
+
+      - name: 📈 Performance report
+        run: |
+          echo "## ⚡ Performance Benchmarks" >> $GITHUB_STEP_SUMMARY
+          cat output.txt >> $GITHUB_STEP_SUMMARY

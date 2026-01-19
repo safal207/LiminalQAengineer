@@ -4,7 +4,10 @@ use std::collections::HashMap;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use liminalqa_core::{entities::*, temporal::BiTemporalTime, types::*};
-use liminalqa_db::{LiminalDB, query::{Query, QueryResult}};
+use liminalqa_db::{
+    query::{Query, QueryResult},
+    LiminalDB,
+};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
@@ -117,7 +120,9 @@ pub struct BatchCounts {
 // --- Helper Functions ---
 
 fn create_run_from_dto(dto: &RunDto) -> Result<Run, String> {
-    let env = match serde_json::from_value::<std::collections::HashMap<String, String>>(dto.env.clone()) {
+    let env = match serde_json::from_value::<std::collections::HashMap<String, String>>(
+        dto.env.clone(),
+    ) {
         Ok(env) => env,
         Err(e) => return Err(format!("Invalid env format: {}", e)),
     };
@@ -129,7 +134,10 @@ fn create_run_from_dto(dto: &RunDto) -> Result<Run, String> {
         env,
         started_at: dto.started_at,
         ended_at: None,
-        runner_version: dto.runner_version.clone().unwrap_or_else(|| "unknown".to_string()),
+        runner_version: dto
+            .runner_version
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string()),
         liminal_os_version: None,
         created_at: BiTemporalTime::now(),
     })
@@ -153,7 +161,10 @@ fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> Test {
         guidance: item.guidance.clone().unwrap_or_default(),
         status,
         duration_ms: item.duration_ms.unwrap_or(0) as u64,
-        error: item.error.as_ref().and_then(|e| serde_json::from_value(e.clone()).ok()),
+        error: item
+            .error
+            .as_ref()
+            .and_then(|e| serde_json::from_value(e.clone()).ok()),
         started_at: item.started_at.unwrap_or_else(chrono::Utc::now),
         completed_at: item.completed_at.unwrap_or_else(chrono::Utc::now),
         created_at: BiTemporalTime::now(),
@@ -171,7 +182,9 @@ fn create_signal_from_dto(run_id: EntityId, test_id: EntityId, item: &SignalDtoI
         _ => SignalType::System,
     };
 
-    let metadata = item.meta.as_ref()
+    let metadata = item
+        .meta
+        .as_ref()
         .and_then(|m| serde_json::from_value(m.clone()).ok())
         .unwrap_or_default();
 
@@ -188,7 +201,11 @@ fn create_signal_from_dto(run_id: EntityId, test_id: EntityId, item: &SignalDtoI
     }
 }
 
-fn create_artifact_from_dto(run_id: EntityId, test_id: EntityId, item: &ArtifactDtoItem) -> Artifact {
+fn create_artifact_from_dto(
+    run_id: EntityId,
+    test_id: EntityId,
+    item: &ArtifactDtoItem,
+) -> Artifact {
     let artifact_type = match item.kind.to_lowercase().as_str() {
         "screenshot" => ArtifactType::Screenshot,
         "apiresponse" => ArtifactType::ApiResponse,
@@ -206,7 +223,11 @@ fn create_artifact_from_dto(run_id: EntityId, test_id: EntityId, item: &Artifact
         artifact_ref: ArtifactRef {
             sha256: item.path_sha256.clone(),
             path: item.path.clone(),
-            size_bytes: item.size_bytes.filter(|&v| v >= 0).map(|v| v as u64).unwrap_or(0),
+            size_bytes: item
+                .size_bytes
+                .filter(|&v| v >= 0)
+                .map(|v| v as u64)
+                .unwrap_or(0),
             mime_type: item.mime_type.clone(),
         },
         artifact_type,
@@ -256,7 +277,10 @@ fn resolve_test_id(
                         counts: BatchCounts::default(),
                         test_id_map: None,
                         partial_counts: Some(current_counts.clone()),
-                        error_details: Some(format!("Test '{}' not found in batch or database", name)),
+                        error_details: Some(format!(
+                            "Test '{}' not found in batch or database",
+                            name
+                        )),
                     }),
                 )),
                 Err(e) => Err((
@@ -271,10 +295,9 @@ fn resolve_test_id(
                     }),
                 )),
             }
-        }
+        },
     }
 }
-
 
 // --- Handlers ---
 
@@ -294,19 +317,16 @@ pub async fn ingest_run(
                     StatusCode::OK,
                     Json(ApiResponse::ok("Run ingested successfully")),
                 )
-            }
+            },
             Err(e) => {
                 error!("Failed to ingest run: {}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ApiResponse::error(format!("Failed to ingest run: {}", e))),
                 )
-            }
+            },
         },
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::error(e)),
-        ),
+        Err(e) => (StatusCode::BAD_REQUEST, Json(ApiResponse::error(e))),
     }
 }
 
@@ -370,21 +390,20 @@ pub async fn ingest_signals(
                         error!("Neither test_id nor test_name provided for signal");
                         return (
                             StatusCode::BAD_REQUEST,
-                            Json(ApiResponse::error("Either test_id or test_name must be provided")),
+                            Json(ApiResponse::error(
+                                "Either test_id or test_name must be provided",
+                            )),
                         );
-                    }
+                    },
                 };
 
                 match state.db.find_test_by_name(dto.run_id, test_name) {
                     Ok(Some(id)) => {
                         info!("Resolved test_id {} for test '{}'", id, test_name);
                         id
-                    }
+                    },
                     Ok(None) => {
-                        error!(
-                            "Test '{}' not found in run {}",
-                            test_name, dto.run_id
-                        );
+                        error!("Test '{}' not found in run {}", test_name, dto.run_id);
                         return (
                             StatusCode::NOT_FOUND,
                             Json(ApiResponse::error(format!(
@@ -392,18 +411,19 @@ pub async fn ingest_signals(
                                 test_name, dto.run_id
                             ))),
                         );
-                    }
+                    },
                     Err(e) => {
                         error!("Database error during test lookup: {}", e);
                         return (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             Json(ApiResponse::error(format!(
-                                "Database error during test lookup: {}", e
+                                "Database error during test lookup: {}",
+                                e
                             ))),
                         );
-                    }
+                    },
                 }
-            }
+            },
         };
 
         let signal = create_signal_from_dto(dto.run_id, test_id, item);
@@ -412,7 +432,10 @@ pub async fn ingest_signals(
             error!("Failed to ingest signal: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::error(format!("Failed to ingest signal: {}", e))),
+                Json(ApiResponse::error(format!(
+                    "Failed to ingest signal: {}",
+                    e
+                ))),
             );
         }
     }
@@ -459,21 +482,20 @@ pub async fn ingest_artifacts(
                         error!("Neither test_id nor test_name provided for artifact");
                         return (
                             StatusCode::BAD_REQUEST,
-                            Json(ApiResponse::error("Either test_id or test_name must be provided")),
+                            Json(ApiResponse::error(
+                                "Either test_id or test_name must be provided",
+                            )),
                         );
-                    }
+                    },
                 };
 
                 match state.db.find_test_by_name(dto.run_id, test_name) {
                     Ok(Some(id)) => {
                         info!("Resolved test_id {} for test '{}'", id, test_name);
                         id
-                    }
+                    },
                     Ok(None) => {
-                        error!(
-                            "Test '{}' not found in run {}",
-                            test_name, dto.run_id
-                        );
+                        error!("Test '{}' not found in run {}", test_name, dto.run_id);
                         return (
                             StatusCode::NOT_FOUND,
                             Json(ApiResponse::error(format!(
@@ -481,18 +503,19 @@ pub async fn ingest_artifacts(
                                 test_name, dto.run_id
                             ))),
                         );
-                    }
+                    },
                     Err(e) => {
                         error!("Database error during test lookup: {}", e);
                         return (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             Json(ApiResponse::error(format!(
-                                "Database error during test lookup: {}", e
+                                "Database error during test lookup: {}",
+                                e
                             ))),
                         );
-                    }
+                    },
                 }
-            }
+            },
         };
 
         let artifact = create_artifact_from_dto(dto.run_id, test_id, item);
@@ -501,7 +524,10 @@ pub async fn ingest_artifacts(
             error!("Failed to ingest artifact: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::error(format!("Failed to ingest artifact: {}", e))),
+                Json(ApiResponse::error(format!(
+                    "Failed to ingest artifact: {}",
+                    e
+                ))),
             );
         }
     }
@@ -550,7 +576,7 @@ pub async fn ingest_batch(
                     error_details: Some(format!("Invalid run data: {}", e)),
                 }),
             );
-        }
+        },
     };
 
     if let Err(e) = state.db.put_run(&run) {

@@ -1,0 +1,39 @@
+{
+  "dashboard": {
+    "title": "LiminalQA Overview",
+    "panels": [
+      {
+        "title": "HTTP Requests per Second",
+        "targets": [
+          {
+            "expr": "rate(liminalqa_http_requests_total[5m])"
+          }
+        ]
+      },
+      {
+        "title": "Request Duration (p95)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(liminalqa_http_request_duration_seconds_bucket[5m]))"
+          }
+        ]
+      },
+      {
+        "title": "Entities Ingested",
+        "targets": [
+          {
+            "expr": "rate(liminalqa_entities_ingested_total[5m])"
+          }
+        ]
+      },
+      {
+        "title": "Active Connections",
+        "targets": [
+          {
+            "expr": "liminalqa_active_connections"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,29 +1,76 @@
 version: '3.8'
 
 services:
-  liminalqa-build:
+  # Ingest API
+  liminalqa-ingest:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: liminalqa-builder
+      dockerfile: liminalqa-ingest/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - LIMINAL_AUTH_TOKEN=${LIMINAL_AUTH_TOKEN}
+      - LIMINAL_DB_PATH=/var/lib/liminal/db
+      - RUST_LOG=info,liminalqa_ingest=debug
     volumes:
-      - .:/usr/src/app
-      - cargo-cache:/usr/local/cargo
-    working_dir: /usr/src/app
-    command: bash -c "cargo build --release && tail -f /dev/null"
-  
-  liminalqa:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: liminalqa-runtime
+      - liminal-data:/var/lib/liminal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL (for future query engine)
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=liminal
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=liminalqa
     volumes:
-      - ./data:/app/data
-      - ./reports:/app/reports
-      - ./plans:/app/plans
-    stdin_open: true
-    tty: true
-    command: bash
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liminal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus (metrics)
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+
+  # Grafana (dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./deploy/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
 volumes:
-  cargo-cache:
+  liminal-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,22 @@
+# Clippy configuration - We believe in quality! ✨
+
+# Deny by default
+msrv = "1.75.0"
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 25
+
+# Documentation
+missing-docs-in-public-items = true
+
+# Panic-related
+avoid-breaking-exported-api = true
+
+# Type complexity
+type-complexity-threshold = 250
+
+# Array size threshold
+array-size-threshold = 512
+
+# Allowed lints (use sparingly!)
+# allowed-lints = []

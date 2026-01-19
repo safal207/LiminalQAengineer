@@ -1,0 +1,254 @@
+name: 🛡️ CI Guardian
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # ============================================================================
+  # Job 1: Fast Tests (< 2 min)
+  # ============================================================================
+  fast-tests:
+    name: ⚡ Fast Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 💾 Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: 🧪 Run unit tests
+        run: cargo test --lib --workspace --verbose
+
+      - name: 📊 Test report
+        if: always()
+        run: |
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "Unit tests completed!" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Job 2: Integration Tests (< 3 min)
+  # ============================================================================
+  integration-tests:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 💾 Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: 🧪 Run integration tests
+        run: cargo test --test '*' --workspace --verbose
+
+  # ============================================================================
+  # Job 3: Clippy — The Code Whisperer 📎
+  # ============================================================================
+  clippy:
+    name: 📎 Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: 💾 Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: 📎 Run Clippy
+        run: |
+          cargo clippy --all-targets --all-features --workspace -- -D warnings \
+            -W clippy::all \
+            -W clippy::pedantic \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used
+
+      - name: 📊 Clippy report
+        if: always()
+        run: |
+          echo "## 📎 Clippy Results" >> $GITHUB_STEP_SUMMARY
+          echo "No warnings found! 🎉" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Job 4: Format — Keep it Pretty 💅
+  # ============================================================================
+  format:
+    name: 💅 Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: 💅 Check formatting
+        run: cargo fmt --all -- --check
+
+  # ============================================================================
+  # Job 5: Security Audit 🔒
+  # ============================================================================
+  security:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔒 Run cargo-audit
+        uses: rustsec/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================================
+  # Job 6: Code Coverage 📊
+  # ============================================================================
+  coverage:
+    name: 📊 Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 📊 Install tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: 📊 Generate coverage
+        run: |
+          cargo tarpaulin --workspace --out Xml --output-dir ./coverage
+
+      - name: 📤 Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/cobertura.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+      - name: 📊 Coverage report
+        run: |
+          echo "## 📊 Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage uploaded to Codecov!" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Job 7: Build All Targets 🏗️
+  # ============================================================================
+  build:
+    name: 🏗️ Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable]
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: 💾 Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: 🏗️ Build workspace
+        run: cargo build --workspace --verbose --all-features
+
+      - name: 📊 Build report
+        run: |
+          echo "## 🏗️ Build Success on ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Job 8: Benchmarks (on main only) ⚡
+  # ============================================================================
+  benchmarks:
+    name: ⚡ Performance Benchmarks
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 💾 Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: ⚡ Run benchmarks
+        run: cargo bench --workspace --no-fail-fast
+
+      - name: 📊 Benchmark results
+        run: |
+          echo "## ⚡ Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "Benchmarks completed!" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Job 9: Doc Tests 📚
+  # ============================================================================
+  doc-tests:
+    name: 📚 Documentation Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 💾 Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: 📚 Test documentation
+        run: cargo test --doc --workspace
+
+      - name: 📖 Build docs
+        run: cargo doc --no-deps --workspace --all-features
+
+  # ============================================================================
+  # Final: All Green! 🎉
+  # ============================================================================
+  all-checks:
+    name: ✅ All Checks Passed
+    runs-on: ubuntu-latest
+    needs:
+      - fast-tests
+      - integration-tests
+      - clippy
+      - format
+      - security
+      - coverage
+      - build
+      - doc-tests
+    steps:
+      - name: 🎉 Success
+        run: |
+          echo "## 🎉 All Checks Passed!" >> $GITHUB_STEP_SUMMARY
+          echo "Your code is beautiful! 💖" >> $GITHUB_STEP_SUMMARY

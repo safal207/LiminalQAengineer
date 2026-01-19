@@ -10,7 +10,6 @@ use axum::{
     Json, Router,
 };
 use liminalqa_db::LiminalDB;
-use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{info, Level};
@@ -18,6 +17,21 @@ use tracing_subscriber::FmtSubscriber;
 
 use liminalqa_ingest::handlers::*;
 use liminalqa_ingest::{ApiResponse, AppState};
+
+use prometheus::{Encoder, TextEncoder};
+
+async fn metrics_handler() -> impl IntoResponse {
+    let encoder = TextEncoder::new();
+    let metric_families = prometheus::gather();
+    let mut buffer = vec![];
+    encoder.encode(&metric_families, &mut buffer).unwrap();
+
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        buffer,
+    )
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,8 +46,8 @@ async fn main() -> Result<()> {
     info!("Starting LiminalQA Ingest Server");
 
     // Open database
-    let db_path = std::env::var("LIMINAL_DB_PATH")
-        .unwrap_or_else(|_| "./data/liminaldb".to_string());
+    let db_path =
+        std::env::var("LIMINAL_DB_PATH").unwrap_or_else(|_| "./data/liminaldb".to_string());
     info!("Opening database at: {}", db_path);
     let db = LiminalDB::open(PathBuf::from(db_path))?;
 
@@ -66,6 +80,7 @@ async fn main() -> Result<()> {
             auth_middleware,
         ))
         .route("/health", get(health_check))
+        .route("/metrics", get(metrics_handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -103,7 +118,7 @@ async fn auth_middleware(
             Some(auth_str) if auth_str.starts_with("Bearer ") => {
                 let token = &auth_str[7..];
                 token == expected_token
-            }
+            },
             _ => false,
         };
 
@@ -117,4 +132,3 @@ async fn auth_middleware(
 
     Ok(next.run(req).await)
 }
-
