@@ -194,14 +194,38 @@ pub async fn ingest_signals(
         let test_id = match item.test_id {
             Some(id) => id,
             None => {
-                // TODO: Implement test lookup by name and run_id
-                error!("test_id lookup by name not implemented yet");
-                return (
-                    StatusCode::NOT_IMPLEMENTED,
-                    Json(ApiResponse::error(
-                        "test_id must be provided directly, lookup by name not yet supported",
-                    )),
-                );
+                let test_name = item.test_name.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("Either test_id or test_name must be provided")
+                }).unwrap(); // We already validated that one of them exists
+
+                match state.db.find_test_by_name(dto.run_id, test_name) {
+                    Ok(Some(id)) => {
+                        info!("Resolved test_id {} for test '{}'", id, test_name);
+                        id
+                    }
+                    Ok(None) => {
+                        error!(
+                            "Test '{}' not found in run {}",
+                            test_name, dto.run_id
+                        );
+                        return (
+                            StatusCode::NOT_FOUND,
+                            Json(ApiResponse::error(format!(
+                                "Test '{}' not found in run {}. Ensure tests are ingested via POST /ingest/tests before sending signals.",
+                                test_name, dto.run_id
+                            ))),
+                        );
+                    }
+                    Err(e) => {
+                        error!("Database error during test lookup: {}", e);
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ApiResponse::error(format!(
+                                "Database error during test lookup: {}", e
+                            ))),
+                        );
+                    }
+                }
             }
         };
 
@@ -290,13 +314,38 @@ pub async fn ingest_artifacts(
         let test_id = match item.test_id {
             Some(id) => id,
             None => {
-                error!("test_id lookup by name not implemented yet");
-                return (
-                    StatusCode::NOT_IMPLEMENTED,
-                    Json(ApiResponse::error(
-                        "test_id must be provided directly, lookup by name not yet supported",
-                    )),
-                );
+                let test_name = item.test_name.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("Either test_id or test_name must be provided")
+                }).unwrap(); // We already validated that one of them exists
+
+                match state.db.find_test_by_name(dto.run_id, test_name) {
+                    Ok(Some(id)) => {
+                        info!("Resolved test_id {} for test '{}'", id, test_name);
+                        id
+                    }
+                    Ok(None) => {
+                        error!(
+                            "Test '{}' not found in run {}",
+                            test_name, dto.run_id
+                        );
+                        return (
+                            StatusCode::NOT_FOUND,
+                            Json(ApiResponse::error(format!(
+                                "Test '{}' not found in run {}. Ensure tests are ingested via POST /ingest/tests before sending artifacts.",
+                                test_name, dto.run_id
+                            ))),
+                        );
+                    }
+                    Err(e) => {
+                        error!("Database error during test lookup: {}", e);
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ApiResponse::error(format!(
+                                "Database error during test lookup: {}", e
+                            ))),
+                        );
+                    }
+                }
             }
         };
 
