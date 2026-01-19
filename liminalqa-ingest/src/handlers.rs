@@ -151,7 +151,7 @@ pub struct SignalDtoItem {
     pub test_id: Option<EntityId>,
     pub test_name: Option<String>,
     pub kind: String,
-    pub latency_ms: Option<i32>,
+    pub latency_ms: Option<u64>,
     pub value: Option<f64>,
     pub meta: Option<serde_json::Value>,
     pub at: chrono::DateTime<chrono::Utc>,
@@ -161,6 +161,18 @@ pub async fn ingest_signals(
     State(state): State<AppState>,
     Json(dto): Json<SignalsDto>,
 ) -> impl IntoResponse {
+    // Validate that all signals have either test_id or valid test_name
+    for item in &dto.signals {
+        if item.test_id.is_none() && item.test_name.is_none() {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::error(
+                    "Each signal must have either test_id or test_name",
+                )),
+            );
+        }
+    }
+
     info!("Ingesting {} signals", dto.signals.len());
 
     for item in &dto.signals {
@@ -178,13 +190,28 @@ pub async fn ingest_signals(
             .and_then(|m| serde_json::from_value(m.clone()).ok())
             .unwrap_or_default();
 
+        // Resolve test_id from test_name if needed
+        let test_id = match item.test_id {
+            Some(id) => id,
+            None => {
+                // TODO: Implement test lookup by name and run_id
+                error!("test_id lookup by name not implemented yet");
+                return (
+                    StatusCode::NOT_IMPLEMENTED,
+                    Json(ApiResponse::error(
+                        "test_id must be provided directly, lookup by name not yet supported",
+                    )),
+                );
+            }
+        };
+
         let signal = Signal {
             id: EntityId::new(),
             run_id: dto.run_id,
-            test_id: item.test_id.unwrap_or_else(EntityId::new), // TODO: find test_id by name if not provided
+            test_id,
             signal_type,
             timestamp: item.at,
-            latency_ms: item.latency_ms.filter(|&v| v >= 0).map(|v| v as u64),
+            latency_ms: item.latency_ms,
             payload_ref: None,
             metadata,
             created_at: BiTemporalTime::now(),
@@ -234,6 +261,18 @@ pub async fn ingest_artifacts(
     State(state): State<AppState>,
     Json(dto): Json<ArtifactsDto>,
 ) -> impl IntoResponse {
+    // Validate that all artifacts have either test_id or valid test_name
+    for item in &dto.artifacts {
+        if item.test_id.is_none() && item.test_name.is_none() {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse::error(
+                    "Each artifact must have either test_id or test_name",
+                )),
+            );
+        }
+    }
+
     info!("Ingesting {} artifacts", dto.artifacts.len());
 
     for item in &dto.artifacts {
@@ -247,10 +286,24 @@ pub async fn ingest_artifacts(
             _ => ArtifactType::Trace,
         };
 
+        // Resolve test_id from test_name if needed
+        let test_id = match item.test_id {
+            Some(id) => id,
+            None => {
+                error!("test_id lookup by name not implemented yet");
+                return (
+                    StatusCode::NOT_IMPLEMENTED,
+                    Json(ApiResponse::error(
+                        "test_id must be provided directly, lookup by name not yet supported",
+                    )),
+                );
+            }
+        };
+
         let artifact = Artifact {
             id: EntityId::new(),
             run_id: dto.run_id,
-            test_id: item.test_id.unwrap_or_else(EntityId::new), // TODO: find test_id by name if not provided
+            test_id,
             artifact_ref: ArtifactRef {
                 sha256: item.path_sha256.clone(),
                 path: item.path.clone(),

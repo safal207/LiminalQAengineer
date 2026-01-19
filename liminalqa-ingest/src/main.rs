@@ -46,7 +46,13 @@ async fn main() -> Result<()> {
 
     let auth_token = std::env::var("LIMINAL_AUTH_TOKEN").ok();
     if auth_token.is_none() {
-        tracing::warn!("LIMINAL_AUTH_TOKEN not set, authentication is DISABLED");
+        tracing::error!(
+            "LIMINAL_AUTH_TOKEN not set! Authentication is DISABLED. \
+            This is a SECURITY RISK in production. Set LIMINAL_AUTH_TOKEN \
+            environment variable to enable authentication."
+        );
+        // In production, consider making this a hard error:
+        // return Err(anyhow::anyhow!("LIMINAL_AUTH_TOKEN must be set"));
     }
 
     let state = AppState {
