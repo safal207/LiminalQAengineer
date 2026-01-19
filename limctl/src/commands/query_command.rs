@@ -3,11 +3,10 @@
 use anyhow::{Context, Result};
 use comfy_table::{modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL, Table};
 use liminalqa_core::{
-    entities::EntityType,
     temporal::{TimeRange, TimeshiftQuery},
     types::EntityId,
 };
-use liminalqa_db::{Query, QueryResult};
+use liminalqa_db::{LiminalDB, Query, QueryResult};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::fs;
@@ -104,7 +103,7 @@ pub async fn execute(db: &LiminalDB, query_path: &Path) -> Result<()> {
             .context("Invalid tx_time format in timeshift")?
             .with_timezone(&chrono::Utc);
         
-        let timeshift = TimeshiftQuery::with_times(valid_time, tx_time);
+        let timeshift = TimeshiftQuery::valid_at_tx(valid_time, tx_time);
         query = query.timeshift(timeshift);
     }
 

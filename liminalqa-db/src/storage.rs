@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use liminalqa_core::{
-    entities::*, facts::*, temporal::BiTemporalTime, types::EntityId,
+    entities::*, facts::*, types::EntityId,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
