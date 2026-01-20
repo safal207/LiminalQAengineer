@@ -257,7 +257,10 @@ impl Ingest for IngestHttp {
                 guidance: Some(t.guidance.clone()),
                 status: format!("{:?}", t.status).to_lowercase(),
                 duration_ms: Some(t.duration_ms as i32),
-                error: t.error.as_ref().map(|e| serde_json::to_value(e).unwrap_or(serde_json::Value::Null)),
+                error: t
+                    .error
+                    .as_ref()
+                    .map(|e| serde_json::to_value(e).unwrap_or(serde_json::Value::Null)),
                 started_at: Some(t.started_at),
                 completed_at: Some(t.completed_at),
             })
