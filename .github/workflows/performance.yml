@@ -31,11 +31,11 @@ jobs:
         with:
           tool: 'cargo'
           output-file-path: output.txt
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: false
+          # github-token: ${{ secrets.GITHUB_TOKEN }}
+          # auto-push: false
           # Alert if performance regresses by 20%
           alert-threshold: '120%'
-          comment-on-alert: true
+          # comment-on-alert: true
           fail-on-alert: false
 
       - name: 📈 Performance report
