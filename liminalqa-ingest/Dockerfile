@@ -16,16 +16,6 @@ COPY Cargo.toml Cargo.lock ./
 COPY liminalqa-core ./liminalqa-core
 COPY liminalqa-db ./liminalqa-db
 COPY liminalqa-ingest ./liminalqa-ingest
-# Note: Copy other members if necessary, but these are the ones used by ingest
-# liminalqa-runner and limctl are not needed for ingest service but are in workspace.
-# For simplicity, we copy only what is needed or just everything if the workspace structure requires it.
-# The user instruction says "COPY liminalqa-core ... liminalqa-db ... liminalqa-ingest".
-# It doesn't mention others, but `Cargo.toml` at root lists all members.
-# If we try to build `liminalqa-ingest`, it should be fine if we only have its deps.
-# However, if root Cargo.toml references members that are missing, it might complain.
-# The provided Dockerfile assumes explicit copies.
-# If the root Cargo.toml lists "limctl", but we don't copy it, cargo might fail parsing the workspace.
-# I'll stick to the user's Dockerfile content exactly.
 
 # Build with optimizations
 RUN cargo build --release --package liminalqa-ingest
