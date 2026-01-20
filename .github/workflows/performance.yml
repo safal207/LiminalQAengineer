@@ -21,7 +21,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: ⚡ Run benchmarks
-        run: cargo bench --workspace | tee output.txt
+        # We target the specific criterion benchmark to ensure --output-format bencher works
+        # and avoids 'Unrecognized option' errors from libtest harnesses.
+        run: |
+          cargo bench --package liminalqa-ingest --bench ingestion_benchmark -- --output-format bencher | tee output.txt
 
       - name: 📊 Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
