@@ -26,17 +26,22 @@ jobs:
         run: |
           cargo bench --package liminalqa-ingest --bench ingestion_benchmark -- --output-format bencher | tee output.txt
 
-      - name: 📊 Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: 'cargo'
-          output-file-path: output.txt
-          # github-token: ${{ secrets.GITHUB_TOKEN }}
-          # auto-push: false
-          # Alert if performance regresses by 20%
-          alert-threshold: '120%'
-          # comment-on-alert: true
-          fail-on-alert: false
+      # - name: 📊 Store benchmark result
+      #   uses: benchmark-action/github-action-benchmark@v1
+      #   with:
+      #     tool: 'cargo'
+      #     output-file-path: output.txt
+      #     # github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     # auto-push: false
+      #     # Alert if performance regresses by 20%
+      #     alert-threshold: '120%'
+      #     # comment-on-alert: true
+      #     fail-on-alert: false
+      #   # Note: This step is commented out because it fails if the 'gh-pages' branch
+      #   # does not exist. To enable historical tracking:
+      #   # 1. Create a 'gh-pages' branch (orphan).
+      #   # 2. Uncomment this step.
+      #   # 3. Uncomment 'github-token' and 'auto-push'.
 
       - name: 📈 Performance report
         run: |
