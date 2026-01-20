@@ -1,9 +1,7 @@
 //! Storage layer implementation
 
 use anyhow::{Context, Result};
-use liminalqa_core::{
-    entities::*, facts::*, types::EntityId,
-};
+use liminalqa_core::{entities::*, facts::*, types::EntityId};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{debug, info};
@@ -25,8 +23,7 @@ impl LiminalDB {
         let path_ref = path.as_ref();
         info!("Opening LIMINAL-DB at: {}", path_ref.display());
 
-        let db = sled::open(path_ref)
-            .context("Failed to open sled database")?;
+        let db = sled::open(path_ref).context("Failed to open sled database")?;
 
         let entities = db.open_tree("entities")?;
         let facts = db.open_tree("facts")?;
@@ -67,7 +64,8 @@ impl LiminalDB {
 
         // Create secondary index for name lookup
         let index_key = format!("idx:test_name:{}:{}", test.run_id, test.name);
-        self.test_name_index.insert(index_key.as_bytes(), &test.id.to_bytes())?;
+        self.test_name_index
+            .insert(index_key.as_bytes(), &test.id.to_bytes())?;
 
         Ok(())
     }
@@ -82,11 +80,7 @@ impl LiminalDB {
     /// * `Ok(Some(test_id))` - Test found
     /// * `Ok(None)` - Test not found
     /// * `Err(_)` - Database error
-    pub fn find_test_by_name(
-        &self,
-        run_id: EntityId,
-        test_name: &str,
-    ) -> Result<Option<EntityId>> {
+    pub fn find_test_by_name(&self, run_id: EntityId, test_name: &str) -> Result<Option<EntityId>> {
         let index_key = format!("idx:test_name:{}:{}", run_id, test_name);
 
         match self.test_name_index.get(index_key.as_bytes())? {
@@ -123,7 +117,7 @@ impl LiminalDB {
         let key = id.to_bytes();
         let value = bincode::serialize(entity)?;
 
-        self.entities.insert(&key, value)?;
+        self.entities.insert(key, value)?;
 
         // Index by entity type
         let type_key = format!("{}:{}", entity_type_to_str(entity_type), id);
@@ -140,7 +134,7 @@ impl LiminalDB {
         // Use JSON for facts because Fact contains serde_json::Value which bincode can't handle
         let value = serde_json::to_vec(fact)?;
 
-        self.facts.insert(&key, value)?;
+        self.facts.insert(key, value)?;
 
         // Index by valid_time
         let vt_key = format!(
@@ -160,7 +154,10 @@ impl LiminalDB {
         );
         self.tx_time_index.insert(tx_key.as_bytes(), &key)?;
 
-        debug!("Stored fact: entity_id={}, attribute={}", fact.entity_id, fact.attribute);
+        debug!(
+            "Stored fact: entity_id={}, attribute={}",
+            fact.entity_id, fact.attribute
+        );
         Ok(())
     }
 
@@ -176,7 +173,7 @@ impl LiminalDB {
     /// Get entity by ID
     pub fn get_entity<T: for<'de> Deserialize<'de>>(&self, id: EntityId) -> Result<Option<T>> {
         let key = id.to_bytes();
-        match self.entities.get(&key)? {
+        match self.entities.get(key)? {
             Some(bytes) => {
                 let entity = bincode::deserialize(&bytes)?;
                 Ok(Some(entity))

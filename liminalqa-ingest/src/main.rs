@@ -118,7 +118,7 @@ async fn auth_middleware(
             Some(auth_str) if auth_str.starts_with("Bearer ") => {
                 let token = &auth_str[7..];
                 token == expected_token
-            },
+            }
             _ => false,
         };
 

@@ -1,9 +1,8 @@
 use axum::{
     body::Body,
-    extract::State,
     http::{Request, StatusCode},
     routing::post,
-    Json, Router,
+    Router,
 };
 use liminalqa_core::types::EntityId;
 use liminalqa_db::LiminalDB;
@@ -21,7 +20,7 @@ use tower::util::ServiceExt; // for `oneshot`
 async fn test_batch_ingestion_full_flow() {
     // Setup database
     let db_dir = tempfile::tempdir().unwrap();
-    let db = LiminalDB::open(db_dir.path().to_path_buf()).unwrap();
+    let db = LiminalDB::open(db_dir.path()).unwrap();
     let state = AppState {
         db: Arc::new(db),
         auth_token: None,
@@ -122,7 +121,7 @@ async fn test_batch_ingestion_full_flow() {
 async fn test_batch_ingestion_partial_failure() {
     // Setup database
     let db_dir = tempfile::tempdir().unwrap();
-    let db = LiminalDB::open(db_dir.path().to_path_buf()).unwrap();
+    let db = LiminalDB::open(db_dir.path()).unwrap();
     let state = AppState {
         db: Arc::new(db),
         auth_token: None,

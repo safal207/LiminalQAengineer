@@ -1,14 +1,14 @@
 //! Benchmarks for LiminalQA ingestion performance
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use liminalqa_core::{entities::*, temporal::BiTemporalTime, types::*};
 use liminalqa_db::LiminalDB;
-use std::path::PathBuf;
+use std::hint::black_box;
 
 fn bench_single_test_ingestion(c: &mut Criterion) {
     c.bench_function("ingest_single_test", |b| {
         let temp = tempfile::tempdir().unwrap();
-        let db = LiminalDB::open(temp.path().to_path_buf()).unwrap();
+        let db = LiminalDB::open(temp.path()).unwrap();
 
         b.iter(|| {
             let test = Test {
@@ -25,7 +25,8 @@ fn bench_single_test_ingestion(c: &mut Criterion) {
                 created_at: BiTemporalTime::now(),
             };
 
-            black_box(db.put_test(&test).unwrap());
+            db.put_test(&test).unwrap();
+            black_box(());
         });
     });
 }
@@ -36,7 +37,7 @@ fn bench_batch_test_ingestion(c: &mut Criterion) {
     for size in [10, 100, 1000].iter() {
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
             let temp = tempfile::tempdir().unwrap();
-            let db = LiminalDB::open(temp.path().to_path_buf()).unwrap();
+            let db = LiminalDB::open(temp.path()).unwrap();
             let run_id = EntityId::new();
 
             b.iter(|| {
@@ -55,7 +56,8 @@ fn bench_batch_test_ingestion(c: &mut Criterion) {
                         created_at: BiTemporalTime::now(),
                     };
 
-                    black_box(db.put_test(&test).unwrap());
+                    db.put_test(&test).unwrap();
+                    black_box(());
                 }
                 db.flush().unwrap();
             });
@@ -67,7 +69,7 @@ fn bench_batch_test_ingestion(c: &mut Criterion) {
 
 fn bench_test_lookup(c: &mut Criterion) {
     let temp = tempfile::tempdir().unwrap();
-    let db = LiminalDB::open(temp.path().to_path_buf()).unwrap();
+    let db = LiminalDB::open(temp.path()).unwrap();
     let run_id = EntityId::new();
 
     // Prepare 1000 tests
@@ -90,7 +92,8 @@ fn bench_test_lookup(c: &mut Criterion) {
 
     c.bench_function("lookup_test_by_name", |b| {
         b.iter(|| {
-            black_box(db.find_test_by_name(run_id, "test_500").unwrap());
+            db.find_test_by_name(run_id, "test_500").unwrap();
+            black_box(());
         });
     });
 }

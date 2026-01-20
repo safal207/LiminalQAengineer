@@ -20,8 +20,10 @@ impl InnerCouncil {
 
     /// Record a signal
     pub fn record(&mut self, signal: Signal) {
-        debug!("Recording signal: type={:?}, timestamp={}",
-               signal.signal_type, signal.timestamp);
+        debug!(
+            "Recording signal: type={:?}, timestamp={}",
+            signal.signal_type, signal.timestamp
+        );
         self.signals.push(signal);
     }
 
@@ -35,9 +37,7 @@ impl InnerCouncil {
         let mut by_type: HashMap<SignalType, Vec<&Signal>> = HashMap::new();
 
         for signal in &self.signals {
-            by_type.entry(signal.signal_type)
-                .or_default()
-                .push(signal);
+            by_type.entry(signal.signal_type).or_default().push(signal);
         }
 
         let mut inconsistencies = Vec::new();
@@ -49,7 +49,10 @@ impl InnerCouncil {
                 // Look for UI changes without corresponding API calls
                 for ui_sig in ui_signals {
                     let has_corresponding_api = api_signals.iter().any(|api_sig| {
-                        (ui_sig.timestamp - api_sig.timestamp).num_milliseconds().abs() < 1000
+                        (ui_sig.timestamp - api_sig.timestamp)
+                            .num_milliseconds()
+                            .abs()
+                            < 1000
                     });
 
                     if !has_corresponding_api {
@@ -65,10 +68,7 @@ impl InnerCouncil {
         // Detect latency patterns
         for signals in by_type.values() {
             if signals.len() > 1 {
-                let latencies: Vec<u64> = signals
-                    .iter()
-                    .filter_map(|s| s.latency_ms)
-                    .collect();
+                let latencies: Vec<u64> = signals.iter().filter_map(|s| s.latency_ms).collect();
 
                 if !latencies.is_empty() {
                     let avg = latencies.iter().sum::<u64>() / latencies.len() as u64;

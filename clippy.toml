@@ -7,7 +7,7 @@ msrv = "1.75.0"
 cognitive-complexity-threshold = 25
 
 # Documentation
-missing-docs-in-public-items = true
+# missing-docs-in-public-items = true
 
 # Panic-related
 avoid-breaking-exported-api = true

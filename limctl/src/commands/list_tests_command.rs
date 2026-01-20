@@ -5,8 +5,7 @@ use liminalqa_core::types::EntityId;
 use liminalqa_db::LiminalDB;
 
 pub async fn execute(_db: &LiminalDB, run_id_str: &str) -> Result<()> {
-    let run_id = EntityId::from_string(run_id_str)
-        .context("Invalid run ID format")?;
+    let run_id = EntityId::from_string(run_id_str).context("Invalid run ID format")?;
 
     println!("📋 Listing tests for run: {}\n", run_id);
 

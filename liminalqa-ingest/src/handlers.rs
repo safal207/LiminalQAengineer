@@ -243,7 +243,7 @@ fn resolve_test_id(
     test_id: Option<EntityId>,
     test_name: Option<&str>,
     current_counts: &BatchCounts,
-) -> Result<EntityId, (StatusCode, Json<BatchIngestResponse>)> {
+) -> Result<EntityId, Box<(StatusCode, Json<BatchIngestResponse>)>> {
     match test_id {
         Some(id) => Ok(id),
         None => {
@@ -269,7 +269,7 @@ fn resolve_test_id(
             // Fallback to DB lookup (for tests ingested earlier)
             match db.find_test_by_name(run_id, name) {
                 Ok(Some(id)) => Ok(id),
-                Ok(None) => Err((
+                Ok(None) => Err(Box::new((
                     StatusCode::NOT_FOUND,
                     Json(BatchIngestResponse {
                         ok: false,
@@ -282,8 +282,8 @@ fn resolve_test_id(
                             name
                         )),
                     }),
-                )),
-                Err(e) => Err((
+                ))),
+                Err(e) => Err(Box::new((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(BatchIngestResponse {
                         ok: false,
@@ -293,9 +293,9 @@ fn resolve_test_id(
                         partial_counts: Some(current_counts.clone()),
                         error_details: Some(format!("DB lookup failed: {}", e)),
                     }),
-                )),
+                ))),
             }
-        },
+        }
     }
 }
 
@@ -317,14 +317,14 @@ pub async fn ingest_run(
                     StatusCode::OK,
                     Json(ApiResponse::ok("Run ingested successfully")),
                 )
-            },
+            }
             Err(e) => {
                 error!("Failed to ingest run: {}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ApiResponse::error(format!("Failed to ingest run: {}", e))),
                 )
-            },
+            }
         },
         Err(e) => (StatusCode::BAD_REQUEST, Json(ApiResponse::error(e))),
     }
@@ -394,14 +394,14 @@ pub async fn ingest_signals(
                                 "Either test_id or test_name must be provided",
                             )),
                         );
-                    },
+                    }
                 };
 
                 match state.db.find_test_by_name(dto.run_id, test_name) {
                     Ok(Some(id)) => {
                         info!("Resolved test_id {} for test '{}'", id, test_name);
                         id
-                    },
+                    }
                     Ok(None) => {
                         error!("Test '{}' not found in run {}", test_name, dto.run_id);
                         return (
@@ -411,7 +411,7 @@ pub async fn ingest_signals(
                                 test_name, dto.run_id
                             ))),
                         );
-                    },
+                    }
                     Err(e) => {
                         error!("Database error during test lookup: {}", e);
                         return (
@@ -421,9 +421,9 @@ pub async fn ingest_signals(
                                 e
                             ))),
                         );
-                    },
+                    }
                 }
-            },
+            }
         };
 
         let signal = create_signal_from_dto(dto.run_id, test_id, item);
@@ -486,14 +486,14 @@ pub async fn ingest_artifacts(
                                 "Either test_id or test_name must be provided",
                             )),
                         );
-                    },
+                    }
                 };
 
                 match state.db.find_test_by_name(dto.run_id, test_name) {
                     Ok(Some(id)) => {
                         info!("Resolved test_id {} for test '{}'", id, test_name);
                         id
-                    },
+                    }
                     Ok(None) => {
                         error!("Test '{}' not found in run {}", test_name, dto.run_id);
                         return (
@@ -503,7 +503,7 @@ pub async fn ingest_artifacts(
                                 test_name, dto.run_id
                             ))),
                         );
-                    },
+                    }
                     Err(e) => {
                         error!("Database error during test lookup: {}", e);
                         return (
@@ -513,9 +513,9 @@ pub async fn ingest_artifacts(
                                 e
                             ))),
                         );
-                    },
+                    }
                 }
-            },
+            }
         };
 
         let artifact = create_artifact_from_dto(dto.run_id, test_id, item);
@@ -576,7 +576,7 @@ pub async fn ingest_batch(
                     error_details: Some(format!("Invalid run data: {}", e)),
                 }),
             );
-        },
+        }
     };
 
     if let Err(e) = state.db.put_run(&run) {
@@ -630,7 +630,7 @@ pub async fn ingest_batch(
             &counts,
         ) {
             Ok(id) => id,
-            Err(resp) => return resp,
+            Err(resp) => return *resp,
         };
 
         let signal = create_signal_from_dto(batch.run.run_id, test_id, signal_item);
@@ -663,7 +663,7 @@ pub async fn ingest_batch(
             &counts,
         ) {
             Ok(id) => id,
-            Err(resp) => return resp,
+            Err(resp) => return *resp,
         };
 
         let artifact = create_artifact_from_dto(batch.run.run_id, test_id, artifact_item);
