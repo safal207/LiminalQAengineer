@@ -16,6 +16,8 @@ use liminalqa_ingest::{
 use std::sync::Arc;
 use tower::util::ServiceExt; // for `oneshot`
 
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
 #[tokio::test]
 async fn test_batch_ingestion_full_flow() {
     // Setup database
@@ -117,6 +119,8 @@ async fn test_batch_ingestion_full_flow() {
     assert!(map.contains_key("test_b"));
 }
 
+#[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
 #[tokio::test]
 async fn test_batch_ingestion_partial_failure() {
     // Setup database

@@ -24,7 +24,13 @@ async fn metrics_handler() -> impl IntoResponse {
     let encoder = TextEncoder::new();
     let metric_families = prometheus::gather();
     let mut buffer = vec![];
-    encoder.encode(&metric_families, &mut buffer).unwrap();
+    if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            [(header::CONTENT_TYPE, "text/plain")],
+            format!("Metrics error: {}", e).into_bytes(),
+        );
+    }
 
     (
         StatusCode::OK,

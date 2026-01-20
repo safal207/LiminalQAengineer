@@ -303,7 +303,9 @@ mod tests {
 
         let retrieved: Option<Test> = db.get_entity(test.id)?;
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().name, "test_login");
+        if let Some(t) = retrieved {
+            assert_eq!(t.name, "test_login");
+        }
 
         Ok(())
     }

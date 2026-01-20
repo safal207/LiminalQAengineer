@@ -5,6 +5,7 @@ use liminalqa_core::{entities::*, temporal::BiTemporalTime, types::*};
 use liminalqa_db::LiminalDB;
 use std::hint::black_box;
 
+#[allow(clippy::unwrap_used)]
 fn bench_single_test_ingestion(c: &mut Criterion) {
     c.bench_function("ingest_single_test", |b| {
         let temp = tempfile::tempdir().unwrap();
@@ -31,6 +32,7 @@ fn bench_single_test_ingestion(c: &mut Criterion) {
     });
 }
 
+#[allow(clippy::unwrap_used)]
 fn bench_batch_test_ingestion(c: &mut Criterion) {
     let mut group = c.benchmark_group("batch_ingestion");
 
@@ -67,6 +69,7 @@ fn bench_batch_test_ingestion(c: &mut Criterion) {
     group.finish();
 }
 
+#[allow(clippy::unwrap_used)]
 fn bench_test_lookup(c: &mut Criterion) {
     let temp = tempfile::tempdir().unwrap();
     let db = LiminalDB::open(temp.path()).unwrap();

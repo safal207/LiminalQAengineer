@@ -72,7 +72,7 @@ impl InnerCouncil {
 
                 if !latencies.is_empty() {
                     let avg = latencies.iter().sum::<u64>() / latencies.len() as u64;
-                    let max = *latencies.iter().max().unwrap();
+                    let max = *latencies.iter().max().unwrap_or(&0);
 
                     if max > avg * 3 {
                         patterns.push(format!(

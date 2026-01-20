@@ -113,7 +113,7 @@ impl IngestHttp {
             .connect_timeout(std::time::Duration::from_secs(5))
             .pool_max_idle_per_host(10)
             .build()
-            .expect("Failed to create HTTP client");
+            .unwrap_or_else(|_| panic!("Failed to create HTTP client"));
 
         Self {
             url,
@@ -257,7 +257,7 @@ impl Ingest for IngestHttp {
                 guidance: Some(t.guidance.clone()),
                 status: format!("{:?}", t.status).to_lowercase(),
                 duration_ms: Some(t.duration_ms as i32),
-                error: t.error.as_ref().map(|e| serde_json::to_value(e).unwrap()),
+                error: t.error.as_ref().map(|e| serde_json::to_value(e).unwrap_or(serde_json::Value::Null)),
                 started_at: Some(t.started_at),
                 completed_at: Some(t.completed_at),
             })
@@ -301,7 +301,7 @@ impl Ingest for IngestHttp {
                 kind: format!("{:?}", s.signal_type).to_lowercase(),
                 latency_ms: s.latency_ms.map(|v| v as i32),
                 value: None,
-                meta: Some(serde_json::to_value(&s.metadata).unwrap()),
+                meta: Some(serde_json::to_value(&s.metadata).unwrap_or(serde_json::Value::Null)),
                 at: s.timestamp,
             })
             .collect();
