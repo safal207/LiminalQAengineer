@@ -134,7 +134,12 @@ impl IngestHttp {
 
         loop {
             attempt += 1;
-            debug!("POST {} (attempt {}/{})", url, attempt, self.max_retries + 1);
+            debug!(
+                "POST {} (attempt {}/{})",
+                url,
+                attempt,
+                self.max_retries + 1
+            );
 
             let resp = match self
                 .client
@@ -152,7 +157,10 @@ impl IngestHttp {
                     continue;
                 }
                 Err(e) => {
-                    return Err(e).context(format!("Failed to POST {} after {} attempts", endpoint, attempt));
+                    return Err(e).context(format!(
+                        "Failed to POST {} after {} attempts",
+                        endpoint, attempt
+                    ));
                 }
             };
 
@@ -164,7 +172,10 @@ impl IngestHttp {
 
                 if Self::is_retryable_error(status) && attempt <= self.max_retries {
                     let backoff_ms = 2u64.pow(attempt - 1) * 1000;
-                    debug!("HTTP {} {}. Retrying in {}ms...", status, endpoint, backoff_ms);
+                    debug!(
+                        "HTTP {} {}. Retrying in {}ms...",
+                        status, endpoint, backoff_ms
+                    );
                     tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
                     continue;
                 } else {

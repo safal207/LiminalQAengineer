@@ -17,8 +17,8 @@ pub fn new_entity_id() -> EntityId {
 pub enum TestStatus {
     Pass,
     Fail,
-    XFail,  // Expected failure
-    Flake,  // Inconsistent
+    XFail, // Expected failure
+    Flake, // Inconsistent
     Timeout,
     Skip,
 }
@@ -75,7 +75,7 @@ pub struct ArtifactRef {
 pub struct ResonancePattern {
     pub pattern_id: EntityId,
     pub description: String,
-    pub score: f64,  // 0.0 to 1.0
+    pub score: f64, // 0.0 to 1.0
     pub occurrences: u32,
     pub first_seen: chrono::DateTime<chrono::Utc>,
     pub last_seen: chrono::DateTime<chrono::Utc>,

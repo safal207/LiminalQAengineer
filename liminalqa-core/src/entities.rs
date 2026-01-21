@@ -104,7 +104,7 @@ pub struct Test {
     pub run_id: EntityId,
     pub name: String,
     pub suite: String,
-    pub guidance: String,  // Test intention
+    pub guidance: String, // Test intention
     pub status: TestStatus,
     pub duration_ms: u64,
     pub error: Option<TestError>,

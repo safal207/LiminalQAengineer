@@ -25,7 +25,12 @@ use commands::*;
 #[command(version)]
 struct Cli {
     /// Path to LIMINAL-DB
-    #[arg(short, long, env = "LIMINAL_DB_PATH", default_value = "./data/liminaldb")]
+    #[arg(
+        short,
+        long,
+        env = "LIMINAL_DB_PATH",
+        default_value = "./data/liminaldb"
+    )]
     db_path: PathBuf,
 
     /// Verbosity level

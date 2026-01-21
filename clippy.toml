@@ -1,0 +1,27 @@
+# Clippy configuration for LiminalQA - Phase 1 (Relaxed)
+# See: https://doc.rust-lang.org/clippy/
+
+# Only critical disallowed methods for Phase 1
+disallowed-methods = [
+    { path = "std::option::Option::unwrap", reason = "use proper error handling with ? operator or match" },
+]
+
+# Softer complexity thresholds for Phase 1
+cognitive-complexity-threshold = 20
+type-complexity-threshold = 300
+
+# Enable pedantic warnings for high code quality (but we might allow some in code)
+avoid-breaking-exported-api = true
+
+# Warn on wildcard imports (will be strictly enforced in Phase 4)
+# warn-on-all-wildcard-imports = true
+
+# Documentation requirements
+missing-docs-in-crate-items = false
+
+# Style preferences
+enum-variant-name-threshold = 3
+
+# Allow unwrap/expect in tests
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true

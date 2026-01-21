@@ -6,12 +6,12 @@
 //! - Causality walks (trace root causes)
 //! - Efficient indexing for time-based queries
 
-pub mod storage;
-pub mod query;
 pub mod index;
+pub mod query;
+pub mod storage;
 
-pub use storage::LiminalDB;
 pub use query::{Query, QueryResult};
+pub use storage::LiminalDB;
 
 use anyhow::Result;
 

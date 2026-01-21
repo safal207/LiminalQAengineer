@@ -8,8 +8,8 @@ use liminalqa_core::{
 };
 use liminalqa_db::{LiminalDB, Query, QueryResult};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct QuerySpec {
@@ -23,7 +23,7 @@ pub struct QuerySpec {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TimeRangeSpec {
-    pub start: String, // ISO 8601 datetime string
+    pub start: String,       // ISO 8601 datetime string
     pub end: Option<String>, // ISO 8601 datetime string
 }
 
@@ -36,11 +36,15 @@ pub struct TimeshiftSpec {
 pub async fn execute(db: &LiminalDB, query_path: &Path) -> Result<()> {
     println!("🔍 Executing query from: {}", query_path.display());
 
-    let query_content = fs::read_to_string(query_path)
-        .context(format!("Failed to read query file: {}", query_path.display()))?;
+    let query_content = fs::read_to_string(query_path).context(format!(
+        "Failed to read query file: {}",
+        query_path.display()
+    ))?;
 
-    let query_spec: QuerySpec = serde_json::from_str(&query_content)
-        .context(format!("Failed to parse query specification: {}", query_path.display()))?;
+    let query_spec: QuerySpec = serde_json::from_str(&query_content).context(format!(
+        "Failed to parse query specification: {}",
+        query_path.display()
+    ))?;
 
     // Build the query based on the specification
     let mut query = Query::new();
@@ -61,13 +65,15 @@ pub async fn execute(db: &LiminalDB, query_path: &Path) -> Result<()> {
             .context("Invalid start time format in valid_time_range")?
             .with_timezone(&chrono::Utc);
         let end = if let Some(end_str) = &valid_range.end {
-            Some(chrono::DateTime::parse_from_rfc3339(end_str)
-                .context("Invalid end time format in valid_time_range")?
-                .with_timezone(&chrono::Utc))
+            Some(
+                chrono::DateTime::parse_from_rfc3339(end_str)
+                    .context("Invalid end time format in valid_time_range")?
+                    .with_timezone(&chrono::Utc),
+            )
         } else {
             None
         };
-        
+
         let time_range = match end {
             Some(end_time) => TimeRange::between(start, end_time),
             None => TimeRange::from(start),
@@ -80,13 +86,15 @@ pub async fn execute(db: &LiminalDB, query_path: &Path) -> Result<()> {
             .context("Invalid start time format in tx_time_range")?
             .with_timezone(&chrono::Utc);
         let end = if let Some(end_str) = &tx_range.end {
-            Some(chrono::DateTime::parse_from_rfc3339(end_str)
-                .context("Invalid end time format in tx_time_range")?
-                .with_timezone(&chrono::Utc))
+            Some(
+                chrono::DateTime::parse_from_rfc3339(end_str)
+                    .context("Invalid end time format in tx_time_range")?
+                    .with_timezone(&chrono::Utc),
+            )
         } else {
             None
         };
-        
+
         let time_range = match end {
             Some(end_time) => TimeRange::between(start, end_time),
             None => TimeRange::from(start),
@@ -102,7 +110,7 @@ pub async fn execute(db: &LiminalDB, query_path: &Path) -> Result<()> {
         let tx_time = chrono::DateTime::parse_from_rfc3339(&timeshift_spec.tx_time)
             .context("Invalid tx_time format in timeshift")?
             .with_timezone(&chrono::Utc);
-        
+
         let timeshift = TimeshiftQuery::valid_at_tx(valid_time, tx_time);
         query = query.timeshift(timeshift);
     }
@@ -129,9 +137,16 @@ pub async fn execute(db: &LiminalDB, query_path: &Path) -> Result<()> {
     table
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_header(vec!["Entity ID", "Attribute", "Value", "Valid Time", "Tx Time"]);
+        .set_header(vec![
+            "Entity ID",
+            "Attribute",
+            "Value",
+            "Valid Time",
+            "Tx Time",
+        ]);
 
-    for fact in result.facts.iter().take(20) { // Limit to first 20 results for readability
+    for fact in result.facts.iter().take(20) {
+        // Limit to first 20 results for readability
         table.add_row(vec![
             fact.entity_id.to_string(),
             fact.attribute.to_string(),
