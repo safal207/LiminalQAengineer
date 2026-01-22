@@ -1,10 +1,12 @@
-# LiminalQA-RS — Концепт
+# LiminalQA Engineer
+
+[![CI](https://github.com/safal207/LiminalQAengineer/workflows/CI/badge.svg)](https://github.com/safal207/LiminalQAengineer/actions/workflows/ci.yml)
+[![Security Audit](https://github.com/safal207/LiminalQAengineer/workflows/Security%20Audit/badge.svg)](https://github.com/safal207/LiminalQAengineer/actions/workflows/security-audit.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Миссия**: Превратить QA из набора ассёртов в систему коллективной осознанности продуктов.
 
 **Опора**: Rust-движок тестов + собственные LIMINAL-DB (би-темпоральная) и LiminalOS (герметичные прогоны).
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 🎯 Философия LIMINAL
 

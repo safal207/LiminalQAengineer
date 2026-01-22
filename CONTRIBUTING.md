@@ -9,6 +9,7 @@ Thank you for your interest in contributing to LiminalQA! ❤️
 - [Development Workflow](#development-workflow)
 - [Code Style](#code-style)
 - [Testing](#testing)
+- [Security](#security)
 - [Submitting Changes](#submitting-changes)
 - [Review Process](#review-process)
 
@@ -213,6 +214,20 @@ mod tests {
 - Aim for >80% code coverage on new code
 - All public APIs must have tests
 - Critical paths must have integration tests
+
+## 🔒 Security
+
+### Dependency Management
+
+We use multiple tools to keep dependencies secure:
+
+- **cargo-audit**: Automated scanning for known vulnerabilities (runs on every PR)
+- **Dependabot**: Automated dependency updates (weekly)
+- **dependency-review**: Available when repository becomes public
+
+### Reporting Security Issues
+
+Please report security vulnerabilities to [your-email] or open a private security advisory.
 
 ## 📤 Submitting Changes
 

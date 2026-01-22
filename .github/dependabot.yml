@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Enable Cargo dependency updates
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Create PRs automatically
+    open-pull-requests-limit: 10
+
+  # Enable GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
