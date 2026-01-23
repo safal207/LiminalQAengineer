@@ -22,15 +22,19 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  dependency-review:
-    name: Dependency Review
+  trivy-scan:
+    name: Trivy Vulnerability Scanner
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.repository.private == false
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v3
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
         with:
-          fail-on-severity: moderate
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
