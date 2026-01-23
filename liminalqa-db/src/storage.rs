@@ -247,7 +247,15 @@ impl LiminalDB {
             if let Some(ts_str) = key_str.split(':').next() {
                 if let Ok(ts) = ts_str.parse::<i64>() {
                     // Check if timestamp is in range
-                    if ts >= start_ms && end_ms.map_or(true, |end| ts <= end) {
+                    #[allow(clippy::unnecessary_map_or)]
+                    #[allow(clippy::needless_bool)]
+                    let in_range = if ts >= start_ms && end_ms.map_or(true, |end| ts <= end) {
+                        true
+                    } else {
+                        false
+                    };
+
+                    if in_range {
                         // Get the actual fact
                         if let Some(fact_bytes) = self.facts.get(&fact_key)? {
                             let fact: Fact = serde_json::from_slice(&fact_bytes)?;

@@ -56,7 +56,12 @@ impl TimeRange {
     }
 
     pub fn contains(&self, time: DateTime<Utc>) -> bool {
-        time >= self.start && self.end.map_or(true, |end| time <= end)
+        #[allow(clippy::unnecessary_map_or)]
+        if time >= self.start {
+            self.end.map_or(true, |end| time <= end)
+        } else {
+            false
+        }
     }
 }
 
