@@ -1,0 +1,102 @@
+name: 🐛 Bug Report
+description: File a bug report to help us improve
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐛 Bug Report
+        Thanks for taking the time to fill out this bug report! ❤️
+
+        Please provide as much detail as possible to help us fix the issue quickly.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Description
+      description: A clear and concise description of the bug
+      placeholder: What went wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 🔄 Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Run command '...'
+        2. Execute test '...'
+        3. See error
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Expected Behavior
+      description: What you expected to happen
+      placeholder: The command should have...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ Actual Behavior
+      description: What actually happened
+      placeholder: Instead, I got...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Logs / Error Messages
+      description: Relevant log output or error messages
+      placeholder: Paste logs here...
+      render: shell
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: 🏷️ Version
+      description: Which version are you using?
+      options:
+        - main (latest)
+        - v0.1.0
+        - Other (please specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: rust-version
+    attributes:
+      label: 🦀 Rust Version
+      description: Output of `rustc --version`
+      placeholder: "rustc 1.75.0 (82e1608df 2023-12-21)"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 💻 Operating System
+      description: Your operating system and version
+      placeholder: "Ubuntu 22.04 / macOS 14.0 / Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 📌 Additional Context
+      description: Any other context about the problem
+      placeholder: This started happening after...

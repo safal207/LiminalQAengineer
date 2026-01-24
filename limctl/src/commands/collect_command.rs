@@ -13,16 +13,18 @@ pub async fn execute(db: &LiminalDB, run_id: &str) -> Result<()> {
     println!("📦 Collecting artifacts for run: {}", run_id);
 
     // Convert run_id string to EntityId
-    let entity_id = EntityId::from_string(run_id)
-        .context("Invalid run ID format")?;
+    let entity_id = EntityId::from_string(run_id).context("Invalid run ID format")?;
 
     // Get the run from the database
     let run: Option<Run> = db.get_entity(entity_id)?;
-    
+
     if let Some(run) = run {
         println!("   Plan: {}", run.plan_name);
-        println!("   Started: {}", run.started_at.format("%Y-%m-%d %H:%M:%S UTC"));
-        
+        println!(
+            "   Started: {}",
+            run.started_at.format("%Y-%m-%d %H:%M:%S UTC")
+        );
+
         // Get all artifacts for this run
         let all_artifact_ids = db.get_entities_by_type(EntityType::Artifact)?;
         let run_artifacts: Vec<Artifact> = all_artifact_ids
@@ -76,8 +78,7 @@ pub async fn execute(db: &LiminalDB, run_id: &str) -> Result<()> {
 
         // Create a directory for collected artifacts
         let artifacts_dir = PathBuf::from("collected_artifacts").join(run_id);
-        fs::create_dir_all(&artifacts_dir)
-            .context("Failed to create artifacts directory")?;
+        fs::create_dir_all(&artifacts_dir).context("Failed to create artifacts directory")?;
 
         // Save run information
         let run_info_path = artifacts_dir.join("run.json");
@@ -89,19 +90,37 @@ pub async fn execute(db: &LiminalDB, run_id: &str) -> Result<()> {
         let tests_info_path = artifacts_dir.join("tests.json");
         fs::write(&tests_info_path, serde_json::to_string_pretty(&run_tests)?)
             .context("Failed to save tests information")?;
-        println!("   Saved {} test(s) information to: {}", run_tests.len(), tests_info_path.display());
+        println!(
+            "   Saved {} test(s) information to: {}",
+            run_tests.len(),
+            tests_info_path.display()
+        );
 
         // Save signals information
         let signals_info_path = artifacts_dir.join("signals.json");
-        fs::write(&signals_info_path, serde_json::to_string_pretty(&run_signals)?)
-            .context("Failed to save signals information")?;
-        println!("   Saved {} signal(s) information to: {}", run_signals.len(), signals_info_path.display());
+        fs::write(
+            &signals_info_path,
+            serde_json::to_string_pretty(&run_signals)?,
+        )
+        .context("Failed to save signals information")?;
+        println!(
+            "   Saved {} signal(s) information to: {}",
+            run_signals.len(),
+            signals_info_path.display()
+        );
 
         // Save artifacts information
         let artifacts_info_path = artifacts_dir.join("artifacts.json");
-        fs::write(&artifacts_info_path, serde_json::to_string_pretty(&run_artifacts)?)
-            .context("Failed to save artifacts information")?;
-        println!("   Saved {} artifact(s) information to: {}", run_artifacts.len(), artifacts_info_path.display());
+        fs::write(
+            &artifacts_info_path,
+            serde_json::to_string_pretty(&run_artifacts)?,
+        )
+        .context("Failed to save artifacts information")?;
+        println!(
+            "   Saved {} artifact(s) information to: {}",
+            run_artifacts.len(),
+            artifacts_info_path.display()
+        );
 
         // Create a summary file
         let summary_path = artifacts_dir.join("summary.txt");
@@ -115,12 +134,17 @@ pub async fn execute(db: &LiminalDB, run_id: &str) -> Result<()> {
             run_signals.len(),
             run_artifacts.len()
         );
-        fs::write(&summary_path, summary)
-            .context("Failed to save summary")?;
+        fs::write(&summary_path, summary).context("Failed to save summary")?;
         println!("   Saved summary to: {}", summary_path.display());
 
-        println!("✅ Collection completed. Artifacts saved to: {}", artifacts_dir.display());
-        println!("📁 Directory contains {} files", fs::read_dir(&artifacts_dir)?.count());
+        println!(
+            "✅ Collection completed. Artifacts saved to: {}",
+            artifacts_dir.display()
+        );
+        println!(
+            "📁 Directory contains {} files",
+            fs::read_dir(&artifacts_dir)?.count()
+        );
 
         Ok(())
     } else {

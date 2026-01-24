@@ -33,11 +33,7 @@ impl TestRunner {
         let guidance = test_case.guidance();
         let test_id = new_entity_id();
 
-        info!(
-            "Executing test: {} ({})",
-            test_case.name(),
-            guidance.intent
-        );
+        info!("Executing test: {} ({})", test_case.name(), guidance.intent);
 
         let start = chrono::Utc::now();
         let mut council = InnerCouncil::new();
@@ -87,11 +83,7 @@ pub trait TestCase: Send + Sync {
     fn name(&self) -> &str;
     fn suite(&self) -> &str;
     fn guidance(&self) -> Guidance;
-    async fn execute(
-        &self,
-        navigator: &CoNavigator,
-        council: &mut InnerCouncil,
-    ) -> Result<()>;
+    async fn execute(&self, navigator: &CoNavigator, council: &mut InnerCouncil) -> Result<()>;
 }
 
 /// Result of test execution

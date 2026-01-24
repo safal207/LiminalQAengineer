@@ -40,10 +40,7 @@ impl CoNavigator {
     }
 
     /// Execute with automatic retries on failure
-    pub async fn execute_with_retry<F, Fut, T, E>(
-        &self,
-        operation: F,
-    ) -> Result<T, E>
+    pub async fn execute_with_retry<F, Fut, T, E>(&self, operation: F) -> Result<T, E>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<T, E>>,

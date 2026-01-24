@@ -1,17 +1,22 @@
+#![cfg(test)]
+#![allow(clippy::disallowed_methods)]
+#![allow(unused_imports)]
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
     routing::post,
     Router,
-    extract::State,
-    Json,
 };
 use liminalqa_core::types::EntityId;
+use liminalqa_db::LiminalDB;
 use liminalqa_ingest::{
-    handlers::{ingest_batch, BatchIngestDto, RunDto, TestDtoItem, SignalDtoItem, ArtifactDtoItem, BatchIngestResponse},
+    handlers::{
+        ingest_batch, ArtifactDtoItem, BatchIngestDto, BatchIngestResponse, RunDto, SignalDtoItem,
+        TestDtoItem,
+    },
     AppState,
 };
-use liminalqa_db::LiminalDB;
 use std::sync::Arc;
 use tower::util::ServiceExt; // for `oneshot`
 
@@ -19,7 +24,7 @@ use tower::util::ServiceExt; // for `oneshot`
 async fn test_batch_ingestion_full_flow() {
     // Setup database
     let db_dir = tempfile::tempdir().unwrap();
-    let db = LiminalDB::open(db_dir.path().to_path_buf()).unwrap();
+    let db = LiminalDB::open(db_dir.path()).unwrap();
     let state = AppState {
         db: Arc::new(db),
         auth_token: None,
@@ -62,28 +67,24 @@ async fn test_batch_ingestion_full_flow() {
                 completed_at: None,
             },
         ],
-        signals: vec![
-            SignalDtoItem {
-                test_id: None,
-                test_name: Some("test_a".to_string()),
-                kind: "api".to_string(),
-                latency_ms: Some(50),
-                at: chrono::Utc::now(),
-                value: None,
-                meta: None,
-            },
-        ],
-        artifacts: vec![
-            ArtifactDtoItem {
-                test_id: None,
-                test_name: Some("test_b".to_string()),
-                kind: "screenshot".to_string(),
-                path: "/screenshots/fail.png".to_string(),
-                path_sha256: "abc123456".to_string(),
-                size_bytes: Some(1024),
-                mime_type: Some("image/png".to_string()),
-            },
-        ],
+        signals: vec![SignalDtoItem {
+            test_id: None,
+            test_name: Some("test_a".to_string()),
+            kind: "api".to_string(),
+            latency_ms: Some(50),
+            at: chrono::Utc::now(),
+            value: None,
+            meta: None,
+        }],
+        artifacts: vec![ArtifactDtoItem {
+            test_id: None,
+            test_name: Some("test_b".to_string()),
+            kind: "screenshot".to_string(),
+            path: "/screenshots/fail.png".to_string(),
+            path_sha256: "abc123456".to_string(),
+            size_bytes: Some(1024),
+            mime_type: Some("image/png".to_string()),
+        }],
     };
 
     // Send Request
@@ -103,7 +104,9 @@ async fn test_batch_ingestion_full_flow() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // Parse Response Body
-    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body: BatchIngestResponse = serde_json::from_slice(&body_bytes).unwrap();
 
     // Assert Response Content
@@ -122,7 +125,7 @@ async fn test_batch_ingestion_full_flow() {
 async fn test_batch_ingestion_partial_failure() {
     // Setup database
     let db_dir = tempfile::tempdir().unwrap();
-    let db = LiminalDB::open(db_dir.path().to_path_buf()).unwrap();
+    let db = LiminalDB::open(db_dir.path()).unwrap();
     let state = AppState {
         db: Arc::new(db),
         auth_token: None,
@@ -143,17 +146,15 @@ async fn test_batch_ingestion_partial_failure() {
             runner_version: Some("1.0.0".to_string()),
         },
         tests: vec![],
-        signals: vec![
-            SignalDtoItem {
-                test_id: None,
-                test_name: Some("non_existent_test".to_string()),
-                kind: "api".to_string(),
-                latency_ms: Some(50),
-                at: chrono::Utc::now(),
-                value: None,
-                meta: None,
-            },
-        ],
+        signals: vec![SignalDtoItem {
+            test_id: None,
+            test_name: Some("non_existent_test".to_string()),
+            kind: "api".to_string(),
+            latency_ms: Some(50),
+            at: chrono::Utc::now(),
+            value: None,
+            meta: None,
+        }],
         artifacts: vec![],
     };
 
@@ -173,7 +174,9 @@ async fn test_batch_ingestion_partial_failure() {
     // Should return 404 because test not found
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body: BatchIngestResponse = serde_json::from_slice(&body_bytes).unwrap();
 
     assert!(!body.ok);

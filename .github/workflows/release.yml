@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Extract version from tag
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Generate changelog from commits
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.changelog.outputs.version }}
+          body: |
+            ## Changes in ${{ steps.changelog.outputs.version }}
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Installation
+
+            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for installation instructions.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-binaries:
+    name: Build Release Binaries
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf limctl-${{ matrix.target }}.tar.gz limctl
+          mv limctl-${{ matrix.target }}.tar.gz ${{ github.workspace }}
+
+      - name: Package binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a limctl-${{ matrix.target }}.zip limctl.exe
+          mv limctl-${{ matrix.target }}.zip ${{ github.workspace }}
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: limctl-${{ matrix.target }}.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

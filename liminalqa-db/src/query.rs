@@ -80,8 +80,7 @@ impl Query {
 
         if let Some(ref timeshift) = self.timeshift {
             facts.retain(|f| {
-                f.time.valid_time <= timeshift.valid_time
-                    && f.time.tx_time <= timeshift.tx_time
+                f.time.valid_time <= timeshift.valid_time && f.time.tx_time <= timeshift.tx_time
             });
         }
 
@@ -131,7 +130,12 @@ mod tests {
         Ok((temp_dir, db))
     }
 
-    fn create_test_fact(entity_id: EntityId, attribute: Attribute, value: i32, minutes_ago: i64) -> Fact {
+    fn create_test_fact(
+        entity_id: EntityId,
+        attribute: Attribute,
+        value: i32,
+        minutes_ago: i64,
+    ) -> Fact {
         let time = Utc::now() - chrono::Duration::minutes(minutes_ago);
         Fact::with_time(
             entity_id,

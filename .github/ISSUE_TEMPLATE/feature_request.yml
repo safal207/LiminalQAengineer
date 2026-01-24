@@ -1,0 +1,74 @@
+name: ✨ Feature Request
+description: Suggest an idea for LiminalQA
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ✨ Feature Request
+        We'd love to hear your ideas! 💡
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🤔 Problem Statement
+      description: What problem does this feature solve?
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 Proposed Solution
+      description: How would you like this to work?
+      placeholder: I'd like to be able to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternatives Considered
+      description: What other solutions have you thought about?
+      placeholder: I've considered...
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: 🎯 Use Case
+      description: Describe a specific scenario where this would be useful
+      placeholder: |
+        As a QA engineer, I need to...
+        So that I can...
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: ⚡ Priority
+      description: How important is this to you?
+      options:
+        - Low (Nice to have)
+        - Medium (Would improve workflow)
+        - High (Blocking current work)
+        - Critical (Cannot use product without this)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: willingness
+    attributes:
+      label: 🙋 Willingness to Contribute
+      description: Would you be willing to help implement this?
+      options:
+        - label: I'm willing to implement this feature myself
+        - label: I can help with testing
+        - label: I can help with documentation
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 📎 Additional Information
+      description: Screenshots, mockups, or references

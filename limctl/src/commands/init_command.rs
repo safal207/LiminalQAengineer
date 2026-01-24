@@ -5,7 +5,10 @@ use std::fs;
 use std::path::Path;
 
 pub async fn execute(directory: &Path) -> Result<()> {
-    println!("🚀 Initializing LiminalQA project in: {}", directory.display());
+    println!(
+        "🚀 Initializing LiminalQA project in: {}",
+        directory.display()
+    );
 
     // Create directory structure
     let dirs = [
@@ -55,8 +58,7 @@ tests:
 ";
 
     let plan_path = directory.join("plans/example.yaml");
-    fs::write(&plan_path, example_plan)
-        .context("Failed to write example plan")?;
+    fs::write(&plan_path, example_plan).context("Failed to write example plan")?;
     println!("   ✓ Created example plan: plans/example.yaml");
 
     // Create README
@@ -100,8 +102,7 @@ Visit https://github.com/safal207/LiminalQAengineer
 "#;
 
     let readme_path = directory.join("README.md");
-    fs::write(&readme_path, readme)
-        .context("Failed to write README")?;
+    fs::write(&readme_path, readme).context("Failed to write README")?;
     println!("   ✓ Created README.md");
 
     println!("\n✨ LiminalQA project initialized successfully!");
