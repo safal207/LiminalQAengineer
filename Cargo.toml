@@ -39,7 +39,7 @@ prost = "0.12"
 
 # Database
 sled = "0.34"
-bincode = "1.3"
+bincode = "3.0"
 
 # CLI
 clap = { version = "4.4", features = ["derive", "env"] }
