@@ -32,7 +32,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ steps.changelog.outputs.version }}
           body: |
@@ -86,7 +86,7 @@ jobs:
           mv limctl-${{ matrix.target }}.zip ${{ github.workspace }}
 
       - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: limctl-${{ matrix.target }}.*
         env:
