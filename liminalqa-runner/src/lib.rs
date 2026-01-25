@@ -11,6 +11,7 @@ pub mod conavigation;
 pub mod council;
 pub mod guidance;
 pub mod ingest;
+pub mod metrics;
 pub mod reflection;
 pub mod runner;
 
@@ -18,5 +19,6 @@ pub use conavigation::CoNavigator;
 pub use council::InnerCouncil;
 pub use guidance::Guidance;
 pub use ingest::{create_ingest, Ingest, IngestConfig};
+pub use metrics::TestMetrics;
 pub use reflection::Reflection;
 pub use runner::TestRunner;

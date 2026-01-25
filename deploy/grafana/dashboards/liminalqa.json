@@ -1,0 +1,162 @@
+{
+  "dashboard": {
+    "title": "LiminalQA Monitoring",
+    "tags": ["liminalqa", "testing", "qa"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Test Execution Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(liminalqa_tests_total[5m])",
+            "legendFormat": "Tests per second"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      },
+      {
+        "id": 2,
+        "title": "Test Success Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "sum(rate(liminalqa_tests_passed_total[5m])) / sum(rate(liminalqa_tests_total[5m])) * 100",
+            "legendFormat": "Success Rate %"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true,
+          "minValue": 0,
+          "maxValue": 100
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 80, "color": "yellow" },
+                { "value": 95, "color": "green" }
+              ]
+            },
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Test Duration (p50, p95, p99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(liminalqa_test_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(liminalqa_test_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(liminalqa_test_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+        "yaxes": [
+          { "format": "s", "label": "Duration" },
+          { "format": "short" }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Active Tests",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "liminalqa_active_tests",
+            "legendFormat": "Active"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 }
+      },
+      {
+        "id": 5,
+        "title": "Total Tests Today",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(liminalqa_tests_total[24h])",
+            "legendFormat": "Total"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 }
+      },
+      {
+        "id": 6,
+        "title": "Failures Today",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(liminalqa_test_failures_total[24h])",
+            "legendFormat": "Failures"
+          }
+        ],
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 10, "color": "yellow" },
+                { "value": 50, "color": "red" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes{job=~\"liminalqa.*\"} / 1024 / 1024",
+            "legendFormat": "{{ service }}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+        "yaxes": [
+          { "format": "mbytes", "label": "Memory" },
+          { "format": "short" }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total{job=~\"liminalqa.*\"}[5m]) * 100",
+            "legendFormat": "{{ service }}"
+          }
+        ],
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+        "yaxes": [
+          { "format": "percent", "label": "CPU %" },
+          { "format": "short" }
+        ]
+      }
+    ],
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}
