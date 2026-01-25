@@ -11,3 +11,4 @@ ulid.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
+prometheus-client = "0.24.0"

@@ -273,3 +273,45 @@ MIT
 ---
 
 **Создано с 🧠 для превращения QA в систему осознанности**
+
+## 📊 Monitoring
+
+LiminalQA includes comprehensive monitoring with Prometheus and Grafana.
+
+### Quick Start
+
+```bash
+# Start monitoring stack
+cd deploy
+docker-compose -f docker-compose.monitoring.yml up -d
+
+# Access dashboards
+# Grafana: http://localhost:3000 (admin/admin)
+# Prometheus: http://localhost:9090
+```
+
+### Available Metrics
+
+- Test execution rate and success rate
+- Test duration percentiles (p50, p95, p99)
+- Active concurrent tests
+- Resource usage (CPU, Memory)
+- QA findings discovered
+
+### Dashboards
+
+- **Main Dashboard**: Overview of all test metrics
+- **Performance**: Detailed latency analysis
+- **System Health**: Resource usage and alerts
+
+For detailed documentation, see [docs/monitoring/README.md](docs/monitoring/README.md).
+
+### Alerts
+
+Configured alerts for:
+- Service downtime
+- High error rates
+- Slow test execution
+- Resource exhaustion
+
+See [docs/monitoring/alerts.md](docs/monitoring/alerts.md) for details.

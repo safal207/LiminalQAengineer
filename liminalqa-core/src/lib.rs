@@ -7,12 +7,14 @@
 
 pub mod entities;
 pub mod facts;
+pub mod metrics;
 pub mod report;
 pub mod temporal;
 pub mod types;
 
 pub use entities::*;
 pub use facts::*;
+pub use metrics::*;
 pub use report::*;
 pub use temporal::*;
 pub use types::*;

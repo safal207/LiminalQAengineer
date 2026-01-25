@@ -1,0 +1,47 @@
+# Prometheus configuration for LiminalQA monitoring
+global:
+  scrape_interval: 15s      # Частота сбора метрик
+  evaluation_interval: 15s   # Частота проверки правил
+  external_labels:
+    cluster: 'liminalqa'
+    environment: 'development'
+
+# Загрузка правил алертов
+rule_files:
+  - 'alerts.yml'
+
+# Endpoints для сбора метрик
+scrape_configs:
+  # Метрики самого Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Метрики LiminalQA Runner
+  - job_name: 'liminalqa-runner'
+    static_configs:
+      - targets: ['liminalqa-runner:8080']
+        labels:
+          service: 'runner'
+          component: 'test-execution'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  # Метрики LiminalQA Ingest (будущее)
+  - job_name: 'liminalqa-ingest'
+    static_configs:
+      - targets: ['liminalqa-ingest:8081']
+        labels:
+          service: 'ingest'
+          component: 'data-ingestion'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  # Node Exporter для системных метрик (опционально)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
