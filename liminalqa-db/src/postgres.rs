@@ -1,6 +1,5 @@
 use crate::models::*;
 use anyhow::Result;
-use sqlx::Row;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 pub struct PostgresStorage {

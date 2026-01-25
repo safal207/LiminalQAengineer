@@ -1,7 +1,6 @@
 //! LiminalQA Ingest Server — REST API for test run data ingestion
 
 use anyhow::Result;
-use liminalqa_db::PostgresStorage;
 use std::{net::SocketAddr, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::{info, Level};

@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use ulid::Ulid;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct TestRun {
