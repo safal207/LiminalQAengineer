@@ -4,7 +4,7 @@ use crate::liminalqa::v1::{
 };
 use chrono::TimeZone;
 use liminalqa_core::types::EntityId;
-use liminalqa_db::LiminalDB;
+use liminalqa_db::{models::TestRun, PostgresStorage};
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio_stream::Stream;
@@ -12,11 +12,11 @@ use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
 pub struct MyIngestService {
-    db: Arc<LiminalDB>,
+    db: Arc<PostgresStorage>,
 }
 
 impl MyIngestService {
-    pub fn new(db: Arc<LiminalDB>) -> Self {
+    pub fn new(db: Arc<PostgresStorage>) -> Self {
         Self { db }
     }
 }
@@ -31,10 +31,10 @@ impl IngestService for MyIngestService {
 
         let run_id = liminalqa_core::types::new_entity_id();
 
-        let build_id = EntityId::from_string(&req.build_id)
+        let _build_id = EntityId::from_string(&req.build_id)
             .map_err(|e| Status::invalid_argument(format!("Invalid build_id: {}", e)))?;
 
-        let env: std::collections::HashMap<String, String> = serde_json::from_str(&req.env)
+        let env: serde_json::Value = serde_json::from_str(&req.env)
             .map_err(|e| Status::invalid_argument(format!("Invalid env JSON: {}", e)))?;
 
         let started_at = chrono::Utc
@@ -53,20 +53,25 @@ impl IngestService for MyIngestService {
             None
         };
 
-        let run = liminalqa_core::entities::Run {
-            id: run_id,
-            build_id,
+        let run = TestRun {
+            id: run_id.to_string(),
+            build_id: Some(req.build_id), // store string directly
             plan_name: req.plan_name,
-            env,
+            status: "running".to_string(),
             started_at,
-            ended_at,
-            runner_version: req.runner_version,
-            liminal_os_version: req.liminal_os_version,
-            created_at: liminalqa_core::temporal::BiTemporalTime::now(),
+            completed_at: ended_at,
+            duration_ms: None,
+            environment: env,
+            metadata: serde_json::json!({
+                "runner_version": req.runner_version,
+                "liminal_os_version": req.liminal_os_version
+            }),
+            created_at: chrono::Utc::now(),
         };
 
         self.db
-            .put_run(&run)
+            .insert_run(&run)
+            .await
             .map_err(|e| Status::internal(format!("Failed to store run: {}", e)))?;
 
         Ok(Response::new(IngestRunResponse {
@@ -105,7 +110,7 @@ impl IngestService for MyIngestService {
             while let Some(signal) = stream.next().await {
                 let _sig = signal?;
                 // TODO: Save signal to DB using `db`
-                // Parsing signal fields and calling db.put_signal
+                // Parsing signal fields and calling db.insert_signal
 
                 yield SignalAck {
                     signal_id: ulid::Ulid::new().to_string(),

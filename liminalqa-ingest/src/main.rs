@@ -1,8 +1,8 @@
 //! LiminalQA Ingest Server — REST API for test run data ingestion
 
 use anyhow::Result;
-use liminalqa_db::LiminalDB;
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use liminalqa_db::PostgresStorage;
+use std::{net::SocketAddr, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
@@ -25,10 +25,9 @@ async fn main() -> Result<()> {
     info!("Starting LiminalQA Ingest Server");
 
     // Open database
-    let db_path =
-        std::env::var("LIMINAL_DB_PATH").unwrap_or_else(|_| "./data/liminaldb".to_string());
-    info!("Opening database at: {}", db_path);
-    let db = LiminalDB::open(PathBuf::from(db_path))?;
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    info!("Connecting to database...");
+    let db = liminalqa_db::open(&database_url).await?;
     let db_arc = Arc::new(db);
 
     let auth_token = std::env::var("LIMINAL_AUTH_TOKEN").ok();

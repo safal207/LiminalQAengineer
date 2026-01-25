@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     clang \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
@@ -26,12 +27,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy the binary from builder stage
+# Copy binaries
 COPY --from=builder /usr/src/app/target/release/limctl /usr/local/bin/limctl
+COPY --from=builder /usr/src/app/target/release/liminalqa-ingest /usr/local/bin/liminalqa-ingest
 
 # Create data directory
 RUN mkdir -p /app/data
 
 # Set the entrypoint
-ENTRYPOINT ["limctl"]
-CMD ["--help"]
+ENTRYPOINT ["liminalqa-ingest"]

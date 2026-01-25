@@ -3,13 +3,13 @@ use liminalqa_core::{
     entities::Test,
     metrics::{BaselineLabels, SharedMetrics},
 };
-use liminalqa_db::LiminalDB;
+use liminalqa_db::{models::Baseline, PostgresStorage};
 use tracing::{info, warn};
 
-pub fn check_baseline_drift(db: &LiminalDB, metrics: &SharedMetrics, test: &Test) {
+pub async fn check_baseline_drift(db: &PostgresStorage, metrics: &SharedMetrics, test: &Test) {
     // 1. Get history (durations)
     // We need enough samples for meaningful stats. e.g. 50?
-    let history = match db.get_test_history(&test.name, &test.suite, 50) {
+    let history = match db.get_test_history(&test.name, &test.suite, 50).await {
         Ok(h) => h,
         Err(e) => {
             warn!("Failed to get history for baseline {}: {}", test.name, e);
@@ -52,5 +52,19 @@ pub fn check_baseline_drift(db: &LiminalDB, metrics: &SharedMetrics, test: &Test
             "Drift detected for test {} (Duration: {}ms, Mean: {:.1}ms, StdDev: {:.1}ms)",
             test.name, current_duration, mean, stddev
         );
+    }
+
+    // 5. Upsert Baseline to DB
+    let baseline = Baseline {
+        test_name: test.name.clone(),
+        suite: test.suite.clone(),
+        mean_duration_ms: mean,
+        stddev_duration_ms: stddev,
+        sample_size: history.len() as i32,
+        last_updated: chrono::Utc::now(),
+    };
+
+    if let Err(e) = db.upsert_baseline(&baseline).await {
+        warn!("Failed to upsert baseline: {}", e);
     }
 }

@@ -1,19 +1,39 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: liminalqa-postgres
+    environment:
+      POSTGRES_USER: liminal
+      POSTGRES_PASSWORD: liminal
+      POSTGRES_DB: liminalqa
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liminal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monitoring
+
   ingest:
     build:
       context: ../
       dockerfile: Dockerfile
     container_name: liminalqa-ingest
     ports:
-      - "3000:8080"   # HTTP API mapped to host 3000
-      - "50051:50051" # gRPC API mapped to host 50051
-    volumes:
-      - ../data:/data
+      - "3000:8080"
+      - "50051:50051"
     environment:
-      - LIMINAL_DB_PATH=/data/liminaldb
+      - DATABASE_URL=postgres://liminal:liminal@postgres:5432/liminalqa
       - RUST_LOG=info
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - monitoring
     restart: unless-stopped
@@ -23,7 +43,7 @@ services:
     container_name: liminalqa-grpcui
     command: -plaintext ingest:50051
     ports:
-      - "8080:8080" # gRPC UI mapped to host 8080
+      - "8080:8080"
     networks:
       - monitoring
     depends_on:
@@ -53,7 +73,7 @@ services:
     image: grafana/grafana:latest
     container_name: liminalqa-grafana
     ports:
-      - "3001:3000" # Mapped to 3001 to avoid conflict with Ingest on 3000
+      - "3001:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -75,5 +95,6 @@ networks:
     driver: bridge
 
 volumes:
+  postgres-data:
   prometheus-data:
   grafana-data:

@@ -13,7 +13,7 @@ use axum::{
     Json, Router,
 };
 use liminalqa_core::metrics::SharedMetrics;
-use liminalqa_db::LiminalDB;
+use liminalqa_db::PostgresStorage;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -23,7 +23,7 @@ use crate::resonance::get_flaky_tests;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: Arc<LiminalDB>,
+    pub db: Arc<PostgresStorage>,
     pub auth_token: Option<String>,
     pub metrics: SharedMetrics,
 }

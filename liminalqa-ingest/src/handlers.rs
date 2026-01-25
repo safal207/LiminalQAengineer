@@ -5,8 +5,9 @@ use std::collections::HashMap;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use liminalqa_core::{entities::*, metrics::TestLabels, temporal::BiTemporalTime, types::*};
 use liminalqa_db::{
+    models::{ArtifactEntity, SignalEntity, TestResult, TestRun},
     query::{Query, QueryResult},
-    LiminalDB,
+    PostgresStorage,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
@@ -121,31 +122,24 @@ pub struct BatchCounts {
 
 // --- Helper Functions ---
 
-fn create_run_from_dto(dto: &RunDto) -> Result<Run, String> {
-    let env = match serde_json::from_value::<std::collections::HashMap<String, String>>(
-        dto.env.clone(),
-    ) {
-        Ok(env) => env,
-        Err(e) => return Err(format!("Invalid env format: {}", e)),
-    };
-
-    Ok(Run {
-        id: dto.run_id,
-        build_id: dto.build_id,
+fn create_run_from_dto(dto: &RunDto) -> Result<TestRun, String> {
+    Ok(TestRun {
+        id: dto.run_id.to_string(),
+        build_id: Some(dto.build_id.to_string()),
         plan_name: dto.plan_name.clone(),
-        env,
+        status: "running".to_string(), // Default status
         started_at: dto.started_at,
-        ended_at: None,
-        runner_version: dto
-            .runner_version
-            .clone()
-            .unwrap_or_else(|| "unknown".to_string()),
-        liminal_os_version: None,
-        created_at: BiTemporalTime::now(),
+        completed_at: None,
+        duration_ms: None,
+        environment: dto.env.clone(),
+        metadata: serde_json::json!({
+            "runner_version": dto.runner_version
+        }),
+        created_at: chrono::Utc::now(),
     })
 }
 
-fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> Test {
+fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> (Test, TestResult) {
     let status = match item.status.to_lowercase().as_str() {
         "pass" | "passed" | "success" => TestStatus::Pass,
         "fail" | "failed" | "error" => TestStatus::Fail,
@@ -155,8 +149,12 @@ fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> Test {
         _ => TestStatus::Skip,
     };
 
-    Test {
-        id: EntityId::new(),
+    let test_id = EntityId::new();
+    let started_at = item.started_at.unwrap_or_else(chrono::Utc::now);
+    let completed_at = item.completed_at.unwrap_or_else(chrono::Utc::now);
+
+    let test_entity = Test {
+        id: test_id,
         run_id,
         name: item.name.clone(),
         suite: item.suite.clone(),
@@ -167,13 +165,41 @@ fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> Test {
             .error
             .as_ref()
             .and_then(|e| serde_json::from_value(e.clone()).ok()),
-        started_at: item.started_at.unwrap_or_else(chrono::Utc::now),
-        completed_at: item.completed_at.unwrap_or_else(chrono::Utc::now),
+        started_at,
+        completed_at,
         created_at: BiTemporalTime::now(),
-    }
+    };
+
+    let error_message = test_entity.error.as_ref().map(|e| e.message.clone());
+    let stack_trace = test_entity
+        .error
+        .as_ref()
+        .and_then(|e| e.stack_trace.clone());
+
+    let test_result = TestResult {
+        id: test_id.to_string(),
+        run_id: run_id.to_string(),
+        name: item.name.clone(),
+        suite: item.suite.clone(),
+        status: format!("{:?}", status).to_lowercase(),
+        duration_ms: item.duration_ms.unwrap_or(0),
+        error_message,
+        stack_trace,
+        metadata: serde_json::json!({
+            "guidance": item.guidance
+        }),
+        executed_at: started_at,
+        created_at: chrono::Utc::now(),
+    };
+
+    (test_entity, test_result)
 }
 
-fn create_signal_from_dto(run_id: EntityId, test_id: EntityId, item: &SignalDtoItem) -> Signal {
+fn create_signal_from_dto(
+    _run_id: EntityId,
+    test_id: EntityId,
+    item: &SignalDtoItem,
+) -> SignalEntity {
     let signal_type = match item.kind.to_lowercase().as_str() {
         "ui" => SignalType::UI,
         "api" => SignalType::API,
@@ -190,56 +216,41 @@ fn create_signal_from_dto(run_id: EntityId, test_id: EntityId, item: &SignalDtoI
         .and_then(|m| serde_json::from_value(m.clone()).ok())
         .unwrap_or_default();
 
-    Signal {
-        id: EntityId::new(),
-        run_id,
-        test_id,
-        signal_type,
+    SignalEntity {
+        id: EntityId::new().to_string(),
+        test_id: test_id.to_string(),
+        signal_type: format!("{:?}", signal_type).to_lowercase(),
         timestamp: item.at,
-        latency_ms: item.latency_ms,
-        payload_ref: None,
-        metadata,
-        created_at: BiTemporalTime::now(),
+        value: serde_json::json!({
+            "latency_ms": item.latency_ms,
+            "value": item.value
+        }),
+        metadata: Some(metadata),
+        created_at: chrono::Utc::now(),
     }
 }
 
 fn create_artifact_from_dto(
-    run_id: EntityId,
+    _run_id: EntityId,
     test_id: EntityId,
     item: &ArtifactDtoItem,
-) -> Artifact {
-    let artifact_type = match item.kind.to_lowercase().as_str() {
-        "screenshot" => ArtifactType::Screenshot,
-        "apiresponse" => ArtifactType::ApiResponse,
-        "wsmessage" => ArtifactType::WsMessage,
-        "grpctrace" => ArtifactType::GrpcTrace,
-        "log" => ArtifactType::Log,
-        "video" => ArtifactType::Video,
-        _ => ArtifactType::Trace,
-    };
-
-    Artifact {
-        id: EntityId::new(),
-        run_id,
-        test_id,
-        artifact_ref: ArtifactRef {
-            sha256: item.path_sha256.clone(),
-            path: item.path.clone(),
-            size_bytes: item
-                .size_bytes
-                .filter(|&v| v >= 0)
-                .map(|v| v as u64)
-                .unwrap_or(0),
-            mime_type: item.mime_type.clone(),
-        },
-        artifact_type,
-        description: None,
-        created_at: BiTemporalTime::now(),
+) -> ArtifactEntity {
+    ArtifactEntity {
+        id: EntityId::new().to_string(),
+        test_id: test_id.to_string(),
+        artifact_type: item.kind.clone(),
+        file_path: item.path.clone(),
+        content_hash: Some(item.path_sha256.clone()),
+        size_bytes: item.size_bytes,
+        metadata: Some(serde_json::json!({
+            "mime_type": item.mime_type
+        })),
+        created_at: chrono::Utc::now(),
     }
 }
 
-fn resolve_test_id(
-    db: &LiminalDB,
+async fn resolve_test_id(
+    db: &PostgresStorage,
     test_id_map: &HashMap<String, EntityId>,
     run_id: EntityId,
     test_id: Option<EntityId>,
@@ -268,9 +279,22 @@ fn resolve_test_id(
                 return Ok(id);
             }
 
-            // Fallback to DB lookup (for tests ingested earlier)
-            match db.find_test_by_name(run_id, name) {
-                Ok(Some(id)) => Ok(id),
+            // Fallback to DB lookup
+            match db.find_test_by_name(&run_id.to_string(), name).await {
+                Ok(Some(id_str)) => match EntityId::from_string(&id_str) {
+                    Ok(id) => Ok(id),
+                    Err(_) => Err(Box::new((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(BatchIngestResponse {
+                            ok: false,
+                            message: "Invalid test ID in database".to_string(),
+                            counts: BatchCounts::default(),
+                            test_id_map: None,
+                            partial_counts: Some(current_counts.clone()),
+                            error_details: None,
+                        }),
+                    ))),
+                },
                 Ok(None) => Err(Box::new((
                     StatusCode::NOT_FOUND,
                     Json(BatchIngestResponse {
@@ -310,16 +334,11 @@ pub async fn ingest_run(
     info!("Ingesting run: id={}", dto.run_id);
 
     match create_run_from_dto(&dto) {
-        Ok(run) => match state.db.put_run(&run) {
-            Ok(_) => {
-                if let Err(e) = state.db.flush() {
-                    error!("Failed to flush db: {}", e);
-                }
-                (
-                    StatusCode::OK,
-                    Json(ApiResponse::ok("Run ingested successfully")),
-                )
-            }
+        Ok(run) => match state.db.insert_run(&run).await {
+            Ok(_) => (
+                StatusCode::OK,
+                Json(ApiResponse::ok("Run ingested successfully")),
+            ),
             Err(e) => {
                 error!("Failed to ingest run: {}", e);
                 (
@@ -339,9 +358,9 @@ pub async fn ingest_tests(
     info!("Ingesting {} tests", dto.tests.len());
 
     for item in &dto.tests {
-        let test = create_test_from_dto(dto.run_id, item);
+        let (test_entity, test_result) = create_test_from_dto(dto.run_id, item);
 
-        if let Err(e) = state.db.put_test(&test) {
+        if let Err(e) = state.db.insert_test(&test_result).await {
             error!("Failed to ingest test: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -350,25 +369,25 @@ pub async fn ingest_tests(
         }
 
         // Check for flakiness
-        check_and_record_flakiness(&state.db, &test);
+        check_and_record_flakiness(&state.db, &test_entity).await;
 
         // Check for baseline drift
-        check_baseline_drift(&state.db, &state.metrics, &test);
+        check_baseline_drift(&state.db, &state.metrics, &test_entity).await;
 
         // Record metrics
         let labels = TestLabels {
-            name: test.name.clone(),
-            suite: test.suite.clone(),
-            status: format!("{:?}", test.status).to_lowercase(),
+            name: test_entity.name.clone(),
+            suite: test_entity.suite.clone(),
+            status: format!("{:?}", test_entity.status).to_lowercase(),
         };
         state
             .metrics
             .test_duration
             .get_or_create(&labels)
-            .observe(test.duration_ms as f64 / 1000.0);
+            .observe(test_entity.duration_ms as f64 / 1000.0);
         state.metrics.tests_total.get_or_create(&labels).inc();
 
-        match test.status {
+        match test_entity.status {
             TestStatus::Pass => {
                 state.metrics.tests_passed.get_or_create(&labels).inc();
             }
@@ -377,10 +396,6 @@ pub async fn ingest_tests(
             }
             _ => {}
         }
-    }
-
-    if let Err(e) = state.db.flush() {
-        error!("Failed to flush db: {}", e);
     }
 
     (
@@ -428,11 +443,24 @@ pub async fn ingest_signals(
                     }
                 };
 
-                match state.db.find_test_by_name(dto.run_id, test_name) {
-                    Ok(Some(id)) => {
-                        info!("Resolved test_id {} for test '{}'", id, test_name);
-                        id
-                    }
+                match state
+                    .db
+                    .find_test_by_name(&dto.run_id.to_string(), test_name)
+                    .await
+                {
+                    Ok(Some(id_str)) => match EntityId::from_string(&id_str) {
+                        Ok(id) => {
+                            info!("Resolved test_id {} for test '{}'", id, test_name);
+                            id
+                        }
+                        Err(_) => {
+                            error!("Invalid ID in DB for test '{}'", test_name);
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(ApiResponse::error("Invalid ID in database")),
+                            );
+                        }
+                    },
                     Ok(None) => {
                         error!("Test '{}' not found in run {}", test_name, dto.run_id);
                         return (
@@ -459,7 +487,7 @@ pub async fn ingest_signals(
 
         let signal = create_signal_from_dto(dto.run_id, test_id, item);
 
-        if let Err(e) = state.db.put_signal(&signal) {
+        if let Err(e) = state.db.insert_signal(&signal).await {
             error!("Failed to ingest signal: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -469,10 +497,6 @@ pub async fn ingest_signals(
                 ))),
             );
         }
-    }
-
-    if let Err(e) = state.db.flush() {
-        error!("Failed to flush db: {}", e);
     }
 
     (
@@ -520,11 +544,24 @@ pub async fn ingest_artifacts(
                     }
                 };
 
-                match state.db.find_test_by_name(dto.run_id, test_name) {
-                    Ok(Some(id)) => {
-                        info!("Resolved test_id {} for test '{}'", id, test_name);
-                        id
-                    }
+                match state
+                    .db
+                    .find_test_by_name(&dto.run_id.to_string(), test_name)
+                    .await
+                {
+                    Ok(Some(id_str)) => match EntityId::from_string(&id_str) {
+                        Ok(id) => {
+                            info!("Resolved test_id {} for test '{}'", id, test_name);
+                            id
+                        }
+                        Err(_) => {
+                            error!("Invalid ID in DB for test '{}'", test_name);
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(ApiResponse::error("Invalid ID in database")),
+                            );
+                        }
+                    },
                     Ok(None) => {
                         error!("Test '{}' not found in run {}", test_name, dto.run_id);
                         return (
@@ -551,7 +588,7 @@ pub async fn ingest_artifacts(
 
         let artifact = create_artifact_from_dto(dto.run_id, test_id, item);
 
-        if let Err(e) = state.db.put_artifact(&artifact) {
+        if let Err(e) = state.db.insert_artifact(&artifact).await {
             error!("Failed to ingest artifact: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -561,10 +598,6 @@ pub async fn ingest_artifacts(
                 ))),
             );
         }
-    }
-
-    if let Err(e) = state.db.flush() {
-        error!("Failed to flush db: {}", e);
     }
 
     (
@@ -610,7 +643,7 @@ pub async fn ingest_batch(
         }
     };
 
-    if let Err(e) = state.db.put_run(&run) {
+    if let Err(e) = state.db.insert_run(&run).await {
         error!("Failed to ingest run: {}", e);
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -628,13 +661,13 @@ pub async fn ingest_batch(
 
     // Step 2: Ingest tests and build name -> id map
     for test_item in &batch.tests {
-        let test = create_test_from_dto(batch.run.run_id, test_item);
+        let (test_entity, test_result) = create_test_from_dto(batch.run.run_id, test_item);
 
         // Store test_name -> test_id mapping for later use
-        test_id_map.insert(test.name.clone(), test.id);
+        test_id_map.insert(test_entity.name.clone(), test_entity.id);
 
-        if let Err(e) = state.db.put_test(&test) {
-            error!("Failed to ingest test '{}': {}", test.name, e);
+        if let Err(e) = state.db.insert_test(&test_result).await {
+            error!("Failed to ingest test '{}': {}", test_entity.name, e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(BatchIngestResponse {
@@ -649,25 +682,25 @@ pub async fn ingest_batch(
         }
 
         // Check for flakiness
-        check_and_record_flakiness(&state.db, &test);
+        check_and_record_flakiness(&state.db, &test_entity).await;
 
         // Check for baseline drift
-        check_baseline_drift(&state.db, &state.metrics, &test);
+        check_baseline_drift(&state.db, &state.metrics, &test_entity).await;
 
         // Record metrics
         let labels = TestLabels {
-            name: test.name.clone(),
-            suite: test.suite.clone(),
-            status: format!("{:?}", test.status).to_lowercase(),
+            name: test_entity.name.clone(),
+            suite: test_entity.suite.clone(),
+            status: format!("{:?}", test_entity.status).to_lowercase(),
         };
         state
             .metrics
             .test_duration
             .get_or_create(&labels)
-            .observe(test.duration_ms as f64 / 1000.0);
+            .observe(test_entity.duration_ms as f64 / 1000.0);
         state.metrics.tests_total.get_or_create(&labels).inc();
 
-        match test.status {
+        match test_entity.status {
             TestStatus::Pass => {
                 state.metrics.tests_passed.get_or_create(&labels).inc();
             }
@@ -689,14 +722,16 @@ pub async fn ingest_batch(
             signal_item.test_id,
             signal_item.test_name.as_deref(),
             &counts,
-        ) {
+        )
+        .await
+        {
             Ok(id) => id,
             Err(boxed_resp) => return *boxed_resp,
         };
 
         let signal = create_signal_from_dto(batch.run.run_id, test_id, signal_item);
 
-        if let Err(e) = state.db.put_signal(&signal) {
+        if let Err(e) = state.db.insert_signal(&signal).await {
             error!("Failed to ingest signal: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -722,14 +757,16 @@ pub async fn ingest_batch(
             artifact_item.test_id,
             artifact_item.test_name.as_deref(),
             &counts,
-        ) {
+        )
+        .await
+        {
             Ok(id) => id,
             Err(boxed_resp) => return *boxed_resp,
         };
 
         let artifact = create_artifact_from_dto(batch.run.run_id, test_id, artifact_item);
 
-        if let Err(e) = state.db.put_artifact(&artifact) {
+        if let Err(e) = state.db.insert_artifact(&artifact).await {
             error!("Failed to ingest artifact: {}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -744,22 +781,6 @@ pub async fn ingest_batch(
             );
         }
         counts.artifacts += 1;
-    }
-
-    // Step 5: Flush to disk
-    if let Err(e) = state.db.flush() {
-        error!("Failed to flush db: {}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(BatchIngestResponse {
-                ok: false,
-                message: "Batch ingestion failed during flush".to_string(),
-                counts: BatchCounts::default(),
-                test_id_map: None,
-                partial_counts: Some(counts),
-                error_details: Some(format!("Flush failed: {}", e)),
-            }),
-        );
     }
 
     info!("Batch ingestion successful: {:?}", counts);
