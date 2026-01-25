@@ -2,14 +2,14 @@ use crate::liminalqa::v1::{
     ingest_service_server::IngestService, IngestRunRequest, IngestRunResponse, IngestTestsRequest,
     IngestTestsResponse, Signal, SignalAck,
 };
-use liminalqa_db::LiminalDB;
-use std::sync::Arc;
-use tonic::{Request, Response, Status};
-use tokio_stream::StreamExt;
-use std::pin::Pin;
-use tokio_stream::Stream;
-use liminalqa_core::types::EntityId;
 use chrono::TimeZone;
+use liminalqa_core::types::EntityId;
+use liminalqa_db::LiminalDB;
+use std::pin::Pin;
+use std::sync::Arc;
+use tokio_stream::Stream;
+use tokio_stream::StreamExt;
+use tonic::{Request, Response, Status};
 
 pub struct MyIngestService {
     db: Arc<LiminalDB>,
@@ -35,16 +35,22 @@ impl IngestService for MyIngestService {
             .map_err(|e| Status::invalid_argument(format!("Invalid build_id: {}", e)))?;
 
         let env: std::collections::HashMap<String, String> = serde_json::from_str(&req.env)
-             .map_err(|e| Status::invalid_argument(format!("Invalid env JSON: {}", e)))?;
+            .map_err(|e| Status::invalid_argument(format!("Invalid env JSON: {}", e)))?;
 
-        let started_at = chrono::Utc.timestamp_millis_opt(req.started_at).single()
+        let started_at = chrono::Utc
+            .timestamp_millis_opt(req.started_at)
+            .single()
             .ok_or_else(|| Status::invalid_argument("Invalid started_at timestamp"))?;
 
         let ended_at = if let Some(ts) = req.ended_at {
-             Some(chrono::Utc.timestamp_millis_opt(ts).single()
-                 .ok_or_else(|| Status::invalid_argument("Invalid ended_at timestamp"))?)
+            Some(
+                chrono::Utc
+                    .timestamp_millis_opt(ts)
+                    .single()
+                    .ok_or_else(|| Status::invalid_argument("Invalid ended_at timestamp"))?,
+            )
         } else {
-             None
+            None
         };
 
         let run = liminalqa_core::entities::Run {
@@ -59,7 +65,8 @@ impl IngestService for MyIngestService {
             created_at: liminalqa_core::temporal::BiTemporalTime::now(),
         };
 
-        self.db.put_run(&run)
+        self.db
+            .put_run(&run)
             .map_err(|e| Status::internal(format!("Failed to store run: {}", e)))?;
 
         Ok(Response::new(IngestRunResponse {
