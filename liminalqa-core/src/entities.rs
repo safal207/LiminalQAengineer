@@ -80,12 +80,19 @@ pub struct Run {
     pub id: EntityId,
     pub build_id: EntityId,
     pub plan_name: String,
+    pub status: RunStatus, // Added status
     pub env: Environment,
     pub started_at: chrono::DateTime<chrono::Utc>,
     pub ended_at: Option<chrono::DateTime<chrono::Utc>>,
     pub runner_version: String,
     pub liminal_os_version: Option<String>,
     pub created_at: BiTemporalTime,
+
+    // Access Protocol fields (Phase 5 - reserved)
+    pub protocol_version: Option<String>,
+    pub self_resonance_score: Option<f32>,
+    pub world_resonance_score: Option<f32>,
+    pub overall_alignment_score: Option<f32>,
 }
 
 impl Entity for Run {
@@ -111,6 +118,9 @@ pub struct Test {
     pub started_at: chrono::DateTime<chrono::Utc>,
     pub completed_at: chrono::DateTime<chrono::Utc>,
     pub created_at: BiTemporalTime,
+
+    // Access Protocol fields (Phase 5 - reserved)
+    pub protocol_metrics: Option<ProtocolMetrics>,
 }
 
 impl Entity for Test {
@@ -163,6 +173,7 @@ pub struct Signal {
     pub test_id: EntityId,
     pub signal_type: SignalType,
     pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub value: serde_json::Value, // Added value
     pub latency_ms: Option<u64>,
     pub payload_ref: Option<ArtifactRef>,
     pub metadata: std::collections::HashMap<String, serde_json::Value>,

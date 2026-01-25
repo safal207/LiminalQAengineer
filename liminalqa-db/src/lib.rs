@@ -7,9 +7,11 @@
 //! - Efficient indexing for time-based queries
 
 pub mod index;
+pub mod postgres;
 pub mod query;
 pub mod storage;
 
+pub use postgres::PostgresDB;
 pub use query::{Query, QueryResult};
 pub use storage::LiminalDB;
 

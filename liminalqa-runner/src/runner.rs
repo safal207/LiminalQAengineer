@@ -63,6 +63,7 @@ impl TestRunner {
             started_at: start,
             completed_at: end,
             created_at: BiTemporalTime::now(),
+            protocol_metrics: None,
         };
 
         // Generate reflection

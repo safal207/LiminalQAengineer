@@ -133,6 +133,7 @@ fn create_run_from_dto(dto: &RunDto) -> Result<Run, String> {
         id: dto.run_id,
         build_id: dto.build_id,
         plan_name: dto.plan_name.clone(),
+        status: RunStatus::Running,
         env,
         started_at: dto.started_at,
         ended_at: None,
@@ -142,6 +143,10 @@ fn create_run_from_dto(dto: &RunDto) -> Result<Run, String> {
             .unwrap_or_else(|| "unknown".to_string()),
         liminal_os_version: None,
         created_at: BiTemporalTime::now(),
+        protocol_version: None,
+        self_resonance_score: None,
+        world_resonance_score: None,
+        overall_alignment_score: None,
     })
 }
 
@@ -170,6 +175,7 @@ fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> Test {
         started_at: item.started_at.unwrap_or_else(chrono::Utc::now),
         completed_at: item.completed_at.unwrap_or_else(chrono::Utc::now),
         created_at: BiTemporalTime::now(),
+        protocol_metrics: None,
     }
 }
 
@@ -196,6 +202,7 @@ fn create_signal_from_dto(run_id: EntityId, test_id: EntityId, item: &SignalDtoI
         test_id,
         signal_type,
         timestamp: item.at,
+        value: item.value.map(serde_json::Value::from).unwrap_or(serde_json::Value::Null),
         latency_ms: item.latency_ms,
         payload_ref: None,
         metadata,

@@ -344,6 +344,7 @@ mod tests {
             started_at: chrono::Utc::now(),
             completed_at: chrono::Utc::now(),
             created_at: BiTemporalTime::now(),
+            protocol_metrics: None,
         };
 
         db.put_test(&test)?;
@@ -377,6 +378,7 @@ mod tests {
             started_at: chrono::Utc::now(),
             completed_at: chrono::Utc::now(),
             created_at: BiTemporalTime::now(),
+            protocol_metrics: None,
         };
 
         db.put_test(&test)?;
@@ -420,6 +422,7 @@ mod tests {
             started_at: chrono::Utc::now(),
             completed_at: chrono::Utc::now(),
             created_at: BiTemporalTime::now(),
+            protocol_metrics: None,
         };
 
         let test2 = Test {
@@ -434,6 +437,7 @@ mod tests {
             started_at: chrono::Utc::now(),
             completed_at: chrono::Utc::now(),
             created_at: BiTemporalTime::now(),
+            protocol_metrics: None,
         };
 
         db.put_test(&test1)?;

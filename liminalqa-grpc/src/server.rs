@@ -57,12 +57,17 @@ impl IngestService for MyIngestService {
             id: run_id,
             build_id,
             plan_name: req.plan_name,
+            status: liminalqa_core::types::RunStatus::Running,
             env,
             started_at,
             ended_at,
             runner_version: req.runner_version,
             liminal_os_version: req.liminal_os_version,
             created_at: liminalqa_core::temporal::BiTemporalTime::now(),
+            protocol_version: None,
+            self_resonance_score: None,
+            world_resonance_score: None,
+            overall_alignment_score: None,
         };
 
         self.db

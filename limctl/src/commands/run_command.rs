@@ -52,12 +52,17 @@ pub async fn execute(db: &LiminalDB, plan_path: &Path) -> Result<()> {
         id: run_id,
         build_id: EntityId::new(),
         plan_name: plan.name,
+        status: liminalqa_core::types::RunStatus::Running,
         env: plan.environment.unwrap_or_default(),
         started_at: chrono::Utc::now(),
         ended_at: None,
         runner_version: env!("CARGO_PKG_VERSION").to_string(),
         liminal_os_version: None,
         created_at: BiTemporalTime::now(),
+        protocol_version: None,
+        self_resonance_score: None,
+        world_resonance_score: None,
+        overall_alignment_score: None,
     };
 
     // Store the run in the database
@@ -86,6 +91,7 @@ pub async fn execute(db: &LiminalDB, plan_path: &Path) -> Result<()> {
             started_at: chrono::Utc::now(),
             completed_at: chrono::Utc::now(),
             created_at: BiTemporalTime::now(),
+            protocol_metrics: None,
         };
 
         // Store the test result in the database
