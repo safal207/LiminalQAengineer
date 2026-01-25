@@ -14,8 +14,16 @@ use std::sync::Arc;
 /// Labels for test metrics
 #[derive(Clone, Debug, Hash, PartialEq, Eq, prometheus_client::encoding::EncodeLabelSet)]
 pub struct TestLabels {
-    pub test_type: String,
+    pub name: String,
+    pub suite: String,
     pub status: String,
+}
+
+/// Labels for baseline metrics
+#[derive(Clone, Debug, Hash, PartialEq, Eq, prometheus_client::encoding::EncodeLabelSet)]
+pub struct BaselineLabels {
+    pub name: String,
+    pub suite: String,
 }
 
 /// Global metrics registry for LiminalQA
@@ -27,6 +35,10 @@ pub struct MetricsRegistry {
     pub tests_passed: Family<TestLabels, Counter>,
     pub tests_failed: Family<TestLabels, Counter>,
     pub test_duration: Family<TestLabels, Histogram>,
+
+    // Baseline metrics
+    pub baseline_duration_mean: Family<BaselineLabels, Gauge>,
+    pub baseline_duration_stddev: Family<BaselineLabels, Gauge>,
 
     // System metrics
     pub active_tests: Gauge,
@@ -70,6 +82,21 @@ impl MetricsRegistry {
             test_duration.clone(),
         );
 
+        // Baseline Gauges (using milliseconds as i64)
+        let baseline_duration_mean = Family::<BaselineLabels, Gauge>::default();
+        registry.register(
+            "liminalqa_baseline_duration_millis_mean",
+            "Baseline mean duration in milliseconds",
+            baseline_duration_mean.clone(),
+        );
+
+        let baseline_duration_stddev = Family::<BaselineLabels, Gauge>::default();
+        registry.register(
+            "liminalqa_baseline_duration_millis_stddev",
+            "Baseline duration stddev in milliseconds",
+            baseline_duration_stddev.clone(),
+        );
+
         // Gauges
         let active_tests = Gauge::default();
         registry.register(
@@ -91,6 +118,8 @@ impl MetricsRegistry {
             tests_passed,
             tests_failed,
             test_duration,
+            baseline_duration_mean,
+            baseline_duration_stddev,
             active_tests,
             total_findings,
         }
@@ -125,7 +154,8 @@ mod tests {
         metrics
             .tests_total
             .get_or_create(&TestLabels {
-                test_type: "unit".to_string(),
+                name: "test_example".to_string(),
+                suite: "unit".to_string(),
                 status: "success".to_string(),
             })
             .inc();

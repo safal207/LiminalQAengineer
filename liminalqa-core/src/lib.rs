@@ -5,10 +5,12 @@
 //! - Temporal axes: valid_time (truth of the world) & tx_time (when we learned)
 //! - Facts: attributes attached to entities across time
 
+pub mod baseline;
 pub mod entities;
 pub mod facts;
 pub mod metrics;
 pub mod report;
+pub mod resonance;
 pub mod temporal;
 pub mod types;
 

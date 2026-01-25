@@ -7,19 +7,21 @@ use std::time::Instant;
 pub struct TestMetrics {
     metrics: SharedMetrics,
     start_time: Instant,
-    test_type: String,
+    test_name: String,
+    suite: String,
 }
 
 impl TestMetrics {
     /// Create a new test metrics tracker
-    pub fn new(metrics: SharedMetrics, test_type: String) -> Self {
+    pub fn new(metrics: SharedMetrics, test_name: String, suite: String) -> Self {
         // Increment active tests
         metrics.active_tests.inc();
 
         Self {
             metrics,
             start_time: Instant::now(),
-            test_type,
+            test_name,
+            suite,
         }
     }
 
@@ -28,7 +30,8 @@ impl TestMetrics {
         let duration = self.start_time.elapsed();
 
         let labels = TestLabels {
-            test_type: self.test_type.clone(),
+            name: self.test_name.clone(),
+            suite: self.suite.clone(),
             status: "success".to_string(),
         };
 
@@ -47,7 +50,8 @@ impl TestMetrics {
         let duration = self.start_time.elapsed();
 
         let labels = TestLabels {
-            test_type: self.test_type.clone(),
+            name: self.test_name.clone(),
+            suite: self.suite.clone(),
             status: "failure".to_string(),
         };
 
@@ -81,7 +85,11 @@ mod tests {
 
         // Simulate successful test
         {
-            let tracker = TestMetrics::new(metrics.clone(), "integration".to_string());
+            let tracker = TestMetrics::new(
+                metrics.clone(),
+                "test_demo".to_string(),
+                "integration".to_string(),
+            );
             thread::sleep(Duration::from_millis(10));
             tracker.record_success();
         }
@@ -90,5 +98,6 @@ mod tests {
         let output = metrics.export();
         assert!(output.contains("liminalqa_tests_total"));
         assert!(output.contains("integration"));
+        assert!(output.contains("test_demo"));
     }
 }

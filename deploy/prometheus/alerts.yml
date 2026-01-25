@@ -67,3 +67,18 @@ groups:
         annotations:
           summary: "No test activity detected"
           description: "No tests have been executed in the last 15 minutes"
+
+      # Алерт: смещение базовой линии времени выполнения (Drift Detection)
+      - alert: TestDurationDrift
+        expr: |
+          (
+            histogram_quantile(0.95, rate(liminalqa_test_duration_seconds_bucket[5m])) * 1000
+            - on(name, suite) group_left() liminalqa_baseline_duration_millis_mean
+          )
+          / on(name, suite) group_left() liminalqa_baseline_duration_millis_stddev > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Test Duration Drift Detected"
+          description: "Test {{ $labels.name }} duration P95 is > 2 sigma from baseline."
