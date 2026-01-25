@@ -1,6 +1,8 @@
 //! LiminalQA Ingest Library
 
+pub mod baseline;
 pub mod handlers;
+pub mod resonance;
 
 use axum::{
     extract::{Request, State},
@@ -10,17 +12,20 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use liminalqa_core::metrics::SharedMetrics;
 use liminalqa_db::LiminalDB;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
 use crate::handlers::*;
+use crate::resonance::get_flaky_tests;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<LiminalDB>,
     pub auth_token: Option<String>,
+    pub metrics: SharedMetrics,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,6 +58,8 @@ pub fn app(state: AppState) -> Router {
         .route("/ingest/artifacts", post(ingest_artifacts))
         .route("/ingest/batch", post(ingest_batch))
         .route("/query", post(query_handler))
+        .route("/api/resonance/flaky", get(get_flaky_tests))
+        .route("/metrics", get(metrics_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -76,6 +83,17 @@ async fn health_check() -> impl IntoResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
     };
     Json(body)
+}
+
+async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let body = state.metrics.export();
+    (
+        [(
+            header::CONTENT_TYPE,
+            "application/openmetrics-text; version=1.0.0; charset=utf-8",
+        )],
+        body,
+    )
 }
 
 async fn auth_middleware(

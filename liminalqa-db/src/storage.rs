@@ -16,6 +16,7 @@ pub struct LiminalDB {
     tx_time_index: sled::Tree,
     entity_type_index: sled::Tree,
     test_name_index: sled::Tree,
+    test_history_index: sled::Tree,
 }
 
 impl LiminalDB {
@@ -31,6 +32,7 @@ impl LiminalDB {
         let tx_time_index = db.open_tree("idx_tx_time")?;
         let entity_type_index = db.open_tree("idx_entity_type")?;
         let test_name_index = db.open_tree("idx_test_name")?;
+        let test_history_index = db.open_tree("idx_test_history")?;
 
         Ok(Self {
             db,
@@ -40,6 +42,7 @@ impl LiminalDB {
             tx_time_index,
             entity_type_index,
             test_name_index,
+            test_history_index,
         })
     }
 
@@ -67,7 +70,43 @@ impl LiminalDB {
         self.test_name_index
             .insert(index_key.as_bytes(), &test.id.to_bytes())?;
 
+        // Create index for history lookup (name + suite + time)
+        let history_key = format!(
+            "idx:history:{}:{}:{}",
+            test.name,
+            test.suite,
+            test.started_at.timestamp_millis()
+        );
+        self.test_history_index
+            .insert(history_key.as_bytes(), &test.id.to_bytes())?;
+
         Ok(())
+    }
+
+    /// Retrieve test execution history for a given test name and suite
+    pub fn get_test_history(&self, name: &str, suite: &str, limit: usize) -> Result<Vec<Test>> {
+        let prefix = format!("idx:history:{}:{}:", name, suite);
+        let mut tests = Vec::new();
+
+        // Scan the history index
+        // Note: Sled iteration order is lexicographical.
+        // Timestamps increase, so normal iteration gives oldest first.
+        // If we want newest first (likely for history), we should iterate in reverse.
+        for item in self
+            .test_history_index
+            .scan_prefix(prefix.as_bytes())
+            .rev()
+            .take(limit)
+        {
+            let (_, id_bytes) = item?;
+            let test_id = EntityId::from_bytes(id_bytes.as_ref().try_into()?);
+
+            if let Some(test) = self.get_entity::<Test>(test_id)? {
+                tests.push(test);
+            }
+        }
+
+        Ok(tests)
     }
 
     /// Find test ID by name within a specific run

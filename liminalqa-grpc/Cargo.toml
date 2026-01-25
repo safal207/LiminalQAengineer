@@ -1,0 +1,21 @@
+[package]
+name = "liminalqa-grpc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tonic = "0.11"
+prost = "0.12"
+tokio = { version = "1.35", features = ["full"] }
+liminalqa-core = { path = "../liminalqa-core" }
+liminalqa-db = { path = "../liminalqa-db" }
+async-trait = "0.1"
+anyhow = "1.0"
+chrono = "0.4"
+ulid = "1.1"
+tokio-stream = "0.1"
+async-stream = "0.3"
+serde_json.workspace = true
+
+[build-dependencies]
+tonic-build = "0.11"

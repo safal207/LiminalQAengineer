@@ -1,21 +1,9 @@
 [package]
 name = "liminalqa-ingest"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-
-[lib]
-name = "liminalqa_ingest"
-path = "src/lib.rs"
-
-[[bin]]
-name = "liminalqa-ingest"
-path = "src/main.rs"
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-liminalqa-core = { path = "../liminalqa-core" }
-liminalqa-db = { path = "../liminalqa-db" }
-
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -24,11 +12,15 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 chrono.workspace = true
-
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 hyper.workspace = true
+liminalqa-core = { path = "../liminalqa-core" }
+liminalqa-db = { path = "../liminalqa-db" }
+liminalqa-grpc = { path = "../liminalqa-grpc" }
+tonic = "0.11"
+prometheus-client = "0.24.0"
 
 [dev-dependencies]
 tempfile = "3.24.0"

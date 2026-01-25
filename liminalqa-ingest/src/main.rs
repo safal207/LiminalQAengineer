@@ -7,7 +7,10 @@ use tower_http::trace::TraceLayer;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
+use liminalqa_core::metrics::MetricsRegistry;
+use liminalqa_grpc::{IngestServiceServer, MyIngestService};
 use liminalqa_ingest::AppState;
+use tonic::transport::Server;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,6 +29,7 @@ async fn main() -> Result<()> {
         std::env::var("LIMINAL_DB_PATH").unwrap_or_else(|_| "./data/liminaldb".to_string());
     info!("Opening database at: {}", db_path);
     let db = LiminalDB::open(PathBuf::from(db_path))?;
+    let db_arc = Arc::new(db);
 
     let auth_token = std::env::var("LIMINAL_AUTH_TOKEN").ok();
     if auth_token.is_none() {
@@ -34,26 +38,51 @@ async fn main() -> Result<()> {
             This is a SECURITY RISK in production. Set LIMINAL_AUTH_TOKEN \
             environment variable to enable authentication."
         );
-        // In production, consider making this a hard error:
-        // return Err(anyhow::anyhow!("LIMINAL_AUTH_TOKEN must be set"));
     }
 
+    // Initialize metrics
+    let metrics = Arc::new(MetricsRegistry::new());
+
     let state = AppState {
-        db: Arc::new(db),
+        db: db_arc.clone(),
         auth_token,
+        metrics,
     };
 
-    // Build router
+    // Build REST Router
     let app = liminalqa_ingest::app(state).layer(TraceLayer::new_for_http());
 
-    // Start server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    info!("Listening on http://{}", addr);
+    // Start servers
+    let rest_addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let grpc_addr = "[::0]:50051".parse().unwrap();
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    info!("REST Listening on http://{}", rest_addr);
+    info!("gRPC Listening on {}", grpc_addr);
+
+    let rest_server = async {
+        let listener = tokio::net::TcpListener::bind(rest_addr).await?;
+        axum::serve(listener, app)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    };
+
+    let grpc_service = MyIngestService::new(db_arc.clone());
+    let grpc_server = Server::builder()
+        .add_service(IngestServiceServer::new(grpc_service))
+        .serve(grpc_addr);
+
+    tokio::select! {
+        res = rest_server => {
+            if let Err(e) = res {
+                tracing::error!("REST server failed: {}", e);
+            }
+        },
+        res = grpc_server => {
+            if let Err(e) = res {
+                tracing::error!("gRPC server failed: {}", e);
+            }
+        }
+    }
 
     #[allow(clippy::disallowed_methods)]
     Ok(())

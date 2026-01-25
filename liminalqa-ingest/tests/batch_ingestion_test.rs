@@ -25,9 +25,11 @@ async fn test_batch_ingestion_full_flow() {
     // Setup database
     let db_dir = tempfile::tempdir().unwrap();
     let db = LiminalDB::open(db_dir.path()).unwrap();
+    let metrics = Arc::new(liminalqa_core::metrics::MetricsRegistry::new());
     let state = AppState {
         db: Arc::new(db),
         auth_token: None,
+        metrics,
     };
 
     // Setup Router
@@ -126,9 +128,11 @@ async fn test_batch_ingestion_partial_failure() {
     // Setup database
     let db_dir = tempfile::tempdir().unwrap();
     let db = LiminalDB::open(db_dir.path()).unwrap();
+    let metrics = Arc::new(liminalqa_core::metrics::MetricsRegistry::new());
     let state = AppState {
         db: Arc::new(db),
         auth_token: None,
+        metrics,
     };
 
     let app = Router::new()

@@ -6,6 +6,7 @@ members = [
     "liminalqa-db",
     "liminalqa-runner",
     "limctl",
+    "liminalqa-grpc",
 ]
 
 [workspace.package]

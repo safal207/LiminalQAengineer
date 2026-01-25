@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  ingest:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    container_name: liminalqa-ingest
+    ports:
+      - "3000:8080"   # HTTP API mapped to host 3000
+      - "50051:50051" # gRPC API mapped to host 50051
+    volumes:
+      - ../data:/data
+    environment:
+      - LIMINAL_DB_PATH=/data/liminaldb
+      - RUST_LOG=info
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  grpcui:
+    image: fullstorydev/grpcui
+    container_name: liminalqa-grpcui
+    command: -plaintext ingest:50051
+    ports:
+      - "8080:8080" # gRPC UI mapped to host 8080
+    networks:
+      - monitoring
+    depends_on:
+      - ingest
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: liminalqa-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: liminalqa-grafana
+    ports:
+      - "3001:3000" # Mapped to 3001 to avoid conflict with Ingest on 3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use liminalqa_core::{entities::*, temporal::BiTemporalTime, types::*};
+use liminalqa_core::{entities::*, metrics::TestLabels, temporal::BiTemporalTime, types::*};
 use liminalqa_db::{
     query::{Query, QueryResult},
     LiminalDB,
@@ -11,7 +11,9 @@ use liminalqa_db::{
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
-use crate::{ApiResponse, AppState};
+use crate::{
+    baseline::check_baseline_drift, resonance::check_and_record_flakiness, ApiResponse, AppState,
+};
 
 // --- DTOs ---
 
@@ -346,6 +348,35 @@ pub async fn ingest_tests(
                 Json(ApiResponse::error(format!("Failed to ingest test: {}", e))),
             );
         }
+
+        // Check for flakiness
+        check_and_record_flakiness(&state.db, &test);
+
+        // Check for baseline drift
+        check_baseline_drift(&state.db, &state.metrics, &test);
+
+        // Record metrics
+        let labels = TestLabels {
+            name: test.name.clone(),
+            suite: test.suite.clone(),
+            status: format!("{:?}", test.status).to_lowercase(),
+        };
+        state
+            .metrics
+            .test_duration
+            .get_or_create(&labels)
+            .observe(test.duration_ms as f64 / 1000.0);
+        state.metrics.tests_total.get_or_create(&labels).inc();
+
+        match test.status {
+            TestStatus::Pass => {
+                state.metrics.tests_passed.get_or_create(&labels).inc();
+            }
+            TestStatus::Fail => {
+                state.metrics.tests_failed.get_or_create(&labels).inc();
+            }
+            _ => {}
+        }
     }
 
     if let Err(e) = state.db.flush() {
@@ -616,6 +647,36 @@ pub async fn ingest_batch(
                 }),
             );
         }
+
+        // Check for flakiness
+        check_and_record_flakiness(&state.db, &test);
+
+        // Check for baseline drift
+        check_baseline_drift(&state.db, &state.metrics, &test);
+
+        // Record metrics
+        let labels = TestLabels {
+            name: test.name.clone(),
+            suite: test.suite.clone(),
+            status: format!("{:?}", test.status).to_lowercase(),
+        };
+        state
+            .metrics
+            .test_duration
+            .get_or_create(&labels)
+            .observe(test.duration_ms as f64 / 1000.0);
+        state.metrics.tests_total.get_or_create(&labels).inc();
+
+        match test.status {
+            TestStatus::Pass => {
+                state.metrics.tests_passed.get_or_create(&labels).inc();
+            }
+            TestStatus::Fail => {
+                state.metrics.tests_failed.get_or_create(&labels).inc();
+            }
+            _ => {}
+        }
+
         counts.tests += 1;
     }
 
