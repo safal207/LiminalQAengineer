@@ -34,7 +34,9 @@ impl TestMetrics {
 
         self.metrics.tests_total.get_or_create(&labels).inc();
         self.metrics.tests_passed.get_or_create(&labels).inc();
-        self.metrics.test_duration.get_or_create(&labels)
+        self.metrics
+            .test_duration
+            .get_or_create(&labels)
             .observe(duration.as_secs_f64());
 
         self.metrics.active_tests.dec();
@@ -51,7 +53,9 @@ impl TestMetrics {
 
         self.metrics.tests_total.get_or_create(&labels).inc();
         self.metrics.tests_failed.get_or_create(&labels).inc();
-        self.metrics.test_duration.get_or_create(&labels)
+        self.metrics
+            .test_duration
+            .get_or_create(&labels)
             .observe(duration.as_secs_f64());
 
         self.metrics.active_tests.dec();
@@ -77,10 +81,7 @@ mod tests {
 
         // Simulate successful test
         {
-            let tracker = TestMetrics::new(
-                metrics.clone(),
-                "integration".to_string()
-            );
+            let tracker = TestMetrics::new(metrics.clone(), "integration".to_string());
             thread::sleep(Duration::from_millis(10));
             tracker.record_success();
         }

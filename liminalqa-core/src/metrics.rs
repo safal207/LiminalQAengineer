@@ -122,10 +122,13 @@ mod tests {
         let metrics = MetricsRegistry::new();
 
         // Increment some metrics
-        metrics.tests_total.get_or_create(&TestLabels {
-            test_type: "unit".to_string(),
-            status: "success".to_string(),
-        }).inc();
+        metrics
+            .tests_total
+            .get_or_create(&TestLabels {
+                test_type: "unit".to_string(),
+                status: "success".to_string(),
+            })
+            .inc();
 
         metrics.active_tests.set(5);
 
