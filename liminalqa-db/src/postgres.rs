@@ -1,9 +1,9 @@
 // liminalqa-db/src/postgres.rs
 
-use sqlx::{PgPool, postgres::PgPoolOptions};
-use crate::models::*;
 use crate::error::Result;
+use crate::models::*;
 use chrono::{DateTime, Utc};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 
 #[derive(Clone)]
 pub struct PostgresStorage {
@@ -20,9 +20,7 @@ impl PostgresStorage {
             .await?;
 
         // Run migrations
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await?;
+        sqlx::migrate!("./migrations").run(&pool).await?;
 
         tracing::info!("PostgreSQL storage initialized");
 
@@ -41,7 +39,7 @@ impl PostgresStorage {
                 started_at, environment, metadata
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#
+            "#,
         )
         .bind(&run.id)
         .bind(&run.build_id)
@@ -68,7 +66,7 @@ impl PostgresStorage {
             FROM runs
             ORDER BY started_at DESC
             LIMIT $1
-            "#
+            "#,
         )
         .bind(limit)
         .fetch_all(&self.pool)
@@ -93,7 +91,7 @@ impl PostgresStorage {
                 metadata, executed_at
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            "#
+            "#,
         )
         .bind(&test.id)
         .bind(&test.run_id)
@@ -115,7 +113,7 @@ impl PostgresStorage {
     pub async fn insert_test_with_protocol(
         &self,
         test: &TestResult,
-        metrics: &ProtocolMetrics
+        metrics: &ProtocolMetrics,
     ) -> Result<()> {
         sqlx::query(
             r#"
@@ -126,7 +124,7 @@ impl PostgresStorage {
                 executed_at
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            "#
+            "#,
         )
         .bind(&test.id)
         .bind(&test.run_id)
@@ -159,7 +157,7 @@ impl PostgresStorage {
             FROM tests
             WHERE run_id = $1
             ORDER BY executed_at
-            "#
+            "#,
         )
         .bind(run_id)
         .fetch_all(&self.pool)
@@ -186,7 +184,7 @@ impl PostgresStorage {
                 stddev_duration_ms = EXCLUDED.stddev_duration_ms,
                 sample_size = EXCLUDED.sample_size,
                 last_updated = NOW()
-            "#
+            "#,
         )
         .bind(&baseline.test_name)
         .bind(&baseline.suite)
@@ -199,11 +197,7 @@ impl PostgresStorage {
         Ok(())
     }
 
-    pub async fn get_baseline(
-        &self,
-        test_name: &str,
-        suite: &str
-    ) -> Result<Option<Baseline>> {
+    pub async fn get_baseline(&self, test_name: &str, suite: &str) -> Result<Option<Baseline>> {
         let baseline = sqlx::query_as::<_, Baseline>(
             r#"
             SELECT
@@ -214,7 +208,7 @@ impl PostgresStorage {
                 mean_world_resonance
             FROM baselines
             WHERE test_name = $1 AND suite = $2
-            "#
+            "#,
         )
         .bind(test_name)
         .bind(suite)
@@ -232,7 +226,7 @@ impl PostgresStorage {
         &self,
         test_name: &str,
         suite: &str,
-        days: i32
+        days: i32,
     ) -> Result<Vec<DriftDataPoint>> {
         #[derive(sqlx::FromRow)]
         struct RawDriftData {
@@ -255,7 +249,7 @@ impl PostgresStorage {
               AND t.suite = $2
               AND t.executed_at > NOW() - INTERVAL '1 day' * $3
             ORDER BY t.executed_at ASC
-            "#
+            "#,
         )
         .bind(test_name)
         .bind(suite)
@@ -263,12 +257,15 @@ impl PostgresStorage {
         .fetch_all(&self.pool)
         .await?;
 
-        let data = raw_data.into_iter().map(|d| DriftDataPoint {
-            timestamp: d.timestamp,
-            duration_ms: d.duration_ms,
-            mean_duration_ms: d.mean_duration_ms.unwrap_or(0.0),
-            stddev_duration_ms: d.stddev_duration_ms.unwrap_or(0.0),
-        }).collect();
+        let data = raw_data
+            .into_iter()
+            .map(|d| DriftDataPoint {
+                timestamp: d.timestamp,
+                duration_ms: d.duration_ms,
+                mean_duration_ms: d.mean_duration_ms.unwrap_or(0.0),
+                stddev_duration_ms: d.stddev_duration_ms.unwrap_or(0.0),
+            })
+            .collect();
 
         Ok(data)
     }
@@ -277,10 +274,7 @@ impl PostgresStorage {
     // RESONANCE SCORES (Phase 4)
     // ========================================================================
 
-    pub async fn upsert_resonance_score(
-        &self,
-        score: &ResonanceScore
-    ) -> Result<()> {
+    pub async fn upsert_resonance_score(&self, score: &ResonanceScore) -> Result<()> {
         sqlx::query(
             r#"
             INSERT INTO resonance_scores (
@@ -292,7 +286,7 @@ impl PostgresStorage {
                 score = EXCLUDED.score,
                 correlated_tests = EXCLUDED.correlated_tests,
                 last_calculated = NOW()
-            "#
+            "#,
         )
         .bind(&score.test_name)
         .bind(&score.suite)
@@ -314,7 +308,7 @@ impl PostgresStorage {
             FROM resonance_scores
             ORDER BY score DESC
             LIMIT 100
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -326,10 +320,7 @@ impl PostgresStorage {
     // PROTOCOL QUALITY - Phase 5 queries (ready but not used yet)
     // ========================================================================
 
-    pub async fn get_protocol_quality_view(
-        &self,
-        limit: i64
-    ) -> Result<Vec<ProtocolQualityView>> {
+    pub async fn get_protocol_quality_view(&self, limit: i64) -> Result<Vec<ProtocolQualityView>> {
         let results = sqlx::query_as::<_, ProtocolQualityView>(
             r#"
             SELECT
@@ -350,7 +341,7 @@ impl PostgresStorage {
             WHERE self_resonance_score IS NOT NULL
             ORDER BY executed_at DESC
             LIMIT $1
-            "#
+            "#,
         )
         .bind(limit)
         .fetch_all(&self.pool)

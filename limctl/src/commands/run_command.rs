@@ -2,7 +2,10 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use liminalqa_db::{PostgresStorage, models::{TestRun, TestResult}};
+use liminalqa_db::{
+    models::{TestResult, TestRun},
+    PostgresStorage,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;

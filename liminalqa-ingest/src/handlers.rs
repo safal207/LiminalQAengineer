@@ -1,8 +1,13 @@
 //! HTTP request handlers
 
-use axum::{extract::{State, Query}, http::StatusCode, response::IntoResponse, Json};
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
 use chrono::Utc;
-use liminalqa_core::types::{EntityId, new_entity_id};
+use liminalqa_core::types::{new_entity_id, EntityId};
 use liminalqa_db::models::*;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
@@ -205,7 +210,7 @@ pub async fn ingest_batch(
     for item in &batch.tests {
         let test = dto_to_db_test(&run.id, item);
         if let Err(e) = state.db.insert_test(&test).await {
-             return (
+            return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiResponse::error(format!("Failed to ingest test: {}", e))),
             );
@@ -226,12 +231,17 @@ pub async fn get_drift_data(
     State(state): State<AppState>,
     Query(query): Query<DriftQuery>,
 ) -> impl IntoResponse {
-    match state.db.get_drift_data(&query.name, &query.suite, query.days).await {
+    match state
+        .db
+        .get_drift_data(&query.name, &query.suite, query.days)
+        .await
+    {
         Ok(data) => (StatusCode::OK, Json(data)).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string()))
-        ).into_response()
+            Json(ApiResponse::error(e.to_string())),
+        )
+            .into_response(),
     }
 }
 
@@ -239,12 +249,17 @@ pub async fn get_protocol_quality(
     State(state): State<AppState>,
     Query(query): Query<LimitQuery>,
 ) -> impl IntoResponse {
-    match state.db.get_protocol_quality_view(query.limit.unwrap_or(50)).await {
+    match state
+        .db
+        .get_protocol_quality_view(query.limit.unwrap_or(50))
+        .await
+    {
         Ok(data) => (StatusCode::OK, Json(data)).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string()))
-        ).into_response()
+            Json(ApiResponse::error(e.to_string())),
+        )
+            .into_response(),
     }
 }
 

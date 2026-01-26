@@ -131,7 +131,8 @@ async fn main() -> Result<()> {
     tracing::subscriber::set_global_default(subscriber)?;
 
     // Open database
-    let db = PostgresStorage::new(&cli.db_url).await
+    let db = PostgresStorage::new(&cli.db_url)
+        .await
         .context(format!("Failed to connect to database at {}", cli.db_url))?;
 
     // Execute command

@@ -1,8 +1,8 @@
 //! List tests command
 
 use anyhow::Result;
-use liminalqa_db::PostgresStorage;
 use comfy_table::Table;
+use liminalqa_db::PostgresStorage;
 
 pub async fn execute(db: &PostgresStorage, run_id: &str) -> Result<()> {
     println!("📋 Listing tests for run: {}", run_id);

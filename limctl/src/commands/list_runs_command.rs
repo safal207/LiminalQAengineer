@@ -1,8 +1,8 @@
 //! List runs command
 
 use anyhow::Result;
-use liminalqa_db::PostgresStorage;
 use comfy_table::Table;
+use liminalqa_db::PostgresStorage;
 
 pub async fn execute(db: &PostgresStorage) -> Result<()> {
     println!("📋 Listing recent runs...");
@@ -18,7 +18,9 @@ pub async fn execute(db: &PostgresStorage) -> Result<()> {
             run.plan_name,
             run.status,
             run.started_at.to_string(),
-            run.duration_ms.map(|d| format!("{}ms", d)).unwrap_or_default(),
+            run.duration_ms
+                .map(|d| format!("{}ms", d))
+                .unwrap_or_default(),
         ]);
     }
 

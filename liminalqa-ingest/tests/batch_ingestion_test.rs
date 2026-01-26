@@ -11,10 +11,8 @@ use axum::{
 use liminalqa_core::types::EntityId;
 use liminalqa_db::PostgresStorage;
 use liminalqa_ingest::{
-    handlers::{
-        ingest_batch, BatchIngestDto, RunDto, TestDtoItem,
-    },
-    AppState, ApiResponse,
+    handlers::{ingest_batch, BatchIngestDto, RunDto, TestDtoItem},
+    ApiResponse, AppState,
 };
 use std::sync::Arc;
 use tower::util::ServiceExt; // for `oneshot`
@@ -36,7 +34,7 @@ async fn test_batch_ingestion_compiles() {
     // We cannot instantiate AppState without a real DB connection string.
     // So we just verify DTO construction.
 
-    let _batch = BatchIngestDto {
+    let batch = BatchIngestDto {
         run: RunDto {
             run_id: EntityId::new(),
             build_id: EntityId::new(),
@@ -45,20 +43,25 @@ async fn test_batch_ingestion_compiles() {
             started_at: chrono::Utc::now(),
             runner_version: Some("1.0.0".to_string()),
         },
-        tests: vec![
-            TestDtoItem {
-                name: "test_a".to_string(),
-                suite: "suite1".to_string(),
-                status: "pass".to_string(),
-                duration_ms: Some(100),
-                error: None,
-                started_at: None,
-                completed_at: None,
-            },
-        ],
+        tests: vec![TestDtoItem {
+            name: "test_a".to_string(),
+            suite: "suite1".to_string(),
+            status: "pass".to_string(),
+            duration_ms: Some(100),
+            error: None,
+            started_at: None,
+            completed_at: None,
+        }],
         signals: vec![],
         artifacts: vec![],
     };
 
-    assert!(true);
+    // Using the variable to avoid 'unused variable' warning if we were strictly checking
+    assert!(!batch.plan_name().is_empty());
+}
+
+impl BatchIngestDto {
+    fn plan_name(&self) -> &str {
+        &self.run.plan_name
+    }
 }

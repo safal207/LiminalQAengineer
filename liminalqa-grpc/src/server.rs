@@ -4,7 +4,7 @@ use crate::liminalqa::v1::{
 };
 use chrono::{TimeZone, Utc};
 use liminalqa_core::types::EntityId;
-use liminalqa_db::{PostgresStorage, models::TestRun};
+use liminalqa_db::{models::TestRun, PostgresStorage};
 use std::pin::Pin;
 use tokio_stream::Stream;
 use tokio_stream::StreamExt;
