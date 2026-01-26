@@ -10,7 +10,7 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use liminalqa_db::LiminalDB;
+use liminalqa_db::PostgresStorage;
 use std::path::PathBuf;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -24,14 +24,14 @@ use commands::*;
 #[command(about = "LiminalQA control CLI", long_about = None)]
 #[command(version)]
 struct Cli {
-    /// Path to LIMINAL-DB
+    /// Database connection URL
     #[arg(
         short,
         long,
-        env = "LIMINAL_DB_PATH",
-        default_value = "./data/liminaldb"
+        env = "DATABASE_URL",
+        default_value = "postgres://liminal:liminal@localhost:5432/liminalqa"
     )]
-    db_path: PathBuf,
+    db_url: String,
 
     /// Verbosity level
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -131,8 +131,9 @@ async fn main() -> Result<()> {
     tracing::subscriber::set_global_default(subscriber)?;
 
     // Open database
-    let db = LiminalDB::open(&cli.db_path)
-        .context(format!("Failed to open database at {:?}", cli.db_path))?;
+    let db = PostgresStorage::new(&cli.db_url)
+        .await
+        .context(format!("Failed to connect to database at {}", cli.db_url))?;
 
     // Execute command
     match cli.command {

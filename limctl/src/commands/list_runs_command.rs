@@ -1,43 +1,30 @@
 //! List runs command
 
 use anyhow::Result;
-use comfy_table::{modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL, Table};
-use liminalqa_core::entities::{EntityType, Run};
-use liminalqa_db::LiminalDB;
+use comfy_table::Table;
+use liminalqa_db::PostgresStorage;
 
-pub async fn execute(db: &LiminalDB) -> Result<()> {
-    println!("📋 Listing all runs...\n");
+pub async fn execute(db: &PostgresStorage) -> Result<()> {
+    println!("📋 Listing recent runs...");
 
-    let run_ids = db.get_entities_by_type(EntityType::Run)?;
-
-    if run_ids.is_empty() {
-        println!("No runs found.");
-        return Ok(());
-    }
+    let runs = db.get_recent_runs(20).await?;
 
     let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_header(vec!["Run ID", "Plan", "Started", "Status"]);
+    table.set_header(vec!["ID", "Plan", "Status", "Started At", "Duration"]);
 
-    for run_id in run_ids {
-        let run: Option<Run> = db.get_entity(run_id)?;
-        if let Some(r) = run {
-            table.add_row(vec![
-                r.id.to_string(),
-                r.plan_name,
-                r.started_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                if r.ended_at.is_some() {
-                    "Completed"
-                } else {
-                    "Running"
-                }
-                .to_string(),
-            ]);
-        }
+    for run in runs {
+        table.add_row(vec![
+            run.id,
+            run.plan_name,
+            run.status,
+            run.started_at.to_string(),
+            run.duration_ms
+                .map(|d| format!("{}ms", d))
+                .unwrap_or_default(),
+        ]);
     }
 
     println!("{table}");
+
     Ok(())
 }

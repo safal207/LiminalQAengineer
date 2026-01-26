@@ -1,8 +1,8 @@
 //! LiminalQA Ingest Server — REST API for test run data ingestion
 
 use anyhow::Result;
-use liminalqa_db::LiminalDB;
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use liminalqa_db::PostgresStorage;
+use std::{net::SocketAddr, sync::Arc};
 use tower_http::trace::TraceLayer;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
@@ -25,11 +25,13 @@ async fn main() -> Result<()> {
     info!("Starting LiminalQA Ingest Server");
 
     // Open database
-    let db_path =
-        std::env::var("LIMINAL_DB_PATH").unwrap_or_else(|_| "./data/liminaldb".to_string());
-    info!("Opening database at: {}", db_path);
-    let db = LiminalDB::open(PathBuf::from(db_path))?;
-    let db_arc = Arc::new(db);
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://liminal:liminal@localhost:5432/liminalqa".to_string());
+
+    info!("Connecting to database at {}", database_url);
+
+    // Initialize Postgres Storage (runs migrations)
+    let db = PostgresStorage::new(&database_url).await?;
 
     let auth_token = std::env::var("LIMINAL_AUTH_TOKEN").ok();
     if auth_token.is_none() {
@@ -44,7 +46,7 @@ async fn main() -> Result<()> {
     let metrics = Arc::new(MetricsRegistry::new());
 
     let state = AppState {
-        db: db_arc.clone(),
+        db: db.clone(),
         auth_token,
         metrics,
     };
@@ -66,7 +68,7 @@ async fn main() -> Result<()> {
             .map_err(|e| anyhow::anyhow!(e))
     };
 
-    let grpc_service = MyIngestService::new(db_arc.clone());
+    let grpc_service = MyIngestService::new(db.clone());
     let grpc_server = Server::builder()
         .add_service(IngestServiceServer::new(grpc_service))
         .serve(grpc_addr);

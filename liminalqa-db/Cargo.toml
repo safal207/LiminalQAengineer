@@ -1,20 +1,39 @@
 [package]
 name = "liminalqa-db"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
+version = "0.2.0"
+edition = "2021"
 
 [dependencies]
 liminalqa-core = { path = "../liminalqa-core" }
 
+# Database
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "postgres",
+    "chrono",
+    "uuid",
+    "json",
+    "migrate"
+] }
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
 serde.workspace = true
 serde_json.workspace = true
-ulid.workspace = true
+
+# Date/Time
 chrono.workspace = true
-thiserror.workspace = true
+
+# Error handling
 anyhow.workspace = true
-sled.workspace = true
-bincode.workspace = true
+thiserror.workspace = true
+
+# ID generation
+ulid.workspace = true
+
+# Logging
 tracing.workspace = true
 
 [dev-dependencies]
