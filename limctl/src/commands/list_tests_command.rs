@@ -1,17 +1,27 @@
 //! List tests command
 
-use anyhow::{Context, Result};
-use liminalqa_core::types::EntityId;
-use liminalqa_db::LiminalDB;
+use anyhow::Result;
+use liminalqa_db::PostgresStorage;
+use comfy_table::Table;
 
-pub async fn execute(_db: &LiminalDB, run_id_str: &str) -> Result<()> {
-    let run_id = EntityId::from_string(run_id_str).context("Invalid run ID format")?;
+pub async fn execute(db: &PostgresStorage, run_id: &str) -> Result<()> {
+    println!("📋 Listing tests for run: {}", run_id);
 
-    println!("📋 Listing tests for run: {}\n", run_id);
+    let tests = db.get_tests_by_run(run_id).await?;
 
-    // TODO: Implement getting tests by run_id
-    println!("⚠️  List tests command not yet implemented");
-    println!("   Need to add index for run_id → tests");
+    let mut table = Table::new();
+    table.set_header(vec!["Suite", "Name", "Status", "Duration"]);
+
+    for test in tests {
+        table.add_row(vec![
+            test.suite,
+            test.name,
+            test.status,
+            format!("{}ms", test.duration_ms),
+        ]);
+    }
+
+    println!("{table}");
 
     Ok(())
 }
