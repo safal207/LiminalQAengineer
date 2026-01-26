@@ -1,33 +1,58 @@
+# deploy/docker-compose.mvp2.yml
+
 version: '3.8'
 
 services:
-  ingest:
-    build:
-      context: ../
-      dockerfile: Dockerfile
-    container_name: liminalqa-ingest
-    ports:
-      - "3000:8080"   # HTTP API mapped to host 3000
-      - "50051:50051" # gRPC API mapped to host 50051
-    volumes:
-      - ../data:/data
+  postgres:
+    image: postgres:16-alpine
+    container_name: liminalqa-postgres
     environment:
-      - LIMINAL_DB_PATH=/data/liminaldb
-      - RUST_LOG=info
+      POSTGRES_USER: liminal
+      POSTGRES_PASSWORD: liminal
+      POSTGRES_DB: liminalqa
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liminal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - monitoring
     restart: unless-stopped
 
-  grpcui:
-    image: fullstorydev/grpcui
-    container_name: liminalqa-grpcui
-    command: -plaintext ingest:50051
+  ingest:
+    build:
+      context: ../
+      dockerfile: liminalqa-ingest/Dockerfile
+    container_name: liminalqa-ingest
     ports:
-      - "8080:8080" # gRPC UI mapped to host 8080
+      - "3000:8080"    # HTTP API
+      - "50051:50051"  # gRPC API
+    environment:
+      - DATABASE_URL=postgres://liminal:liminal@postgres:5432/liminalqa
+      - RUST_LOG=info,sqlx=warn
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - monitoring
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../liminalqa-web
+      dockerfile: Dockerfile
+    container_name: liminalqa-web
+    ports:
+      - "80:80"
     depends_on:
       - ingest
+    networks:
+      - monitoring
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
@@ -42,9 +67,6 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
     restart: unless-stopped
     networks:
       - monitoring
@@ -53,7 +75,7 @@ services:
     image: grafana/grafana:latest
     container_name: liminalqa-grafana
     ports:
-      - "3001:3000" # Mapped to 3001 to avoid conflict with Ingest on 3000
+      - "3001:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -62,8 +84,6 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://localhost:3001
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
     restart: unless-stopped
     networks:
       - monitoring
@@ -75,5 +95,6 @@ networks:
     driver: bridge
 
 volumes:
+  postgres-data:
   prometheus-data:
   grafana-data:

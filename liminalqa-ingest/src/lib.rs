@@ -13,9 +13,8 @@ use axum::{
     Json, Router,
 };
 use liminalqa_core::metrics::SharedMetrics;
-use liminalqa_db::LiminalDB;
+use liminalqa_db::PostgresStorage;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
 use crate::handlers::*;
@@ -23,7 +22,7 @@ use crate::resonance::get_flaky_tests;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: Arc<LiminalDB>,
+    pub db: PostgresStorage,
     pub auth_token: Option<String>,
     pub metrics: SharedMetrics,
 }
@@ -59,6 +58,8 @@ pub fn app(state: AppState) -> Router {
         .route("/ingest/batch", post(ingest_batch))
         .route("/query", post(query_handler))
         .route("/api/resonance/flaky", get(get_flaky_tests))
+        .route("/api/drift", get(get_drift_data))
+        .route("/api/protocol/quality", get(get_protocol_quality))
         .route("/metrics", get(metrics_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -75,12 +76,14 @@ async fn health_check() -> impl IntoResponse {
         status: String,
         service: String,
         version: String,
+        database: String,
     }
 
     let body = HealthCheck {
         status: "ok".to_string(),
         service: "liminalqa-ingest".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        database: "postgres".to_string(),
     };
     Json(body)
 }
