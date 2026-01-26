@@ -56,12 +56,6 @@ async fn test_batch_ingestion_compiles() {
         artifacts: vec![],
     };
 
-    // Using the variable to avoid 'unused variable' warning if we were strictly checking
-    assert!(!batch.plan_name().is_empty());
-}
-
-impl BatchIngestDto {
-    fn plan_name(&self) -> &str {
-        &self.run.plan_name
-    }
+    // Direct field access instead of implementing a method on foreign type
+    assert!(!batch.run.plan_name.is_empty());
 }
