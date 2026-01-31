@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 tonic = "0.11"
-prost = "0.12"
+prost = "0.14"
 tokio = { version = "1.35", features = ["full"] }
 liminalqa-core = { path = "../liminalqa-core" }
 liminalqa-db = { path = "../liminalqa-db" }
