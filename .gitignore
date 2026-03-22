@@ -28,3 +28,5 @@ logs/
 # Environment
 .env
 .env.local
+pytest-liminalqa/src/pytest_liminalqa/__pycache__/
+pytest-liminalqa/tests/__pycache__/
