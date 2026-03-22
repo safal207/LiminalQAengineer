@@ -15,7 +15,7 @@ use liminalqa_ingest::{
         ingest_batch, ArtifactDtoItem, BatchIngestDto, BatchIngestResponse, RunDto, SignalDtoItem,
         TestDtoItem,
     },
-    AppState,
+    AppState, RateLimiter,
 };
 use std::sync::Arc;
 use tower::util::ServiceExt; // for `oneshot`
@@ -30,6 +30,7 @@ async fn test_batch_ingestion_full_flow() {
         db: Arc::new(db),
         auth_token: None,
         metrics,
+        rate_limiter: Arc::new(RateLimiter::new(10_000)),
     };
 
     // Setup Router
@@ -133,6 +134,7 @@ async fn test_batch_ingestion_partial_failure() {
         db: Arc::new(db),
         auth_token: None,
         metrics,
+        rate_limiter: Arc::new(RateLimiter::new(10_000)),
     };
 
     let app = Router::new()
