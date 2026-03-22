@@ -20,9 +20,15 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
 };
+use utoipa::{openapi::security, Modify, OpenApi, ToSchema};
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::handlers::*;
 use crate::resonance::get_flaky_tests;
+
+// ---------------------------------------------------------------------------
+// Rate limiter
+// ---------------------------------------------------------------------------
 
 /// Simple global rate limiter (sliding window, per-second)
 pub struct RateLimiter {
@@ -57,6 +63,10 @@ impl RateLimiter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// App state
+// ---------------------------------------------------------------------------
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<LiminalDB>,
@@ -77,7 +87,12 @@ impl fmt::Debug for AppState {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+// ---------------------------------------------------------------------------
+// API response type
+// ---------------------------------------------------------------------------
+
+/// Generic API response envelope
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ApiResponse {
     pub ok: bool,
     pub message: String,
@@ -99,8 +114,78 @@ impl ApiResponse {
     }
 }
 
+// ---------------------------------------------------------------------------
+// OpenAPI spec
+// ---------------------------------------------------------------------------
+
+struct BearerSecurityAddon;
+
+impl Modify for BearerSecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer_token",
+            security::SecurityScheme::Http(
+                security::HttpBuilder::new()
+                    .scheme(security::HttpAuthScheme::Bearer)
+                    .bearer_format("opaque token")
+                    .build(),
+            ),
+        );
+    }
+}
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "LiminalQA Ingest API",
+        description = "REST API for ingesting test runs, results, signals and artifacts into LiminalQA. \
+                       All protected endpoints require a Bearer token set via `LIMINAL_AUTH_TOKEN`.",
+        version = "0.1.0",
+        contact(
+            name = "LiminalQA",
+            url = "https://github.com/safal207/LiminalQAengineer"
+        ),
+        license(name = "MIT"),
+    ),
+    paths(
+        handlers::ingest_run,
+        handlers::ingest_tests,
+        handlers::ingest_signals,
+        handlers::ingest_artifacts,
+        handlers::ingest_batch,
+        handlers::query_handler,
+        resonance::get_flaky_tests,
+    ),
+    components(schemas(
+        ApiResponse,
+        RunDto,
+        TestsDto,
+        TestDtoItem,
+        SignalsDto,
+        SignalDtoItem,
+        ArtifactsDto,
+        ArtifactDtoItem,
+        BatchIngestDto,
+        BatchIngestResponse,
+        BatchCounts,
+    )),
+    modifiers(&BearerSecurityAddon),
+    tags(
+        (name = "Ingest", description = "Ingest test data into LIMINAL-DB"),
+        (name = "Query",  description = "Bi-temporal data queries"),
+        (name = "Analysis", description = "Flakiness and baseline drift analysis"),
+    )
+)]
+pub struct ApiDoc;
+
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
+
 pub fn app(state: AppState) -> Router {
     Router::new()
+        // Protected routes (behind auth + rate-limit middleware)
         .route("/ingest/run", post(ingest_run))
         .route("/ingest/tests", post(ingest_tests))
         .route("/ingest/signals", post(ingest_signals))
@@ -117,10 +202,19 @@ pub fn app(state: AppState) -> Router {
             state.clone(),
             rate_limit_middleware,
         ))
+        // Public routes (no auth required)
         .route("/health", get(health_check))
+        .merge(
+            SwaggerUi::new("/docs")
+                .url("/api-docs/openapi.json", ApiDoc::openapi()),
+        )
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state)
 }
+
+// ---------------------------------------------------------------------------
+// Handlers (public)
+// ---------------------------------------------------------------------------
 
 async fn health_check() -> impl IntoResponse {
     #[derive(Serialize)]
@@ -148,6 +242,10 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
         body,
     )
 }
+
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
 
 async fn rate_limit_middleware(
     State(state): State<AppState>,

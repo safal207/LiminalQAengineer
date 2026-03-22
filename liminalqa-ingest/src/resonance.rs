@@ -5,6 +5,18 @@ use liminalqa_db::LiminalDB;
 use tracing::{info, warn};
 
 /// GET /api/resonance/flaky
+#[utoipa::path(
+    get,
+    path = "/api/resonance/flaky",
+    responses(
+        (status = 200, description = "List of detected flaky test patterns", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = crate::ApiResponse),
+        (status = 429, description = "Rate limit exceeded", body = crate::ApiResponse),
+        (status = 500, description = "Internal server error", body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
 pub async fn get_flaky_tests(State(state): State<AppState>) -> impl IntoResponse {
     let db = &state.db;
 
