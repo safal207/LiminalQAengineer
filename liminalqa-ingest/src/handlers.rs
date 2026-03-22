@@ -4,16 +4,17 @@ use std::collections::HashMap;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use liminalqa_core::{entities::*, metrics::TestLabels, temporal::BiTemporalTime, types::*};
-use liminalqa_db::{
-    query::{Query, QueryResult},
-    LiminalDB,
-};
+use liminalqa_db::{query::Query, LiminalDB};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
 use crate::{
     baseline::check_baseline_drift, resonance::check_and_record_flakiness, ApiResponse, AppState,
 };
+
+// --- Error message constants ---
+
+const ERR_TEST_ID_OR_NAME_REQUIRED: &str = "Either test_id or test_name must be provided";
 
 // --- DTOs ---
 
@@ -33,7 +34,7 @@ pub struct RunDto {
 pub struct TestsDto {
     pub run_id: EntityId,
     pub tests: Vec<TestDtoItem>,
-    #[allow(dead_code)]
+    /// Bi-temporal valid_time: when these test results became valid in the real world
     pub valid_from: chrono::DateTime<chrono::Utc>,
 }
 
@@ -145,7 +146,11 @@ fn create_run_from_dto(dto: &RunDto) -> Result<Run, String> {
     })
 }
 
-fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> Test {
+fn create_test_from_dto(
+    run_id: EntityId,
+    item: &TestDtoItem,
+    valid_from: chrono::DateTime<chrono::Utc>,
+) -> Test {
     let status = match item.status.to_lowercase().as_str() {
         "pass" | "passed" | "success" => TestStatus::Pass,
         "fail" | "failed" | "error" => TestStatus::Fail,
@@ -169,7 +174,7 @@ fn create_test_from_dto(run_id: EntityId, item: &TestDtoItem) -> Test {
             .and_then(|e| serde_json::from_value(e.clone()).ok()),
         started_at: item.started_at.unwrap_or_else(chrono::Utc::now),
         completed_at: item.completed_at.unwrap_or_else(chrono::Utc::now),
-        created_at: BiTemporalTime::now(),
+        created_at: BiTemporalTime::with_valid_time(valid_from),
     }
 }
 
@@ -238,6 +243,51 @@ fn create_artifact_from_dto(
     }
 }
 
+/// Resolve a test EntityId from either a direct ID or a name lookup in a single-handler context.
+/// Returns an error response tuple if resolution fails.
+fn resolve_test_id_simple(
+    db: &LiminalDB,
+    run_id: EntityId,
+    test_id: Option<EntityId>,
+    test_name: Option<&str>,
+) -> Result<EntityId, (StatusCode, Json<ApiResponse>)> {
+    if let Some(id) = test_id {
+        return Ok(id);
+    }
+    let name = test_name.ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::error(ERR_TEST_ID_OR_NAME_REQUIRED)),
+        )
+    })?;
+    match db.find_test_by_name(run_id, name) {
+        Ok(Some(id)) => {
+            info!("Resolved test_id {} for test '{}'", id, name);
+            Ok(id)
+        }
+        Ok(None) => {
+            error!("Test '{}' not found in run {}", name, run_id);
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::error(format!(
+                    "Test '{}' not found in run {}. Ensure tests are ingested via POST /ingest/tests before sending data.",
+                    name, run_id
+                ))),
+            ))
+        }
+        Err(e) => {
+            error!("Database error during test lookup: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error(format!(
+                    "Database error during test lookup: {}",
+                    e
+                ))),
+            ))
+        }
+    }
+}
+
 fn resolve_test_id(
     db: &LiminalDB,
     test_id_map: &HashMap<String, EntityId>,
@@ -254,7 +304,7 @@ fn resolve_test_id(
                     StatusCode::BAD_REQUEST,
                     Json(BatchIngestResponse {
                         ok: false,
-                        message: "Either test_id or test_name must be provided".to_string(),
+                        message: ERR_TEST_ID_OR_NAME_REQUIRED.to_string(),
                         counts: BatchCounts::default(),
                         test_id_map: None,
                         partial_counts: Some(current_counts.clone()),
@@ -339,7 +389,7 @@ pub async fn ingest_tests(
     info!("Ingesting {} tests", dto.tests.len());
 
     for item in &dto.tests {
-        let test = create_test_from_dto(dto.run_id, item);
+        let test = create_test_from_dto(dto.run_id, item, dto.valid_from);
 
         if let Err(e) = state.db.put_test(&test) {
             error!("Failed to ingest test: {}", e);
@@ -396,65 +446,17 @@ pub async fn ingest_signals(
     State(state): State<AppState>,
     Json(dto): Json<SignalsDto>,
 ) -> impl IntoResponse {
-    // Validate that all signals have either test_id or valid test_name
-    for item in &dto.signals {
-        if item.test_id.is_none() && item.test_name.is_none() {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiResponse::error(
-                    "Each signal must have either test_id or test_name",
-                )),
-            );
-        }
-    }
-
     info!("Ingesting {} signals", dto.signals.len());
 
     for item in &dto.signals {
-        // Resolve test_id from test_name if needed
-        let test_id = match item.test_id {
-            Some(id) => id,
-            None => {
-                let test_name = match item.test_name.as_ref() {
-                    Some(name) => name,
-                    None => {
-                        error!("Neither test_id nor test_name provided for signal");
-                        return (
-                            StatusCode::BAD_REQUEST,
-                            Json(ApiResponse::error(
-                                "Either test_id or test_name must be provided",
-                            )),
-                        );
-                    }
-                };
-
-                match state.db.find_test_by_name(dto.run_id, test_name) {
-                    Ok(Some(id)) => {
-                        info!("Resolved test_id {} for test '{}'", id, test_name);
-                        id
-                    }
-                    Ok(None) => {
-                        error!("Test '{}' not found in run {}", test_name, dto.run_id);
-                        return (
-                            StatusCode::NOT_FOUND,
-                            Json(ApiResponse::error(format!(
-                                "Test '{}' not found in run {}. Ensure tests are ingested via POST /ingest/tests before sending signals.",
-                                test_name, dto.run_id
-                            ))),
-                        );
-                    }
-                    Err(e) => {
-                        error!("Database error during test lookup: {}", e);
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ApiResponse::error(format!(
-                                "Database error during test lookup: {}",
-                                e
-                            ))),
-                        );
-                    }
-                }
-            }
+        let test_id = match resolve_test_id_simple(
+            &state.db,
+            dto.run_id,
+            item.test_id,
+            item.test_name.as_deref(),
+        ) {
+            Ok(id) => id,
+            Err((status, body)) => return (status, body),
         };
 
         let signal = create_signal_from_dto(dto.run_id, test_id, item);
@@ -488,65 +490,17 @@ pub async fn ingest_artifacts(
     State(state): State<AppState>,
     Json(dto): Json<ArtifactsDto>,
 ) -> impl IntoResponse {
-    // Validate that all artifacts have either test_id or valid test_name
-    for item in &dto.artifacts {
-        if item.test_id.is_none() && item.test_name.is_none() {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiResponse::error(
-                    "Each artifact must have either test_id or test_name",
-                )),
-            );
-        }
-    }
-
     info!("Ingesting {} artifacts", dto.artifacts.len());
 
     for item in &dto.artifacts {
-        // Resolve test_id from test_name if needed
-        let test_id = match item.test_id {
-            Some(id) => id,
-            None => {
-                let test_name = match item.test_name.as_ref() {
-                    Some(name) => name,
-                    None => {
-                        error!("Neither test_id nor test_name provided for artifact");
-                        return (
-                            StatusCode::BAD_REQUEST,
-                            Json(ApiResponse::error(
-                                "Either test_id or test_name must be provided",
-                            )),
-                        );
-                    }
-                };
-
-                match state.db.find_test_by_name(dto.run_id, test_name) {
-                    Ok(Some(id)) => {
-                        info!("Resolved test_id {} for test '{}'", id, test_name);
-                        id
-                    }
-                    Ok(None) => {
-                        error!("Test '{}' not found in run {}", test_name, dto.run_id);
-                        return (
-                            StatusCode::NOT_FOUND,
-                            Json(ApiResponse::error(format!(
-                                "Test '{}' not found in run {}. Ensure tests are ingested via POST /ingest/tests before sending artifacts.",
-                                test_name, dto.run_id
-                            ))),
-                        );
-                    }
-                    Err(e) => {
-                        error!("Database error during test lookup: {}", e);
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ApiResponse::error(format!(
-                                "Database error during test lookup: {}",
-                                e
-                            ))),
-                        );
-                    }
-                }
-            }
+        let test_id = match resolve_test_id_simple(
+            &state.db,
+            dto.run_id,
+            item.test_id,
+            item.test_name.as_deref(),
+        ) {
+            Ok(id) => id,
+            Err((status, body)) => return (status, body),
         };
 
         let artifact = create_artifact_from_dto(dto.run_id, test_id, item);
@@ -627,8 +581,9 @@ pub async fn ingest_batch(
     counts.run = 1;
 
     // Step 2: Ingest tests and build name -> id map
+    let batch_valid_from = chrono::Utc::now();
     for test_item in &batch.tests {
-        let test = create_test_from_dto(batch.run.run_id, test_item);
+        let test = create_test_from_dto(batch.run.run_id, test_item, batch_valid_from);
 
         // Store test_name -> test_id mapping for later use
         test_id_map.insert(test.name.clone(), test.id);
@@ -778,14 +733,20 @@ pub async fn ingest_batch(
 }
 
 pub async fn query_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(query): Json<Query>,
 ) -> impl IntoResponse {
     info!("Executing query: {:?}", query);
 
-    // TODO: Implement query execution
-    // For now, return empty result
-    let result = QueryResult::new(vec![]);
-
-    (StatusCode::OK, Json(result))
+    match query.execute(&state.db) {
+        Ok(result) => (StatusCode::OK, Json(result)).into_response(),
+        Err(e) => {
+            error!("Query execution failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error(format!("Query failed: {}", e))),
+            )
+                .into_response()
+        }
+    }
 }

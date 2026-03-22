@@ -54,7 +54,9 @@ async fn main() -> Result<()> {
 
     // Start servers
     let rest_addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    let grpc_addr = "[::0]:50051".parse().unwrap();
+    let grpc_addr = "[::0]:50051"
+        .parse()
+        .map_err(|e| anyhow::anyhow!("Invalid gRPC address: {}", e))?;
 
     info!("REST Listening on http://{}", rest_addr);
     info!("gRPC Listening on {}", grpc_addr);
