@@ -1,0 +1,57 @@
+# LiminalQA Ingest Service — systemd unit file
+#
+# Install:
+#   sudo cp deploy/systemd/liminalqa-ingest.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now liminalqa-ingest
+#
+# Manage:
+#   sudo systemctl status liminalqa-ingest
+#   sudo journalctl -u liminalqa-ingest -f
+#
+# Config: edit /etc/liminalqa/ingest.env before starting.
+
+[Unit]
+Description=LiminalQA Ingest REST API
+Documentation=https://github.com/safal207/LiminalQAengineer
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=liminalqa
+Group=liminalqa
+
+# Binary installed by: cargo install --path liminalqa-ingest
+ExecStart=/usr/local/bin/liminalqa-ingest
+
+# Environment — override in /etc/liminalqa/ingest.env
+EnvironmentFile=-/etc/liminalqa/ingest.env
+Environment=RUST_LOG=info
+Environment=LIMINAL_BIND_ADDR=0.0.0.0:8080
+Environment=LIMINAL_DB_PATH=/var/lib/liminalqa/db
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+# Working directory and data storage
+WorkingDirectory=/var/lib/liminalqa
+RuntimeDirectory=liminalqa
+StateDirectory=liminalqa
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/liminalqa
+CapabilityBoundingSet=
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

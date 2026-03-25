@@ -51,7 +51,10 @@ async fn test_ingest_run_returns_ulid() {
     let run_id = resp.into_inner().run_id;
 
     assert_eq!(run_id.len(), 26, "run_id should be a 26-char ULID");
-    assert!(EntityId::from_string(&run_id).is_ok(), "run_id must parse as ULID");
+    assert!(
+        EntityId::from_string(&run_id).is_ok(),
+        "run_id must parse as ULID"
+    );
 }
 
 #[tokio::test]
@@ -153,7 +156,9 @@ async fn test_ingest_tests_all_statuses_mapped() {
     let run_id = EntityId::new().to_string();
     let ts = now_ms();
 
-    let statuses = ["pass", "fail", "skip", "xfail", "flake", "timeout", "unknown"];
+    let statuses = [
+        "pass", "fail", "skip", "xfail", "flake", "timeout", "unknown",
+    ];
 
     let tests: Vec<ProtoTest> = statuses
         .iter()
@@ -171,10 +176,7 @@ async fn test_ingest_tests_all_statuses_mapped() {
         .collect();
 
     let resp = svc
-        .ingest_tests(Request::new(IngestTestsRequest {
-            run_id,
-            tests,
-        }))
+        .ingest_tests(Request::new(IngestTestsRequest { run_id, tests }))
         .await
         .unwrap()
         .into_inner();
@@ -207,7 +209,11 @@ async fn test_ingest_tests_with_explicit_id() {
         }],
     };
 
-    let resp = svc.ingest_tests(Request::new(req)).await.unwrap().into_inner();
+    let resp = svc
+        .ingest_tests(Request::new(req))
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(resp.processed_count, 1);
     assert_eq!(resp.failed_count, 0);
 }
@@ -243,10 +249,15 @@ async fn test_status_mapping_coverage() {
     let ts = now_ms();
 
     let statuses = [
-        "pass", "passed", "success",
-        "fail", "failed", "error",
+        "pass",
+        "passed",
+        "success",
+        "fail",
+        "failed",
+        "error",
         "xfail",
-        "flake", "flaky",
+        "flake",
+        "flaky",
         "timeout",
         "skip",
         "anything_else_maps_to_skip",

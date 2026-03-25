@@ -27,16 +27,26 @@ impl MyIngestService {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn parse_ulid(s: &str, field: &str) -> Result<EntityId, Status> {
-    EntityId::from_string(s)
-        .map_err(|e| Status::invalid_argument(format!("Invalid {}: {}", field, e)))
+// Box<Status> keeps the Err-variant pointer-sized (avoids clippy::result_large_err).
+fn parse_ulid(s: &str, field: &str) -> Result<EntityId, Box<Status>> {
+    EntityId::from_string(s).map_err(|e| {
+        Box::new(Status::invalid_argument(format!(
+            "Invalid {}: {}",
+            field, e
+        )))
+    })
 }
 
-fn ms_to_datetime(ms: i64, field: &str) -> Result<chrono::DateTime<chrono::Utc>, Status> {
+fn ms_to_datetime(ms: i64, field: &str) -> Result<chrono::DateTime<chrono::Utc>, Box<Status>> {
     chrono::Utc
         .timestamp_millis_opt(ms)
         .single()
-        .ok_or_else(|| Status::invalid_argument(format!("Invalid timestamp for {}", field)))
+        .ok_or_else(|| {
+            Box::new(Status::invalid_argument(format!(
+                "Invalid timestamp for {}",
+                field
+            )))
+        })
 }
 
 fn map_test_status(s: &str) -> TestStatus {
@@ -77,15 +87,15 @@ impl IngestService for MyIngestService {
         let req = request.into_inner();
 
         let run_id = liminalqa_core::types::new_entity_id();
-        let build_id = parse_ulid(&req.build_id, "build_id")?;
+        let build_id = parse_ulid(&req.build_id, "build_id").map_err(|e| *e)?;
 
         let env: HashMap<String, String> = serde_json::from_str(&req.env)
             .map_err(|e| Status::invalid_argument(format!("Invalid env JSON: {}", e)))?;
 
-        let started_at = ms_to_datetime(req.started_at, "started_at")?;
+        let started_at = ms_to_datetime(req.started_at, "started_at").map_err(|e| *e)?;
         let ended_at = req
             .ended_at
-            .map(|ts| ms_to_datetime(ts, "ended_at"))
+            .map(|ts| ms_to_datetime(ts, "ended_at").map_err(|e| *e))
             .transpose()?;
 
         let run = liminalqa_core::entities::Run {
@@ -116,7 +126,7 @@ impl IngestService for MyIngestService {
         request: Request<IngestTestsRequest>,
     ) -> Result<Response<IngestTestsResponse>, Status> {
         let req = request.into_inner();
-        let run_id = parse_ulid(&req.run_id, "run_id")?;
+        let run_id = parse_ulid(&req.run_id, "run_id").map_err(|e| *e)?;
 
         let mut processed = 0i32;
         let mut failed = 0i32;
@@ -136,17 +146,21 @@ impl IngestService for MyIngestService {
                 EntityId::new()
             };
 
-            let started_at = ms_to_datetime(proto_test.started_at, "test.started_at")?;
-            let completed_at = ms_to_datetime(proto_test.completed_at, "test.completed_at")?;
+            let started_at =
+                ms_to_datetime(proto_test.started_at, "test.started_at").map_err(|e| *e)?;
+            let completed_at =
+                ms_to_datetime(proto_test.completed_at, "test.completed_at").map_err(|e| *e)?;
 
-            let error = proto_test.error_message.as_ref().map(|msg| {
-                liminalqa_core::types::TestError {
-                    error_type: "TestError".to_string(),
-                    message: msg.clone(),
-                    stack_trace: None,
-                    source_location: None,
-                }
-            });
+            let error =
+                proto_test
+                    .error_message
+                    .as_ref()
+                    .map(|msg| liminalqa_core::types::TestError {
+                        error_type: "TestError".to_string(),
+                        message: msg.clone(),
+                        stack_trace: None,
+                        source_location: None,
+                    });
 
             let test = Test {
                 id: test_id,

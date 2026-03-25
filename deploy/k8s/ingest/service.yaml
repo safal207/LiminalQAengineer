@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: liminalqa-ingest
+  namespace: liminalqa
+  labels:
+    app.kubernetes.io/name: liminalqa
+    app.kubernetes.io/component: ingest
+spec:
+  selector:
+    app: liminalqa-ingest
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+---
+# Expose externally via an Ingress (recommended) or change type to LoadBalancer.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: liminalqa-ingest
+  namespace: liminalqa
+  labels:
+    app.kubernetes.io/name: liminalqa
+    app.kubernetes.io/component: ingest
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Uncomment to enable TLS via cert-manager:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  # ingressClassName: nginx
+  # tls:
+  #   - hosts:
+  #       - liminalqa.example.com
+  #     secretName: liminalqa-tls
+  rules:
+    - host: liminalqa.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: liminalqa-ingest
+                port:
+                  name: http

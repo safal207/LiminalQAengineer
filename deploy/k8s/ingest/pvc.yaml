@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: liminaldb-data
+  namespace: liminalqa
+  labels:
+    app.kubernetes.io/name: liminalqa
+    app.kubernetes.io/component: ingest
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Remove storageClassName to use the cluster default,
+  # or set it explicitly (e.g., "gp3", "standard", "longhorn").
+  # storageClassName: gp3

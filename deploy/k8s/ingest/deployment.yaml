@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: liminalqa-ingest
+  namespace: liminalqa
+  labels:
+    app.kubernetes.io/name: liminalqa
+    app.kubernetes.io/component: ingest
+spec:
+  # sled is single-writer — keep replicas at 1.
+  # For HA, migrate to a networked store (PostgreSQL / TiKV).
+  replicas: 1
+  selector:
+    matchLabels:
+      app: liminalqa-ingest
+  template:
+    metadata:
+      labels:
+        app: liminalqa-ingest
+        app.kubernetes.io/name: liminalqa
+        app.kubernetes.io/component: ingest
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: ingest
+          image: ghcr.io/safal207/liminalqa-ingest:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: liminalqa-config
+
+          env:
+            - name: LIMINAL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: liminalqa-secrets
+                  key: api-token
+
+          volumeMounts:
+            - name: liminaldb-data
+              mountPath: /data
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+      volumes:
+        - name: liminaldb-data
+          persistentVolumeClaim:
+            claimName: liminaldb-data
