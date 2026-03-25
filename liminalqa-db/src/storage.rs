@@ -654,11 +654,7 @@ mod tests {
         let db = LiminalDB::open(temp_dir.path())?;
 
         let entity_id = EntityId::new();
-        let fact = Fact::new(
-            entity_id,
-            Attribute::TestStatus,
-            serde_json::json!("pass"),
-        );
+        let fact = Fact::new(entity_id, Attribute::TestStatus, serde_json::json!("pass"));
 
         db.put_fact(&fact)?;
 
@@ -680,11 +676,7 @@ mod tests {
         let facts = vec![
             Fact::new(entity_id, Attribute::TestDuration, serde_json::json!(1234)),
             Fact::new(entity_id, Attribute::TestStatus, serde_json::json!("fail")),
-            Fact::new(
-                entity_id,
-                Attribute::ApiLatency,
-                serde_json::json!(99),
-            ),
+            Fact::new(entity_id, Attribute::ApiLatency, serde_json::json!(99)),
         ];
         let batch = FactBatch::new(facts);
 
@@ -704,9 +696,21 @@ mod tests {
         let id_a = EntityId::new();
         let id_b = EntityId::new();
 
-        db.put_fact(&Fact::new(id_a, Attribute::TestStatus, serde_json::json!("pass")))?;
-        db.put_fact(&Fact::new(id_b, Attribute::TestStatus, serde_json::json!("fail")))?;
-        db.put_fact(&Fact::new(id_a, Attribute::TestDuration, serde_json::json!(500)))?;
+        db.put_fact(&Fact::new(
+            id_a,
+            Attribute::TestStatus,
+            serde_json::json!("pass"),
+        ))?;
+        db.put_fact(&Fact::new(
+            id_b,
+            Attribute::TestStatus,
+            serde_json::json!("fail"),
+        ))?;
+        db.put_fact(&Fact::new(
+            id_a,
+            Attribute::TestDuration,
+            serde_json::json!(500),
+        ))?;
 
         let facts_a = db.scan_facts_by_entities(&[id_a])?;
         assert_eq!(facts_a.len(), 2);
