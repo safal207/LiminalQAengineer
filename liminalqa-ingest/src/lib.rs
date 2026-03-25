@@ -204,10 +204,7 @@ pub fn app(state: AppState) -> Router {
         ))
         // Public routes (no auth required)
         .route("/health", get(health_check))
-        .merge(
-            SwaggerUi::new("/docs")
-                .url("/api-docs/openapi.json", ApiDoc::openapi()),
-        )
+        .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state)
 }
@@ -255,7 +252,9 @@ async fn rate_limit_middleware(
     if !state.rate_limiter.check() {
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
-            Json(ApiResponse::error("Rate limit exceeded. Please retry later.")),
+            Json(ApiResponse::error(
+                "Rate limit exceeded. Please retry later.",
+            )),
         ));
     }
     Ok(next.run(req).await)
