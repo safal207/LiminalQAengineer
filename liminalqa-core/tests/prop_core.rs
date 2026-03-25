@@ -39,7 +39,7 @@ fn arb_attribute() -> impl Strategy<Value = Attribute> {
         Just(Attribute::ApiStatusCode),
         Just(Attribute::RunStatus),
         Just(Attribute::ResonanceScore),
-        "[a-z]{3,10}".prop_map(|s| Attribute::Custom(s)),
+        "[a-z]{3,10}".prop_map(Attribute::Custom),
     ]
 }
 

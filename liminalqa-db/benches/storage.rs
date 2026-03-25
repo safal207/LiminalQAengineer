@@ -1,9 +1,12 @@
-//! Criterion benchmarks for LIMINAL-DB storage layer.
-//!
-//! Run with:
-//!   cargo bench -p liminalqa-db
-//!
-//! HTML report lands in target/criterion/
+// Criterion benchmarks for LIMINAL-DB storage layer.
+//
+// Run with:
+//   cargo bench -p liminalqa-db
+//
+// HTML report lands in target/criterion/
+
+// Benchmarks use .unwrap() extensively for brevity — this is intentional.
+#![allow(clippy::disallowed_methods)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use liminalqa_core::{

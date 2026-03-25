@@ -398,6 +398,7 @@ fn entity_type_to_str(et: EntityType) -> &'static str {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
     use liminalqa_core::{
