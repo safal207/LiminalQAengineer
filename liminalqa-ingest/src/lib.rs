@@ -24,7 +24,7 @@ use utoipa::{openapi::security, Modify, OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::handlers::*;
-use crate::resonance::get_flaky_tests;
+use crate::resonance::{get_flaky_tests, get_signals_by_run};
 
 // ---------------------------------------------------------------------------
 // Rate limiter
@@ -156,6 +156,7 @@ impl Modify for BearerSecurityAddon {
         handlers::ingest_batch,
         handlers::query_handler,
         resonance::get_flaky_tests,
+        resonance::get_signals_by_run,
     ),
     components(schemas(
         ApiResponse,
@@ -193,6 +194,7 @@ pub fn app(state: AppState) -> Router {
         .route("/ingest/batch", post(ingest_batch))
         .route("/query", post(query_handler))
         .route("/api/resonance/flaky", get(get_flaky_tests))
+        .route("/api/resonance/signals/:run_id", get(get_signals_by_run))
         .route("/metrics", get(metrics_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),

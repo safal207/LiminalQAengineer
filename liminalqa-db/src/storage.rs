@@ -1,7 +1,11 @@
 //! Storage layer implementation
 
 use anyhow::{Context, Result};
-use liminalqa_core::{entities::*, facts::*, types::EntityId};
+use liminalqa_core::{
+    entities::*,
+    facts::*,
+    types::{EntityId, TestStatus},
+};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{debug, info};
@@ -17,6 +21,9 @@ pub struct LiminalDB {
     entity_type_index: sled::Tree,
     test_name_index: sled::Tree,
     test_history_index: sled::Tree,
+    /// Tracks every unique (name, suite) pair ever seen.
+    /// Key: `"{name}\x00{suite}"`, Value: empty.
+    known_tests: sled::Tree,
 }
 
 impl LiminalDB {
@@ -33,6 +40,7 @@ impl LiminalDB {
         let entity_type_index = db.open_tree("idx_entity_type")?;
         let test_name_index = db.open_tree("idx_test_name")?;
         let test_history_index = db.open_tree("idx_test_history")?;
+        let known_tests = db.open_tree("known_tests")?;
 
         Ok(Self {
             db,
@@ -43,6 +51,7 @@ impl LiminalDB {
             entity_type_index,
             test_name_index,
             test_history_index,
+            known_tests,
         })
     }
 
@@ -80,7 +89,56 @@ impl LiminalDB {
         self.test_history_index
             .insert(history_key.as_bytes(), &test.id.to_bytes())?;
 
+        // Track unique (name, suite) pairs — key is "name\x00suite"
+        let known_key = format!("{}\x00{}", test.name, test.suite);
+        self.known_tests.insert(known_key.as_bytes(), b"")?;
+
         Ok(())
+    }
+
+    /// Return every unique (name, suite) pair ever stored.
+    pub fn list_known_tests(&self) -> Result<Vec<(String, String)>> {
+        let mut out = Vec::new();
+        for item in self.known_tests.iter() {
+            let (key, _) = item?;
+            let s = String::from_utf8_lossy(&key);
+            if let Some((name, suite)) = s.split_once('\x00') {
+                out.push((name.to_string(), suite.to_string()));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Pass rate for a test over its last `lookback` runs (0.0–1.0).
+    /// Returns 1.0 when no history exists (no evidence of flakiness).
+    /// Min 5 runs required before reporting a non-trivial score.
+    pub fn test_stability_score(&self, name: &str, suite: &str, lookback: usize) -> Result<f64> {
+        let history = self.get_test_history(name, suite, lookback)?;
+        if history.is_empty() {
+            return Ok(1.0);
+        }
+        let pass_count = history
+            .iter()
+            .filter(|t| t.status == TestStatus::Pass)
+            .count();
+        Ok(pass_count as f64 / history.len() as f64)
+    }
+
+    /// Return all Signal entities for a given run, sorted by stored order.
+    pub fn get_signals_by_run(&self, run_id: EntityId) -> Result<Vec<Signal>> {
+        let prefix = format!("{}:", entity_type_to_str(EntityType::Signal));
+        let mut signals = Vec::new();
+        for item in self.entity_type_index.scan_prefix(prefix.as_bytes()) {
+            let (_, raw_key) = item?;
+            if let Some(bytes) = self.entities.get(&raw_key)? {
+                if let Ok(sig) = serde_json::from_slice::<Signal>(&bytes) {
+                    if sig.run_id == run_id {
+                        signals.push(sig);
+                    }
+                }
+            }
+        }
+        Ok(signals)
     }
 
     /// Retrieve test execution history for a given test name and suite

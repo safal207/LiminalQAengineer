@@ -1,4 +1,7 @@
 //! HTTP request handlers
+// utoipa::path proc-macro expands to code that calls Option::unwrap() internally.
+// We allow the lint at file scope to avoid spurious errors on generated code.
+#![allow(clippy::disallowed_methods)]
 
 use std::collections::HashMap;
 
