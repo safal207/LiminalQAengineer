@@ -95,8 +95,9 @@ impl IngestService for MyIngestService {
         let started_at = ms_to_datetime(req.started_at, "started_at").map_err(|e| *e)?;
         let ended_at = req
             .ended_at
-            .map(|ts| ms_to_datetime(ts, "ended_at").map_err(|e| *e))
-            .transpose()?;
+            .map(|ts| ms_to_datetime(ts, "ended_at"))
+            .transpose()
+            .map_err(|e| *e)?;
 
         let run = liminalqa_core::entities::Run {
             id: run_id,
