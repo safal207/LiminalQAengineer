@@ -2,6 +2,7 @@
 // We allow the lint at file scope to avoid spurious errors on generated code.
 #![allow(clippy::disallowed_methods)]
 
+use crate::alerting::{AlertManager, AlertSeverity};
 use crate::{ApiResponse, AppState};
 use axum::{
     extract::{Path, State},
@@ -10,8 +11,10 @@ use axum::{
     Json,
 };
 use liminalqa_core::{
+    baseline::NoiseFilter,
     entities::*,
     resonance::{stability_score, FlakeDetector, SignalImportance},
+    triage::{TriageEngine, TriageVerdict},
     types::*,
 };
 use liminalqa_db::LiminalDB;
@@ -55,6 +58,24 @@ pub struct RankedSignal {
 pub struct SignalsResponse {
     pub run_id: String,
     pub signals: Vec<RankedSignal>,
+    /// Latency values after Z-score noise filtering (|z| > 3.0 removed).
+    pub filtered_latencies_ms: Vec<f64>,
+}
+
+#[derive(Serialize)]
+pub struct TriageEntry {
+    pub name: String,
+    pub suite: String,
+    pub verdict: String,
+    pub stability_score: f64,
+    pub flake_score: f64,
+    pub run_count: usize,
+}
+
+#[derive(Serialize)]
+pub struct TriageResponse {
+    pub tests: Vec<TriageEntry>,
+    pub total_analyzed: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +222,13 @@ pub async fn get_signals_by_run(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // Collect raw latencies and filter noise before ranking
+    let raw_latencies: Vec<f64> = signals
+        .iter()
+        .filter_map(|s| s.latency_ms.map(|v| v as f64))
+        .collect();
+    let filtered_latencies_ms = NoiseFilter::filter_zscore(&raw_latencies, 3.0);
+
     let ranked: Vec<RankedSignal> = signals
         .iter()
         .map(|s| RankedSignal {
@@ -215,6 +243,87 @@ pub async fn get_signals_by_run(
     let resp = SignalsResponse {
         run_id: run_id_str,
         signals: ranked,
+        filtered_latencies_ms,
+    };
+
+    (StatusCode::OK, Json(serde_json::json!(resp))).into_response()
+}
+
+/// GET /api/triage
+///
+/// Classifies every known test as `stable`, `flake`, `new_bug`, or
+/// `known_issue` based on recent run history.
+/// Only tests with at least 3 runs are included.
+#[utoipa::path(
+    get,
+    path = "/api/triage",
+    responses(
+        (status = 200, description = "Triage verdicts for all known tests", body = serde_json::Value),
+        (status = 401, description = "Unauthorized", body = crate::ApiResponse),
+        (status = 429, description = "Rate limit exceeded", body = crate::ApiResponse),
+        (status = 500, description = "Internal server error", body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
+pub async fn get_triage(State(state): State<AppState>) -> impl IntoResponse {
+    const LOOKBACK: usize = 20;
+
+    let db = &state.db;
+    let known = match db.list_known_tests() {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!(ApiResponse::error(format!(
+                    "Failed to list known tests: {}",
+                    e
+                )))),
+            )
+                .into_response();
+        }
+    };
+
+    let total_analyzed = known.len();
+    let engine = TriageEngine::default();
+    let detector = FlakeDetector::default();
+    let mut tests: Vec<TriageEntry> = Vec::new();
+
+    for (name, suite) in &known {
+        let history = match db.get_test_history(name, suite, LOOKBACK) {
+            Ok(h) => h,
+            Err(e) => {
+                warn!("History fetch failed for {}/{}: {}", name, suite, e);
+                continue;
+            }
+        };
+
+        let statuses: Vec<TestStatus> = history.iter().map(|t| t.status).collect();
+        let verdict = engine.classify(&statuses);
+        let stab = stability_score(&statuses);
+        let flake = detector.calculate_score(&statuses);
+
+        tests.push(TriageEntry {
+            name: name.clone(),
+            suite: suite.clone(),
+            verdict: verdict.to_string(),
+            stability_score: stab,
+            flake_score: flake,
+            run_count: history.len(),
+        });
+    }
+
+    // Sort: new_bug and known_issue first, then flake, then stable
+    tests.sort_by_key(|e| match e.verdict.as_str() {
+        "new_bug" => 0,
+        "known_issue" => 1,
+        "flake" => 2,
+        _ => 3,
+    });
+
+    let resp = TriageResponse {
+        tests,
+        total_analyzed,
     };
 
     (StatusCode::OK, Json(serde_json::json!(resp))).into_response()
@@ -224,8 +333,8 @@ pub async fn get_signals_by_run(
 // Ingest-time helper
 // ---------------------------------------------------------------------------
 
-/// Called after each test ingest to update flakiness tracking.
-pub fn check_and_record_flakiness(db: &LiminalDB, test: &Test) {
+/// Called after each test ingest to update flakiness tracking and fire alerts.
+pub fn check_and_record_flakiness(db: &LiminalDB, test: &Test, alerts: &AlertManager) {
     let history = match db.get_test_history(&test.name, &test.suite, 20) {
         Ok(h) => h,
         Err(e) => {
@@ -238,6 +347,31 @@ pub fn check_and_record_flakiness(db: &LiminalDB, test: &Test) {
     let detector = FlakeDetector::default();
     let flake_score = detector.calculate_score(&statuses);
     let stab = stability_score(&statuses);
+
+    // Auto-triage: classify and fire alerts for new regressions / flakes
+    let triage_engine = TriageEngine::default();
+    let verdict = triage_engine.classify(&statuses);
+    match verdict {
+        TriageVerdict::NewBug => alerts.notify(
+            AlertSeverity::Critical,
+            &format!("New regression: {}/{}", test.suite, test.name),
+            &format!(
+                "Test was stable (stability={:.0}%) but last {} runs all failed.",
+                stab * 100.0,
+                3,
+            ),
+        ),
+        TriageVerdict::Flake => alerts.notify(
+            AlertSeverity::Warning,
+            &format!("Flaky test: {}/{}", test.suite, test.name),
+            &format!(
+                "Oscillation detected — flake_score={:.2}, stability={:.0}%.",
+                flake_score,
+                stab * 100.0
+            ),
+        ),
+        _ => {}
+    }
 
     if detector.is_flaky(&statuses) || (history.len() >= 5 && stab < 0.9) {
         info!(

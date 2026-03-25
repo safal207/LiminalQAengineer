@@ -31,6 +31,7 @@ async fn test_batch_ingestion_full_flow() {
         auth_token: None,
         metrics,
         rate_limiter: Arc::new(RateLimiter::new(10_000)),
+        alerts: liminalqa_ingest::alerting::AlertManager::from_env(),
     };
 
     // Setup Router
@@ -135,6 +136,7 @@ async fn test_batch_ingestion_partial_failure() {
         auth_token: None,
         metrics,
         rate_limiter: Arc::new(RateLimiter::new(10_000)),
+        alerts: liminalqa_ingest::alerting::AlertManager::from_env(),
     };
 
     let app = Router::new()

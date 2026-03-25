@@ -1,5 +1,5 @@
 use liminalqa_core::{
-    baseline::DriftDetector,
+    baseline::{DriftDetector, NoiseFilter},
     entities::Test,
     metrics::{BaselineLabels, SharedMetrics},
 };
@@ -21,7 +21,11 @@ pub fn check_baseline_drift(db: &LiminalDB, metrics: &SharedMetrics, test: &Test
         return;
     }
 
-    let durations: Vec<f64> = history.iter().map(|t| t.duration_ms as f64).collect();
+    let raw_durations: Vec<f64> = history.iter().map(|t| t.duration_ms as f64).collect();
+
+    // Filter load-induced spikes before computing baseline statistics.
+    // Z-score threshold 3.0: values more than 3 σ from the mean are dropped.
+    let durations = NoiseFilter::filter_zscore(&raw_durations, 3.0);
 
     // 2. Calculate Stats
     let detector = DriftDetector::default();

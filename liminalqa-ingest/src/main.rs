@@ -9,7 +9,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use liminalqa_core::metrics::MetricsRegistry;
 use liminalqa_grpc::{IngestServiceServer, MyIngestService};
-use liminalqa_ingest::{AppState, RateLimiter};
+use liminalqa_ingest::{alerting::AlertManager, AppState, RateLimiter};
 use tonic::transport::Server;
 
 #[tokio::main]
@@ -54,6 +54,7 @@ async fn main() -> Result<()> {
         auth_token,
         metrics,
         rate_limiter: Arc::new(RateLimiter::new(rate_limit)),
+        alerts: AlertManager::from_env(),
     };
 
     // Build REST Router

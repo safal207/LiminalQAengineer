@@ -490,7 +490,7 @@ pub async fn ingest_tests(
         }
 
         // Check for flakiness
-        check_and_record_flakiness(&state.db, &test);
+        check_and_record_flakiness(&state.db, &test, &state.alerts);
 
         // Check for baseline drift
         check_baseline_drift(&state.db, &state.metrics, &test);
@@ -739,7 +739,7 @@ pub async fn ingest_batch(
         }
 
         // Check for flakiness
-        check_and_record_flakiness(&state.db, &test);
+        check_and_record_flakiness(&state.db, &test, &state.alerts);
 
         // Check for baseline drift
         check_baseline_drift(&state.db, &state.metrics, &test);

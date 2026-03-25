@@ -1,5 +1,6 @@
 //! LiminalQA Ingest Library
 
+pub mod alerting;
 pub mod baseline;
 pub mod handlers;
 pub mod resonance;
@@ -23,8 +24,9 @@ use std::sync::{
 use utoipa::{openapi::security, Modify, OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::alerting::AlertManager;
 use crate::handlers::*;
-use crate::resonance::{get_flaky_tests, get_signals_by_run};
+use crate::resonance::{get_flaky_tests, get_signals_by_run, get_triage};
 
 // ---------------------------------------------------------------------------
 // Rate limiter
@@ -73,6 +75,7 @@ pub struct AppState {
     pub auth_token: Option<String>,
     pub metrics: SharedMetrics,
     pub rate_limiter: Arc<RateLimiter>,
+    pub alerts: AlertManager,
 }
 
 /// Debug impl masks the auth token to prevent accidental secret leaks in logs
@@ -157,6 +160,7 @@ impl Modify for BearerSecurityAddon {
         handlers::query_handler,
         resonance::get_flaky_tests,
         resonance::get_signals_by_run,
+        resonance::get_triage,
     ),
     components(schemas(
         ApiResponse,
@@ -195,6 +199,7 @@ pub fn app(state: AppState) -> Router {
         .route("/query", post(query_handler))
         .route("/api/resonance/flaky", get(get_flaky_tests))
         .route("/api/resonance/signals/:run_id", get(get_signals_by_run))
+        .route("/api/triage", get(get_triage))
         .route("/metrics", get(metrics_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),

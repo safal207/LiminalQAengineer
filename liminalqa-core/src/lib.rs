@@ -12,6 +12,7 @@ pub mod metrics;
 pub mod report;
 pub mod resonance;
 pub mod temporal;
+pub mod triage;
 pub mod types;
 
 pub use entities::*;
