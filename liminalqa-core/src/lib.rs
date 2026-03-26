@@ -8,6 +8,7 @@
 pub mod baseline;
 pub mod causality;
 pub mod context;
+pub mod decision;
 pub mod entities;
 pub mod facts;
 pub mod metrics;

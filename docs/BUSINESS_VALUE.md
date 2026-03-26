@@ -200,6 +200,112 @@ GET /api/run-plan/payments
 
 ---
 
+### 8. Decision API — один запрос вместо пяти (для AI-агентов и CI-ботов)
+
+Все предыдущие API давали данные. Этот API даёт **решение**.
+
+Вместо того чтобы агент сам вызывал `/api/triage`, `/api/flake-risk`, `/api/trend`, `/api/timeout-advice` и собирал всё воедино — один запрос отвечает на вопрос «что делать?»:
+
+```
+GET /api/decision/payments/charge
+
+{
+  "name":               "payments/charge",
+  "suite":              "payments",
+  "verdict":            "new_bug",
+  "confidence":         0.91,
+  "severity":           "critical",
+  "recommended_action": "block_and_alert",
+  "merge_policy":       "block",
+  "retry_policy":       "none (real failure — do not retry)",
+  "signals": {
+    "stability_score":     0.11,
+    "flake_probability":   0.05,
+    "trend_direction":     "degrading",
+    "slope_ms_per_run":    15.2,
+    "ema_mean_ms":         3200.0,
+    "suggested_timeout_ms": 4850,
+    "run_count":           9
+  },
+  "root_cause_hints": [
+    "Test was stable (95% pass rate) but failed in the last 3 consecutive runs — likely a real regression",
+    "Duration trending upward at +15.2ms/run — projected +760ms in the next 50 runs"
+  ],
+  "computed_at": "2025-03-26T12:00:00Z"
+}
+```
+
+Для PR-бота — suite-level запрос:
+
+```
+GET /api/decision/suite/payments
+
+{
+  "suite":        "payments",
+  "merge_policy": "block",
+  "block_reason": "New regression detected in: payments/charge",
+  "confidence":   0.87,
+  "summary": {
+    "total_tests":       3,
+    "blocking_failures": 1,
+    "flaky_tests":       1,
+    "stable_tests":      1,
+    "degrading_tests":   1,
+    "skippable_tests":   1
+  },
+  "action_items": [
+    {
+      "name":     "payments/charge",
+      "action":   "block_and_alert",
+      "reason":   "New regression — was 95% stable",
+      "severity": "critical"
+    },
+    {
+      "name":     "auth/login",
+      "action":   "retry_with_backoff",
+      "reason":   "Oscillates 55% pass — timing/env sensitive",
+      "severity": "high"
+    }
+  ]
+}
+```
+
+**Словарь `recommended_action` (замкнутый, без магических строк):**
+
+| Значение | Что делать |
+|----------|-----------|
+| `run` | Запустить нормально |
+| `retry_immediately` | Ретрай один раз — вероятно transient |
+| `retry_with_backoff` | Высокий риск флака — exponential backoff |
+| `investigate` | Стабильное падение — эскалировать инженеру |
+| `monitor_trend` | Стабилен, но деградирует — наблюдать |
+| `skip` | Надёжный — безопасно пропустить |
+| `block_and_alert` | Новая регрессия — стоп пайплайн |
+| `observe_only` | Мало данных — наблюдать без действий |
+
+**Как это использует AI-агент:**
+
+```python
+# OpenAI / Anthropic tool calling
+decision = call_tool("get_test_decision", suite="payments", test="charge")
+
+if decision["merge_policy"] == "block":
+    block_pr(reason=decision["block_reason"])
+elif decision["merge_policy"] == "allow_with_warning":
+    add_pr_annotation(decision["root_cause_hints"])
+
+if decision["recommended_action"] == "retry_with_backoff":
+    schedule_retry(policy=decision["retry_policy"])
+```
+
+**Что это значит для бизнеса:**
+- GitHub Action бот: один API-вызов → блокировать PR или пропустить
+- AI coding agent (Claude, Copilot): понимает качество тестов без написания логики анализа
+- CLI: `limctl decision payments/charge` — мгновенный диагноз в терминале
+- Любая интеграция: одна схема, закрытый словарь, предсказуемый формат
+
+---
+
 ## Кому это нужно
 
 | Роль | Что получает |
