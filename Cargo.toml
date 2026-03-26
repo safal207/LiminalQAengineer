@@ -46,6 +46,9 @@ bincode = "1.3"
 clap = { version = "4.4", features = ["derive", "env"] }
 comfy-table = "7.1"
 
+# Cryptography
+sha2 = "0.10"
+
 # Testing
 async-trait = "0.1"
 

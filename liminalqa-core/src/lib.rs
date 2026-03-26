@@ -7,14 +7,17 @@
 
 pub mod baseline;
 pub mod causality;
+pub mod community;
 pub mod context;
 pub mod decision;
 pub mod entities;
+pub mod export;
 pub mod facts;
 pub mod metrics;
 pub mod report;
 pub mod resonance;
 pub mod retry;
+pub mod rootcause;
 pub mod temporal;
 pub mod triage;
 pub mod types;
