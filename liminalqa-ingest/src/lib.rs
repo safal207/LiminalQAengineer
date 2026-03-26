@@ -27,7 +27,8 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::alerting::AlertManager;
 use crate::handlers::*;
 use crate::resonance::{
-    get_baseline, get_causality_chain, get_flaky_tests, get_signals_by_run, get_triage,
+    get_baseline, get_causality_chain, get_flaky_tests, get_run_plan, get_signals_by_run,
+    get_triage, get_timeout_advice,
 };
 
 // ---------------------------------------------------------------------------
@@ -165,6 +166,8 @@ impl Modify for BearerSecurityAddon {
         resonance::get_triage,
         resonance::get_causality_chain,
         resonance::get_baseline,
+        resonance::get_timeout_advice,
+        resonance::get_run_plan,
     ),
     components(schemas(
         ApiResponse,
@@ -209,6 +212,11 @@ pub fn app(state: AppState) -> Router {
             get(get_causality_chain),
         )
         .route("/api/baseline/:suite/:test_name", get(get_baseline))
+        .route(
+            "/api/timeout-advice/:suite/:test_name",
+            get(get_timeout_advice),
+        )
+        .route("/api/run-plan/:suite", get(get_run_plan))
         .route("/metrics", get(metrics_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),

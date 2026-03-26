@@ -113,6 +113,22 @@ impl ExponentialBaseline {
         }
         ((current - mean) / stddev).abs() > sigma_threshold
     }
+
+    /// Compute an adaptive timeout as `mean + sigma_factor × stddev`.
+    ///
+    /// Returns `None` when the baseline is not yet warmed up — the caller
+    /// should fall back to a static default.
+    ///
+    /// Typical value: `sigma_factor = 3.0`  (covers 99.7 % of normal runs).
+    pub fn suggested_timeout_ms(&self, sigma_factor: f64) -> Option<u64> {
+        if !self.is_warmed_up() {
+            return None;
+        }
+        let (mean, stddev, _) = self.stats();
+        let raw = mean + sigma_factor * stddev;
+        // Floor at 100 ms, ceil at 10 min — sanity guard
+        Some(raw.clamp(100.0, 600_000.0) as u64)
+    }
 }
 
 impl Default for ExponentialBaseline {

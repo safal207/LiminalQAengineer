@@ -19,6 +19,7 @@ use liminalqa_core::{
     triage::{TriageEngine, TriageVerdict},
     types::*,
 };
+use liminalqa_core::retry::RetryPolicy;
 use liminalqa_db::LiminalDB;
 use serde::Deserialize;
 use serde::Serialize;
@@ -600,4 +601,304 @@ pub async fn get_baseline(
         )
             .into_response(),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Timeout advice endpoint
+// ---------------------------------------------------------------------------
+
+/// Response from `GET /api/timeout-advice/:suite/:test_name`.
+#[derive(Serialize)]
+pub struct TimeoutAdvice {
+    pub name: String,
+    pub suite: String,
+    /// Suggested timeout in milliseconds (`EMA_mean + sigma_factor × EMA_stddev`).
+    /// `null` when the baseline has not warmed up yet.
+    pub suggested_timeout_ms: Option<u64>,
+    /// The sigma factor used (default 3.0).
+    pub sigma_factor: f64,
+    pub ema_mean_ms: f64,
+    pub ema_stddev_ms: f64,
+    pub confidence: f64,
+    pub is_warmed_up: bool,
+}
+
+/// Query parameters for `GET /api/timeout-advice`.
+#[derive(Debug, Deserialize, Default)]
+pub struct TimeoutQuery {
+    /// Sigma multiplier for the timeout formula (default 3.0).
+    pub sigma: Option<f64>,
+}
+
+/// GET /api/timeout-advice/:suite/:test_name
+///
+/// Returns an adaptive timeout recommendation derived from the EMA baseline.
+/// Formula: `timeout_ms = EMA_mean + sigma × EMA_stddev` (default sigma=3).
+/// Returns `null` for `suggested_timeout_ms` when the baseline is not yet
+/// warmed up (fewer than `period/2` samples).
+#[utoipa::path(
+    get,
+    path = "/api/timeout-advice/{suite}/{test_name}",
+    params(
+        ("suite"     = String, Path, description = "Test suite name"),
+        ("test_name" = String, Path, description = "Test name"),
+        ("sigma"     = Option<f64>, Query, description = "Sigma multiplier (default 3.0)"),
+    ),
+    responses(
+        (status = 200, description = "Adaptive timeout advice",      body = serde_json::Value),
+        (status = 404, description = "No baseline data yet",         body = crate::ApiResponse),
+        (status = 401, description = "Unauthorized",                 body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
+pub async fn get_timeout_advice(
+    State(state): State<AppState>,
+    Path((suite, name)): Path<(String, String)>,
+    Query(params): Query<TimeoutQuery>,
+) -> impl IntoResponse {
+    let sigma = params.sigma.unwrap_or(3.0).clamp(1.0, 6.0);
+    match state.db.get_ema_baseline(&name, &suite) {
+        Ok(Some(baseline)) => {
+            let (mean, stddev, confidence) = baseline.stats();
+            let resp = TimeoutAdvice {
+                name,
+                suite,
+                suggested_timeout_ms: baseline.suggested_timeout_ms(sigma),
+                sigma_factor: sigma,
+                ema_mean_ms: mean,
+                ema_stddev_ms: stddev,
+                confidence,
+                is_warmed_up: baseline.is_warmed_up(),
+            };
+            (StatusCode::OK, Json(serde_json::json!(resp))).into_response()
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!(ApiResponse::error(
+                "No baseline data yet for this test"
+            ))),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!(ApiResponse::error(format!(
+                "Database error: {}",
+                e
+            )))),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Smart test-selection / run-plan endpoint
+// ---------------------------------------------------------------------------
+
+/// Decision for a single test in a run plan.
+#[derive(Serialize)]
+pub struct TestRunDecision {
+    pub name: String,
+    pub suite: String,
+    pub action: RunAction,
+    pub reason: String,
+    /// Stability score 0.0–1.0 (higher = more stable).
+    pub stability_score: f64,
+    /// Triage verdict for context.
+    pub verdict: String,
+    pub run_count: usize,
+}
+
+#[derive(Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RunAction {
+    /// Always run — new test, no history yet.
+    AlwaysRun,
+    /// Run — flaky or broken, must be watched.
+    Run,
+    /// Recommended to skip — rock-solid for many runs.
+    Skip,
+}
+
+/// Response from `GET /api/run-plan/:suite`.
+#[derive(Serialize)]
+pub struct RunPlan {
+    pub suite: String,
+    pub total_tests: usize,
+    pub recommended_to_run: usize,
+    pub recommended_to_skip: usize,
+    pub decisions: Vec<TestRunDecision>,
+}
+
+/// Query parameters for `GET /api/run-plan/:suite`.
+#[derive(Debug, Deserialize, Default)]
+pub struct RunPlanQuery {
+    /// Stability threshold above which a test is recommended for skipping
+    /// (default 0.97 — the test must have passed at least 97 % of recent runs).
+    pub skip_threshold: Option<f64>,
+    /// Minimum number of historical runs required before a test can be skipped
+    /// (default 10).
+    pub min_runs: Option<usize>,
+}
+
+/// GET /api/run-plan/:suite
+///
+/// Returns a smart run plan for the given suite.  Tests that have been rock-solid
+/// for many runs are flagged as `skip`; flaky / broken / new tests are flagged
+/// as `run` or `always_run`.
+///
+/// This allows CI pipelines to reduce their test budget on a given commit
+/// without sacrificing confidence.
+#[utoipa::path(
+    get,
+    path = "/api/run-plan/{suite}",
+    params(
+        ("suite"           = String, Path,  description = "Suite name"),
+        ("skip_threshold"  = Option<f64>,   Query, description = "Stability threshold for skip (default 0.97)"),
+        ("min_runs"        = Option<usize>, Query, description = "Minimum historical runs before skipping (default 10)"),
+    ),
+    responses(
+        (status = 200, description = "Run plan for the suite",    body = serde_json::Value),
+        (status = 401, description = "Unauthorized",              body = crate::ApiResponse),
+        (status = 500, description = "Internal server error",     body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
+pub async fn get_run_plan(
+    State(state): State<AppState>,
+    Path(suite): Path<String>,
+    Query(params): Query<RunPlanQuery>,
+) -> impl IntoResponse {
+    let skip_threshold = params.skip_threshold.unwrap_or(0.97).clamp(0.5, 1.0);
+    let min_runs = params.min_runs.unwrap_or(10);
+    const LOOKBACK: usize = 20;
+
+    let db = &state.db;
+    let known = match db.list_known_tests() {
+        Ok(v) => v,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!(ApiResponse::error(format!(
+                    "Failed to list known tests: {}",
+                    e
+                )))),
+            )
+                .into_response();
+        }
+    };
+
+    let engine = TriageEngine::default();
+    let mut decisions: Vec<TestRunDecision> = Vec::new();
+
+    for (name, test_suite) in &known {
+        if test_suite != &suite {
+            continue;
+        }
+        let history = match db.get_test_history(name, test_suite, LOOKBACK) {
+            Ok(h) => h,
+            Err(_) => continue,
+        };
+
+        if history.is_empty() {
+            // Brand-new test — always run
+            decisions.push(TestRunDecision {
+                name: name.clone(),
+                suite: test_suite.clone(),
+                action: RunAction::AlwaysRun,
+                reason: "No history — new test".into(),
+                stability_score: 1.0,
+                verdict: "unknown".into(),
+                run_count: 0,
+            });
+            continue;
+        }
+
+        let statuses: Vec<TestStatus> = history.iter().map(|t| t.status).collect();
+        let stab = stability_score(&statuses);
+        let verdict = engine.classify(&statuses);
+        let run_count = history.len();
+
+        // Recommend a retry policy based on verdict — used only for the
+        // `reason` string, not directly enforced here.
+        let policy = RetryPolicy::from_triage(&verdict, stab);
+
+        let (action, reason) = match verdict {
+            TriageVerdict::NewBug | TriageVerdict::KnownIssue => (
+                RunAction::Run,
+                format!(
+                    "{} — must run to track regression (policy: {})",
+                    verdict,
+                    policy.describe()
+                ),
+            ),
+            TriageVerdict::Flake => (
+                RunAction::Run,
+                format!(
+                    "Flaky test (stability={:.0}%) — run to gather signal (policy: {})",
+                    stab * 100.0,
+                    policy.describe()
+                ),
+            ),
+            TriageVerdict::Stable => {
+                if run_count >= min_runs && stab >= skip_threshold {
+                    (
+                        RunAction::Skip,
+                        format!(
+                            "Rock-solid: {:.0}% pass rate over {} runs — safe to skip",
+                            stab * 100.0,
+                            run_count
+                        ),
+                    )
+                } else {
+                    (
+                        RunAction::Run,
+                        format!(
+                            "Stable but only {} run(s) — need {} before skipping",
+                            run_count, min_runs
+                        ),
+                    )
+                }
+            }
+        };
+
+        decisions.push(TestRunDecision {
+            name: name.clone(),
+            suite: test_suite.clone(),
+            action,
+            reason,
+            stability_score: stab,
+            verdict: verdict.to_string(),
+            run_count,
+        });
+    }
+
+    // Sort: always_run first, then run, then skip; within same action sort by stability asc
+    decisions.sort_by(|a, b| {
+        let priority = |d: &TestRunDecision| match d.action {
+            RunAction::AlwaysRun => 0,
+            RunAction::Run => 1,
+            RunAction::Skip => 2,
+        };
+        priority(a)
+            .cmp(&priority(b))
+            .then_with(|| a.stability_score.partial_cmp(&b.stability_score).unwrap())
+    });
+
+    let recommended_to_skip = decisions
+        .iter()
+        .filter(|d| d.action == RunAction::Skip)
+        .count();
+    let recommended_to_run = decisions.len() - recommended_to_skip;
+
+    let plan = RunPlan {
+        suite,
+        total_tests: decisions.len(),
+        recommended_to_run,
+        recommended_to_skip,
+        decisions,
+    };
+
+    (StatusCode::OK, Json(serde_json::json!(plan))).into_response()
 }
