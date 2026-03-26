@@ -79,12 +79,15 @@ impl LiminalDB {
         self.test_name_index
             .insert(index_key.as_bytes(), &test.id.to_bytes())?;
 
-        // Create index for history lookup (name + suite + time)
+        // Create index for history lookup (name + suite + time + run_id).
+        // The run_id suffix makes the key unique even when two runs share the
+        // same started_at timestamp (common in tests and rapid CI pipelines).
         let history_key = format!(
-            "idx:history:{}:{}:{}",
+            "idx:history:{}:{}:{}:{}",
             test.name,
             test.suite,
-            test.started_at.timestamp_millis()
+            test.started_at.timestamp_millis(),
+            test.run_id,
         );
         self.test_history_index
             .insert(history_key.as_bytes(), &test.id.to_bytes())?;
