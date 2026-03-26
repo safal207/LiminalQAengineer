@@ -131,6 +131,111 @@ impl ExponentialBaseline {
     }
 }
 
+// ---------------------------------------------------------------------------
+// DurationTrend — online linear regression for test duration over time
+// ---------------------------------------------------------------------------
+
+/// Online linear regression: tracks whether test duration is trending up
+/// (degrading) or down (improving) over successive runs.
+///
+/// Uses Welford-style running sums so no history is stored:
+/// `y = slope × x + intercept` where x is the sample index (0, 1, 2, …).
+///
+/// Persist with `serde` — same as `ExponentialBaseline`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DurationTrend {
+    n: u64,
+    sum_x: f64,
+    sum_y: f64,
+    sum_xx: f64,
+    sum_xy: f64,
+    sum_yy: f64,
+}
+
+impl DurationTrend {
+    pub fn new() -> Self {
+        Self {
+            n: 0,
+            sum_x: 0.0,
+            sum_y: 0.0,
+            sum_xx: 0.0,
+            sum_xy: 0.0,
+            sum_yy: 0.0,
+        }
+    }
+
+    /// Feed the next duration observation (ms).
+    pub fn update(&mut self, duration_ms: f64) {
+        let x = self.n as f64;
+        self.sum_x += x;
+        self.sum_y += duration_ms;
+        self.sum_xx += x * x;
+        self.sum_xy += x * duration_ms;
+        self.sum_yy += duration_ms * duration_ms;
+        self.n += 1;
+    }
+
+    /// Returns `TrendStats` with slope, intercept, and R².
+    ///
+    /// - `slope > 0` → test getting slower (ms per run)
+    /// - `slope < 0` → test getting faster
+    /// - `r_squared` → linearity of the trend (0.0 = noise, 1.0 = perfect line)
+    ///
+    /// Returns `None` when fewer than 3 samples have been collected.
+    pub fn regression(&self) -> Option<TrendStats> {
+        if self.n < 3 {
+            return None;
+        }
+        let n = self.n as f64;
+        let denom = n * self.sum_xx - self.sum_x * self.sum_x;
+        if denom == 0.0 {
+            return None;
+        }
+        let slope = (n * self.sum_xy - self.sum_x * self.sum_y) / denom;
+        let intercept = (self.sum_y - slope * self.sum_x) / n;
+
+        // R² via Pearson r: r = (n·Σxy − Σx·Σy) / sqrt[(n·Σxx − (Σx)²)(n·Σyy − (Σy)²)]
+        let ss_xx = n * self.sum_xx - self.sum_x * self.sum_x;
+        let ss_yy = n * self.sum_yy - self.sum_y * self.sum_y;
+        let r_squared = if ss_xx > 0.0 && ss_yy > 0.0 {
+            let r = (n * self.sum_xy - self.sum_x * self.sum_y) / (ss_xx * ss_yy).sqrt();
+            (r * r).min(1.0)
+        } else {
+            0.0
+        };
+
+        Some(TrendStats {
+            slope_ms_per_run: slope,
+            intercept_ms: intercept,
+            r_squared,
+            sample_count: self.n,
+        })
+    }
+
+    pub fn sample_count(&self) -> u64 {
+        self.n
+    }
+}
+
+impl Default for DurationTrend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Output of `DurationTrend::regression()`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TrendStats {
+    /// Milliseconds per run.  Positive = degrading, negative = improving.
+    pub slope_ms_per_run: f64,
+    /// Estimated duration at run 0.
+    pub intercept_ms: f64,
+    /// Coefficient of determination (0.0–1.0).
+    pub r_squared: f64,
+    /// Number of samples used.
+    pub sample_count: u64,
+}
+
 impl Default for ExponentialBaseline {
     fn default() -> Self {
         Self::new(20)

@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use liminalqa_core::{
-    baseline::ExponentialBaseline,
+    baseline::{DurationTrend, ExponentialBaseline},
     entities::*,
     facts::*,
     types::{EntityId, TestStatus},
@@ -26,8 +26,11 @@ pub struct LiminalDB {
     /// Key: `"{name}\x00{suite}"`, Value: empty.
     known_tests: sled::Tree,
     /// Persisted EMA baseline state per (name, suite).
-    /// Key: `"ema:{name}\x00{suite}"`, Value: JSON-serialized `ExponentialBaseline`.
+    /// Key: `"{name}\x00{suite}"`, Value: JSON-serialized `ExponentialBaseline`.
     ema_baselines: sled::Tree,
+    /// Persisted duration-trend regression state per (name, suite).
+    /// Key: `"{name}\x00{suite}"`, Value: JSON-serialized `DurationTrend`.
+    duration_trends: sled::Tree,
 }
 
 impl LiminalDB {
@@ -46,6 +49,7 @@ impl LiminalDB {
         let test_history_index = db.open_tree("idx_test_history")?;
         let known_tests = db.open_tree("known_tests")?;
         let ema_baselines = db.open_tree("ema_baselines")?;
+        let duration_trends = db.open_tree("duration_trends")?;
 
         Ok(Self {
             db,
@@ -58,6 +62,7 @@ impl LiminalDB {
             test_history_index,
             known_tests,
             ema_baselines,
+            duration_trends,
         })
     }
 
@@ -354,6 +359,30 @@ impl LiminalDB {
         baseline.update(value);
         let serialized = serde_json::to_vec(&baseline)?;
         self.ema_baselines.insert(key, serialized)?;
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Duration trend persistence
+    // -----------------------------------------------------------------------
+
+    pub fn get_duration_trend(&self, name: &str, suite: &str) -> Result<Option<DurationTrend>> {
+        let key = Self::ema_key(name, suite); // same key scheme — different tree
+        match self.duration_trends.get(&key)? {
+            Some(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn update_duration_trend(&self, name: &str, suite: &str, duration_ms: f64) -> Result<()> {
+        let key = Self::ema_key(name, suite);
+        let mut trend = match self.duration_trends.get(&key)? {
+            Some(bytes) => serde_json::from_slice::<DurationTrend>(&bytes)?,
+            None => DurationTrend::default(),
+        };
+        trend.update(duration_ms);
+        let serialized = serde_json::to_vec(&trend)?;
+        self.duration_trends.insert(key, serialized)?;
         Ok(())
     }
 

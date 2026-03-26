@@ -8,11 +8,15 @@ use tracing::{info, warn};
 
 /// Update the EMA baseline for this test and return whether EMA drift was
 /// detected (warmed-up baseline and current duration > 2σ from EMA mean).
+/// Also updates the duration trend regression state.
 pub fn update_ema_and_check_drift(db: &LiminalDB, test: &Test) -> bool {
     let duration = test.duration_ms as f64;
     if let Err(e) = db.update_ema_baseline(&test.name, &test.suite, duration) {
         warn!("Failed to update EMA for {}: {}", test.name, e);
         return false;
+    }
+    if let Err(e) = db.update_duration_trend(&test.name, &test.suite, duration) {
+        warn!("Failed to update trend for {}: {}", test.name, e);
     }
     match db.get_ema_baseline(&test.name, &test.suite) {
         Ok(Some(baseline)) => baseline.is_drift(duration, 2.0),

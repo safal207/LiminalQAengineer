@@ -16,10 +16,10 @@ use liminalqa_core::{
     context::SignalContext,
     entities::*,
     resonance::{stability_score, FlakeDetector, SignalImportance},
+    retry::RetryPolicy,
     triage::{TriageEngine, TriageVerdict},
     types::*,
 };
-use liminalqa_core::retry::RetryPolicy;
 use liminalqa_db::LiminalDB;
 use serde::Deserialize;
 use serde::Serialize;
@@ -901,4 +901,197 @@ pub async fn get_run_plan(
     };
 
     (StatusCode::OK, Json(serde_json::json!(plan))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// Duration trend endpoint
+// ---------------------------------------------------------------------------
+
+/// GET /api/trend/:suite/:test_name
+///
+/// Returns linear-regression stats over the test's duration history.
+/// `slope_ms_per_run > 0` means the test is getting slower; `< 0` means faster.
+/// `r_squared` indicates how linear the trend is (1.0 = perfect line).
+#[utoipa::path(
+    get,
+    path = "/api/trend/{suite}/{test_name}",
+    params(
+        ("suite"     = String, Path, description = "Test suite name"),
+        ("test_name" = String, Path, description = "Test name"),
+    ),
+    responses(
+        (status = 200, description = "Duration trend regression stats", body = serde_json::Value),
+        (status = 404, description = "No trend data yet (< 3 samples)",  body = crate::ApiResponse),
+        (status = 401, description = "Unauthorized",                      body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
+pub async fn get_trend(
+    State(state): State<AppState>,
+    Path((suite, name)): Path<(String, String)>,
+) -> impl IntoResponse {
+    match state.db.get_duration_trend(&name, &suite) {
+        Ok(Some(trend)) => match trend.regression() {
+            Some(stats) => {
+                let direction = if stats.slope_ms_per_run > 0.5 {
+                    "degrading"
+                } else if stats.slope_ms_per_run < -0.5 {
+                    "improving"
+                } else {
+                    "stable"
+                };
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "name": name,
+                        "suite": suite,
+                        "slope_ms_per_run": stats.slope_ms_per_run,
+                        "intercept_ms": stats.intercept_ms,
+                        "r_squared": stats.r_squared,
+                        "sample_count": stats.sample_count,
+                        "direction": direction,
+                    })),
+                )
+                    .into_response()
+            }
+            None => (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!(ApiResponse::error(
+                    "Not enough data yet (need ≥ 3 samples)"
+                ))),
+            )
+                .into_response(),
+        },
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!(ApiResponse::error(
+                "No trend data yet for this test"
+            ))),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!(ApiResponse::error(format!(
+                "Database error: {}",
+                e
+            )))),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Flake risk / predictive flake probability endpoint
+// ---------------------------------------------------------------------------
+
+/// GET /api/flake-risk/:suite/:test_name
+///
+/// Returns an estimated probability (0.0–1.0) that the test will flake on
+/// the next run, derived from:
+/// - Recent stability score (pass rate)
+/// - Transition-based flake score (oscillation)
+/// - Triage verdict weight
+/// - Duration trend (degrading tests flake more)
+#[utoipa::path(
+    get,
+    path = "/api/flake-risk/{suite}/{test_name}",
+    params(
+        ("suite"     = String, Path, description = "Test suite name"),
+        ("test_name" = String, Path, description = "Test name"),
+    ),
+    responses(
+        (status = 200, description = "Flake risk assessment",           body = serde_json::Value),
+        (status = 404, description = "No history yet (< 3 runs)",       body = crate::ApiResponse),
+        (status = 401, description = "Unauthorized",                    body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
+pub async fn get_flake_risk(
+    State(state): State<AppState>,
+    Path((suite, name)): Path<(String, String)>,
+) -> impl IntoResponse {
+    const LOOKBACK: usize = 20;
+
+    let history = match state.db.get_test_history(&name, &suite, LOOKBACK) {
+        Ok(h) => h,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!(ApiResponse::error(format!(
+                    "Database error: {}",
+                    e
+                )))),
+            )
+                .into_response();
+        }
+    };
+
+    if history.len() < 3 {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!(ApiResponse::error(
+                "Not enough history yet (need ≥ 3 runs)"
+            ))),
+        )
+            .into_response();
+    }
+
+    let statuses: Vec<TestStatus> = history.iter().map(|t| t.status).collect();
+    let stability = stability_score(&statuses);
+    let detector = FlakeDetector::default();
+    let flake_score = detector.calculate_score(&statuses);
+    let engine = TriageEngine::default();
+    let verdict = engine.classify(&statuses);
+
+    // Verdict weight: new_bug and known_issue lean toward 0 (not flaky, just broken)
+    let verdict_factor = match verdict {
+        TriageVerdict::Flake => 1.0,
+        TriageVerdict::Stable => 0.0,
+        TriageVerdict::NewBug | TriageVerdict::KnownIssue => 0.2,
+    };
+
+    // Trend factor: degrading duration → slightly higher flake risk
+    let trend_factor = match state.db.get_duration_trend(&name, &suite) {
+        Ok(Some(trend)) => match trend.regression() {
+            Some(stats) if stats.slope_ms_per_run > 5.0 => 0.1,
+            _ => 0.0,
+        },
+        _ => 0.0,
+    };
+
+    // Composite: weighted blend
+    //   40% from instability (1 - stability)
+    //   40% from oscillation (flake_score)
+    //   20% from verdict
+    //   +trend bonus (up to +10%)
+    let raw = 0.40 * (1.0 - stability) + 0.40 * flake_score + 0.20 * verdict_factor + trend_factor;
+    let flake_probability = raw.clamp(0.0, 1.0);
+
+    let risk_label = if flake_probability >= 0.7 {
+        "high"
+    } else if flake_probability >= 0.35 {
+        "medium"
+    } else {
+        "low"
+    };
+
+    let policy = RetryPolicy::from_triage(&verdict, stability);
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "name": name,
+            "suite": suite,
+            "flake_probability": flake_probability,
+            "risk_label": risk_label,
+            "stability_score": stability,
+            "flake_score": flake_score,
+            "verdict": verdict.to_string(),
+            "suggested_retry_policy": policy.describe(),
+            "run_count": history.len(),
+        })),
+    )
+        .into_response()
 }
