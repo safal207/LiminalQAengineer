@@ -13,6 +13,7 @@ pub mod facts;
 pub mod metrics;
 pub mod report;
 pub mod resonance;
+pub mod retry;
 pub mod temporal;
 pub mod triage;
 pub mod types;

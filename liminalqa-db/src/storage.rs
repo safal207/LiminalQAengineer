@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result};
 use liminalqa_core::{
+    baseline::ExponentialBaseline,
     entities::*,
     facts::*,
     types::{EntityId, TestStatus},
@@ -24,6 +25,9 @@ pub struct LiminalDB {
     /// Tracks every unique (name, suite) pair ever seen.
     /// Key: `"{name}\x00{suite}"`, Value: empty.
     known_tests: sled::Tree,
+    /// Persisted EMA baseline state per (name, suite).
+    /// Key: `"ema:{name}\x00{suite}"`, Value: JSON-serialized `ExponentialBaseline`.
+    ema_baselines: sled::Tree,
 }
 
 impl LiminalDB {
@@ -41,6 +45,7 @@ impl LiminalDB {
         let test_name_index = db.open_tree("idx_test_name")?;
         let test_history_index = db.open_tree("idx_test_history")?;
         let known_tests = db.open_tree("known_tests")?;
+        let ema_baselines = db.open_tree("ema_baselines")?;
 
         Ok(Self {
             db,
@@ -52,6 +57,7 @@ impl LiminalDB {
             test_name_index,
             test_history_index,
             known_tests,
+            ema_baselines,
         })
     }
 
@@ -318,7 +324,39 @@ impl LiminalDB {
         Ok(ids)
     }
 
-    /// Flush all pending writes
+    // -----------------------------------------------------------------------
+    // EMA baseline persistence
+    // -----------------------------------------------------------------------
+
+    fn ema_key(name: &str, suite: &str) -> Vec<u8> {
+        format!("{}\x00{}", name, suite).into_bytes()
+    }
+
+    /// Load the persisted `ExponentialBaseline` for `(name, suite)`.
+    /// Returns `None` if no baseline has been recorded yet.
+    pub fn get_ema_baseline(&self, name: &str, suite: &str) -> Result<Option<ExponentialBaseline>> {
+        let key = Self::ema_key(name, suite);
+        match self.ema_baselines.get(&key)? {
+            Some(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Feed `value` into the EMA baseline for `(name, suite)` and persist the
+    /// updated state.  If no baseline exists yet, one is created with
+    /// `period = 20` (the default).
+    pub fn update_ema_baseline(&self, name: &str, suite: &str, value: f64) -> Result<()> {
+        let key = Self::ema_key(name, suite);
+        let mut baseline = match self.ema_baselines.get(&key)? {
+            Some(bytes) => serde_json::from_slice::<ExponentialBaseline>(&bytes)?,
+            None => ExponentialBaseline::default(),
+        };
+        baseline.update(value);
+        let serialized = serde_json::to_vec(&baseline)?;
+        self.ema_baselines.insert(key, serialized)?;
+        Ok(())
+    }
+
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
         Ok(())

@@ -13,7 +13,9 @@ use tracing::{error, info};
 use utoipa::ToSchema;
 
 use crate::{
-    baseline::check_baseline_drift, resonance::check_and_record_flakiness, ApiResponse, AppState,
+    baseline::{check_baseline_drift, update_ema_and_check_drift},
+    resonance::check_and_record_flakiness,
+    ApiResponse, AppState,
 };
 
 // --- Error message constants ---
@@ -492,8 +494,16 @@ pub async fn ingest_tests(
         // Check for flakiness
         check_and_record_flakiness(&state.db, &test, &state.alerts);
 
-        // Check for baseline drift
+        // Check for baseline drift (batch stats)
         check_baseline_drift(&state.db, &state.metrics, &test);
+
+        // Update EMA baseline and log if drift detected
+        if update_ema_and_check_drift(&state.db, &test) {
+            info!(
+                "EMA drift detected for {} (duration={}ms)",
+                test.name, test.duration_ms
+            );
+        }
 
         // Record metrics
         let labels = TestLabels {
@@ -741,8 +751,16 @@ pub async fn ingest_batch(
         // Check for flakiness
         check_and_record_flakiness(&state.db, &test, &state.alerts);
 
-        // Check for baseline drift
+        // Check for baseline drift (batch stats)
         check_baseline_drift(&state.db, &state.metrics, &test);
+
+        // Update EMA baseline and log if drift detected
+        if update_ema_and_check_drift(&state.db, &test) {
+            info!(
+                "EMA drift detected for {} (duration={}ms)",
+                test.name, test.duration_ms
+            );
+        }
 
         // Record metrics
         let labels = TestLabels {

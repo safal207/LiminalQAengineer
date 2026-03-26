@@ -527,3 +527,77 @@ pub fn check_and_record_flakiness(db: &LiminalDB, test: &Test, alerts: &AlertMan
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// EMA Baseline endpoint
+// ---------------------------------------------------------------------------
+
+/// Response from `GET /api/baseline/:suite/:test_name`.
+#[derive(Serialize)]
+pub struct BaselineResponse {
+    pub name: String,
+    pub suite: String,
+    pub ema_mean_ms: f64,
+    pub ema_stddev_ms: f64,
+    /// Confidence 0.0–1.0 (≥0.95 after ~3×period samples).
+    pub confidence: f64,
+    pub is_warmed_up: bool,
+    pub sample_count: u64,
+}
+
+/// GET /api/baseline/:suite/:test_name
+///
+/// Returns the current EMA baseline statistics (mean, stddev, confidence)
+/// for the given test.  The baseline is updated automatically on every
+/// test ingest and does not require explicit population.
+#[utoipa::path(
+    get,
+    path = "/api/baseline/{suite}/{test_name}",
+    params(
+        ("suite" = String, Path, description = "Test suite name"),
+        ("test_name" = String, Path, description = "Test name"),
+    ),
+    responses(
+        (status = 200, description = "EMA baseline statistics", body = serde_json::Value),
+        (status = 404, description = "No baseline data yet",     body = crate::ApiResponse),
+        (status = 401, description = "Unauthorized",             body = crate::ApiResponse),
+        (status = 500, description = "Internal server error",    body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
+pub async fn get_baseline(
+    State(state): State<AppState>,
+    Path((suite, name)): Path<(String, String)>,
+) -> impl IntoResponse {
+    match state.db.get_ema_baseline(&name, &suite) {
+        Ok(Some(baseline)) => {
+            let (mean, stddev, confidence) = baseline.stats();
+            let resp = BaselineResponse {
+                name,
+                suite,
+                ema_mean_ms: mean,
+                ema_stddev_ms: stddev,
+                confidence,
+                is_warmed_up: baseline.is_warmed_up(),
+                sample_count: baseline.sample_count(),
+            };
+            (StatusCode::OK, Json(serde_json::json!(resp))).into_response()
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!(ApiResponse::error(
+                "No baseline data yet for this test"
+            ))),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!(ApiResponse::error(format!(
+                "Database error: {}",
+                e
+            )))),
+        )
+            .into_response(),
+    }
+}

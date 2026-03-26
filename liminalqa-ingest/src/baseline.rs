@@ -6,6 +6,24 @@ use liminalqa_core::{
 use liminalqa_db::LiminalDB;
 use tracing::{info, warn};
 
+/// Update the EMA baseline for this test and return whether EMA drift was
+/// detected (warmed-up baseline and current duration > 2σ from EMA mean).
+pub fn update_ema_and_check_drift(db: &LiminalDB, test: &Test) -> bool {
+    let duration = test.duration_ms as f64;
+    if let Err(e) = db.update_ema_baseline(&test.name, &test.suite, duration) {
+        warn!("Failed to update EMA for {}: {}", test.name, e);
+        return false;
+    }
+    match db.get_ema_baseline(&test.name, &test.suite) {
+        Ok(Some(baseline)) => baseline.is_drift(duration, 2.0),
+        Ok(None) => false,
+        Err(e) => {
+            warn!("Failed to read EMA for {}: {}", test.name, e);
+            false
+        }
+    }
+}
+
 pub fn check_baseline_drift(db: &LiminalDB, metrics: &SharedMetrics, test: &Test) {
     // 1. Get history (durations)
     // We need enough samples for meaningful stats. e.g. 50?
