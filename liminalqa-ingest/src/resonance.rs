@@ -5,19 +5,22 @@
 use crate::alerting::{AlertManager, AlertSeverity};
 use crate::{ApiResponse, AppState};
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
 use liminalqa_core::{
     baseline::NoiseFilter,
+    causality::CausalityWalker,
+    context::SignalContext,
     entities::*,
     resonance::{stability_score, FlakeDetector, SignalImportance},
     triage::{TriageEngine, TriageVerdict},
     types::*,
 };
 use liminalqa_db::LiminalDB;
+use serde::Deserialize;
 use serde::Serialize;
 use tracing::{info, warn};
 
@@ -45,18 +48,34 @@ pub struct FlakyTestsResponse {
     pub min_runs: usize,
 }
 
+/// Query parameters for `GET /api/resonance/signals/:run_id`.
+#[derive(Debug, Deserialize, Default)]
+pub struct SignalsQuery {
+    /// Environment label: `prod`, `staging`, or `dev` (default: `dev`).
+    pub env: Option<String>,
+    /// CPU utilisation 0–100 at observation time (default: Normal load).
+    pub cpu: Option<f64>,
+}
+
 #[derive(Serialize)]
 pub struct RankedSignal {
     pub signal_id: String,
     pub signal_type: String,
     pub latency_ms: Option<u64>,
-    pub importance: f64,
+    /// Raw importance before context adjustment.
+    pub base_importance: f64,
+    /// Importance after applying env / time-window / load-level multipliers.
+    pub adjusted_importance: f64,
+    /// Combined context multiplier that was applied.
+    pub context_multiplier: f64,
     pub timestamp: String,
 }
 
 #[derive(Serialize)]
 pub struct SignalsResponse {
     pub run_id: String,
+    /// Environment used for context scoring.
+    pub environment: String,
     pub signals: Vec<RankedSignal>,
     /// Latency values after Z-score noise filtering (|z| > 3.0 removed).
     pub filtered_latencies_ms: Vec<f64>,
@@ -189,6 +208,7 @@ pub async fn get_flaky_tests(State(state): State<AppState>) -> impl IntoResponse
 pub async fn get_signals_by_run(
     State(state): State<AppState>,
     Path(run_id_str): Path<String>,
+    Query(params): Query<SignalsQuery>,
 ) -> impl IntoResponse {
     let run_id = match EntityId::from_string(&run_id_str) {
         Ok(id) => id,
@@ -201,7 +221,7 @@ pub async fn get_signals_by_run(
         }
     };
 
-    let mut signals = match state.db.get_signals_by_run(run_id) {
+    let signals = match state.db.get_signals_by_run(run_id) {
         Ok(s) => s,
         Err(e) => {
             return (
@@ -215,38 +235,137 @@ pub async fn get_signals_by_run(
         }
     };
 
-    // Score and sort descending
-    signals.sort_by(|a, b| {
-        SignalImportance::compute(b)
-            .partial_cmp(&SignalImportance::compute(a))
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    // Resolve environment label for the response
+    let env_label = params.env.as_deref().unwrap_or("dev").to_string();
 
-    // Collect raw latencies and filter noise before ranking
+    // Collect raw latencies and filter noise
     let raw_latencies: Vec<f64> = signals
         .iter()
         .filter_map(|s| s.latency_ms.map(|v| v as f64))
         .collect();
     let filtered_latencies_ms = NoiseFilter::filter_zscore(&raw_latencies, 3.0);
 
-    let ranked: Vec<RankedSignal> = signals
+    // Score, apply context, and sort descending by adjusted_importance
+    let mut ranked: Vec<RankedSignal> = signals
         .iter()
-        .map(|s| RankedSignal {
-            signal_id: s.id.to_string(),
-            signal_type: format!("{:?}", s.signal_type),
-            latency_ms: s.latency_ms,
-            importance: SignalImportance::compute(s),
-            timestamp: s.timestamp.to_rfc3339(),
+        .map(|s| {
+            let ctx =
+                SignalContext::from_signal_meta(&s.timestamp, params.env.as_deref(), params.cpu);
+            let base = SignalImportance::compute(s);
+            let adjusted = ctx.apply(base);
+            RankedSignal {
+                signal_id: s.id.to_string(),
+                signal_type: format!("{:?}", s.signal_type),
+                latency_ms: s.latency_ms,
+                base_importance: base,
+                adjusted_importance: adjusted,
+                context_multiplier: ctx.multiplier(),
+                timestamp: s.timestamp.to_rfc3339(),
+            }
         })
         .collect();
 
+    ranked.sort_by(|a, b| {
+        b.adjusted_importance
+            .partial_cmp(&a.adjusted_importance)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
     let resp = SignalsResponse {
         run_id: run_id_str,
+        environment: env_label,
         signals: ranked,
         filtered_latencies_ms,
     };
 
     (StatusCode::OK, Json(serde_json::json!(resp))).into_response()
+}
+
+/// GET /api/causality/:run_id/:signal_id
+///
+/// Returns the multi-hop causal chain starting from `signal_id` within the
+/// context of `run_id`. Optional `?depth=N` (default 4) limits walk depth.
+#[utoipa::path(
+    get,
+    path = "/api/causality/{run_id}/{signal_id}",
+    params(
+        ("run_id"    = String, Path, description = "ULID of the run"),
+        ("signal_id" = String, Path, description = "ULID of the root signal"),
+        ("depth"     = Option<usize>, Query, description = "Max hops (default 4)"),
+    ),
+    responses(
+        (status = 200, description = "Causal chain from root signal", body = serde_json::Value),
+        (status = 400, description = "Invalid ID",                    body = crate::ApiResponse),
+        (status = 404, description = "Signal not found in run",       body = crate::ApiResponse),
+        (status = 401, description = "Unauthorized",                  body = crate::ApiResponse),
+        (status = 500, description = "Internal server error",         body = crate::ApiResponse),
+    ),
+    security(("bearer_token" = [])),
+    tag = "Analysis"
+)]
+pub async fn get_causality_chain(
+    State(state): State<AppState>,
+    Path((run_id_str, signal_id_str)): Path<(String, String)>,
+    Query(params): Query<CausalityQuery>,
+) -> impl IntoResponse {
+    let run_id = match EntityId::from_string(&run_id_str) {
+        Ok(id) => id,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!(ApiResponse::error("Invalid run_id"))),
+            )
+                .into_response()
+        }
+    };
+    let signal_id = match EntityId::from_string(&signal_id_str) {
+        Ok(id) => id,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!(ApiResponse::error("Invalid signal_id"))),
+            )
+                .into_response()
+        }
+    };
+
+    let signals = match state.db.get_signals_by_run(run_id) {
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!(ApiResponse::error(format!(
+                    "Failed to fetch signals: {}",
+                    e
+                )))),
+            )
+                .into_response()
+        }
+    };
+
+    let max_depth = params.depth.unwrap_or(4).clamp(1, 8);
+    let walker = CausalityWalker {
+        max_depth,
+        ..Default::default()
+    };
+
+    match walker.walk(signal_id, &signals) {
+        Some(chain) => (StatusCode::OK, Json(serde_json::json!(chain))).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!(ApiResponse::error(
+                "Signal not found in this run"
+            ))),
+        )
+            .into_response(),
+    }
+}
+
+/// Query parameters for `GET /api/causality/:run_id/:signal_id`.
+#[derive(Debug, Deserialize, Default)]
+pub struct CausalityQuery {
+    /// Maximum hops to follow (1–8, default 4).
+    pub depth: Option<usize>,
 }
 
 /// GET /api/triage

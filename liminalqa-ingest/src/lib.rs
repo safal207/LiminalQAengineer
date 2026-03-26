@@ -26,7 +26,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::alerting::AlertManager;
 use crate::handlers::*;
-use crate::resonance::{get_flaky_tests, get_signals_by_run, get_triage};
+use crate::resonance::{get_causality_chain, get_flaky_tests, get_signals_by_run, get_triage};
 
 // ---------------------------------------------------------------------------
 // Rate limiter
@@ -161,6 +161,7 @@ impl Modify for BearerSecurityAddon {
         resonance::get_flaky_tests,
         resonance::get_signals_by_run,
         resonance::get_triage,
+        resonance::get_causality_chain,
     ),
     components(schemas(
         ApiResponse,
@@ -200,6 +201,10 @@ pub fn app(state: AppState) -> Router {
         .route("/api/resonance/flaky", get(get_flaky_tests))
         .route("/api/resonance/signals/:run_id", get(get_signals_by_run))
         .route("/api/triage", get(get_triage))
+        .route(
+            "/api/causality/:run_id/:signal_id",
+            get(get_causality_chain),
+        )
         .route("/metrics", get(metrics_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),

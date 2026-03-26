@@ -6,6 +6,8 @@
 //! - Facts: attributes attached to entities across time
 
 pub mod baseline;
+pub mod causality;
+pub mod context;
 pub mod entities;
 pub mod facts;
 pub mod metrics;
