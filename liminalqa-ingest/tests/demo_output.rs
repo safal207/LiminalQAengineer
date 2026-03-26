@@ -326,7 +326,10 @@ async fn demo_all_analysis_endpoints() {
     let (status, json) = get_json(&app, "/api/triage").await;
     println!("HTTP {status}\n");
     println!("total_analyzed: {}\n", json["total_analyzed"]);
-    println!("{:<12} {:<9} {:<8} {:<8} runs", "suite/name", "verdict", "stab%", "flake");
+    println!(
+        "{:<12} {:<9} {:<8} {:<8} runs",
+        "suite/name", "verdict", "stab%", "flake"
+    );
     println!("{}", "─".repeat(55));
     if let Some(tests) = json["tests"].as_array() {
         for t in tests {
