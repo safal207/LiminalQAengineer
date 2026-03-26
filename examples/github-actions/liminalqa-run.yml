@@ -1,0 +1,242 @@
+# liminalqa-run.yml
+#
+# Drop this file into your project's .github/workflows/ directory to
+# automatically ship test results to a LiminalQA instance after each CI run.
+#
+# Required repository secrets:
+#   LIMINALQA_URL          — e.g. https://liminalqa.example.com
+#   LIMINALQA_TOKEN        — bearer token set in LIMINAL_AUTH_TOKEN on the server
+#
+# Optional repository secrets / variables:
+#   LIMINALQA_ENV          — environment label: prod | staging | dev  (default: dev)
+#   LIMINALQA_PLAN_NAME    — test plan name shown in reports  (default: repo name)
+#
+# The workflow:
+#   1. Runs your existing test suite (edit the "Run tests" step to match your stack)
+#   2. Collects JUnit XML output from test-results/
+#   3. Ingests results into LiminalQA via the REST API
+#   4. Posts a comment on pull requests with the triage summary
+
+name: LiminalQA Test Ingest
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+env:
+  LIMINALQA_ENV: ${{ vars.LIMINALQA_ENV || 'dev' }}
+  LIMINALQA_PLAN: ${{ vars.LIMINALQA_PLAN_NAME || github.repository }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Run your test suite and produce JUnit XML
+  # ---------------------------------------------------------------------------
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.start-run.outputs.run_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Start a LiminalQA run — captures tx_time at the beginning
+      # -----------------------------------------------------------------------
+      - name: Start LiminalQA run
+        id: start-run
+        run: |
+          RESP=$(curl -sf \
+            -X POST "${{ secrets.LIMINALQA_URL }}/ingest/run" \
+            -H "Authorization: Bearer ${{ secrets.LIMINALQA_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "plan_name": "${{ env.LIMINALQA_PLAN }}",
+              "env": {
+                "CI": "true",
+                "GITHUB_REF": "${{ github.ref }}",
+                "GITHUB_SHA": "${{ github.sha }}",
+                "GITHUB_ACTOR": "${{ github.actor }}"
+              },
+              "runner_version": "github-actions-v1"
+            }')
+          echo "run_id=$(echo $RESP | jq -r '.run_id')" >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # YOUR TEST SUITE — edit this block for your language/framework
+      # -----------------------------------------------------------------------
+
+      # Example: Rust (cargo nextest with JUnit output)
+      - name: Run tests (Rust)
+        run: |
+          cargo install cargo-nextest --locked 2>/dev/null || true
+          cargo nextest run --profile ci 2>&1 || true
+        # cargo-nextest writes JUnit XML to target/nextest/ci/junit.xml by default
+
+      # Example: Node.js / Vitest
+      # - name: Run tests (Node)
+      #   run: npx vitest run --reporter=junit --outputFile=test-results/junit.xml
+
+      # Example: Python / pytest
+      # - name: Run tests (Python)
+      #   run: pytest --junitxml=test-results/junit.xml
+
+      # Example: Go
+      # - name: Run tests (Go)
+      #   run: |
+      #     go install github.com/jstemmer/go-junit-report/v2@latest
+      #     go test ./... 2>&1 | go-junit-report -set-exit-code > test-results/junit.xml
+
+      # -----------------------------------------------------------------------
+      # Ingest individual test results from JUnit XML
+      # -----------------------------------------------------------------------
+      - name: Ingest test results
+        if: always()          # run even if tests fail
+        env:
+          RUN_ID: ${{ steps.start-run.outputs.run_id }}
+        run: |
+          set +e    # don't abort on parse errors
+          XML_FILES=$(find . -name "*.xml" -path "*/test-results/*" \
+                               -o -name "junit.xml" \
+                               -o -name "*.xml" -path "*/nextest/*" 2>/dev/null | head -20)
+
+          for xml in $XML_FILES; do
+            python3 - "$xml" "$RUN_ID" <<'PYEOF'
+          import sys, json, xml.etree.ElementTree as ET, subprocess, urllib.request, os
+
+          xml_path, run_id = sys.argv[1], sys.argv[2]
+          url   = os.environ["LIMINALQA_URL"]
+          token = os.environ["LIMINALQA_TOKEN"]
+          env   = os.environ.get("LIMINALQA_ENV", "dev")
+
+          tree = ET.parse(xml_path)
+          tests = []
+          for tc in tree.iter("testcase"):
+              status = "pass"
+              if tc.find("failure") is not None or tc.find("error") is not None:
+                  status = "fail"
+              elif tc.find("skipped") is not None:
+                  status = "skip"
+              tests.append({
+                  "name":        tc.get("name", "unknown"),
+                  "suite":       tc.get("classname", tc.get("file", "unknown")),
+                  "status":      status,
+                  "duration_ms": int(float(tc.get("time", "0")) * 1000),
+                  "run_id":      run_id,
+              })
+
+          if not tests:
+              print(f"No tests found in {xml_path}")
+              sys.exit(0)
+
+          body = json.dumps({"run_id": run_id, "tests": tests}).encode()
+          req  = urllib.request.Request(
+              f"{url}/ingest/batch",
+              data=body,
+              headers={
+                  "Authorization": f"Bearer {token}",
+                  "Content-Type":  "application/json",
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(req) as r:
+              print(f"Ingested {len(tests)} tests from {xml_path}: HTTP {r.status}")
+          PYEOF
+          done
+
+      # -----------------------------------------------------------------------
+      # Close the run (records valid_time end)
+      # -----------------------------------------------------------------------
+      - name: Close LiminalQA run
+        if: always()
+        env:
+          RUN_ID: ${{ steps.start-run.outputs.run_id }}
+        run: |
+          curl -sf \
+            -X PATCH "${{ secrets.LIMINALQA_URL }}/ingest/run/$RUN_ID" \
+            -H "Authorization: Bearer ${{ secrets.LIMINALQA_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"ended_at": ${{ github.event.repository.updated_at }}}'  || true
+
+      - name: Upload JUnit XML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/test-results/**/*.xml
+            **/junit.xml
+            **/target/nextest/**/*.xml
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Fetch triage summary and post PR comment
+  # ---------------------------------------------------------------------------
+  triage-comment:
+    name: Triage Summary
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request' && needs.test.outputs.run_id != ''
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Fetch triage summary
+        id: triage
+        env:
+          RUN_ID: ${{ needs.test.outputs.run_id }}
+        run: |
+          # Give the server a moment to process async triage
+          sleep 5
+
+          TRIAGE=$(curl -sf \
+            "${{ secrets.LIMINALQA_URL }}/api/triage" \
+            -H "Authorization: Bearer ${{ secrets.LIMINALQA_TOKEN }}" || echo '{"tests":[]}')
+
+          NEW_BUGS=$(echo "$TRIAGE"   | jq '[.tests[] | select(.verdict=="new_bug")]   | length')
+          FLAKES=$(echo "$TRIAGE"     | jq '[.tests[] | select(.verdict=="flake")]     | length')
+          KNOWN=$(echo "$TRIAGE"      | jq '[.tests[] | select(.verdict=="known_issue")]| length')
+          STABLE=$(echo "$TRIAGE"     | jq '[.tests[] | select(.verdict=="stable")]    | length')
+          TOTAL=$(echo "$TRIAGE"      | jq '.total_analyzed')
+
+          # Top new bugs (up to 5)
+          NEW_BUG_LIST=$(echo "$TRIAGE" | jq -r '
+            [.tests[] | select(.verdict=="new_bug")]
+            | .[0:5][]
+            | "- `\(.suite)/\(.name)` stability=\(.stability_score | . * 100 | round)%"
+          ')
+
+          # Build comment body
+          BODY="## LiminalQA Triage Report
+
+          | Verdict | Count |
+          |---------|-------|
+          | 🔴 New Bug | $NEW_BUGS |
+          | 🟡 Flaky | $FLAKES |
+          | 🟠 Known Issue | $KNOWN |
+          | 🟢 Stable | $STABLE |
+          | **Total analyzed** | $TOTAL |
+
+          Run ID: \`$RUN_ID\`
+          View full report: ${{ secrets.LIMINALQA_URL }}/api/triage"
+
+          if [ -n "$NEW_BUG_LIST" ]; then
+            BODY="$BODY
+
+          **Newly failing stable tests:**
+          $NEW_BUG_LIST"
+          fi
+
+          # Store multi-line body for next step
+          echo "body<<LIMEOF" >> "$GITHUB_OUTPUT"
+          echo "$BODY"        >> "$GITHUB_OUTPUT"
+          echo "LIMEOF"       >> "$GITHUB_OUTPUT"
+
+      - name: Post PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: liminalqa-triage
+          message: ${{ steps.triage.outputs.body }}

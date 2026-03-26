@@ -1,0 +1,109 @@
+# liminalqa-flaky-report.yml
+#
+# Scheduled weekly job that opens a GitHub Issue summarising the top flaky
+# tests. Useful for tracking flakiness trends without blocking CI.
+#
+# Required secrets:  LIMINALQA_URL, LIMINALQA_TOKEN
+# Required permission: issues: write
+#
+# Schedule: every Monday at 09:00 UTC
+
+name: LiminalQA Weekly Flaky Report
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"   # Monday 09:00 UTC
+  workflow_dispatch:        # allow manual trigger
+
+permissions:
+  issues: write
+
+jobs:
+  flaky-report:
+    name: Open Flaky Test Issue
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch flaky tests
+        id: flaky
+        run: |
+          DATA=$(curl -sf \
+            "${{ secrets.LIMINALQA_URL }}/api/resonance/flaky" \
+            -H "Authorization: Bearer ${{ secrets.LIMINALQA_TOKEN }}" \
+            || echo '{"flaky_tests":[],"total_analyzed":0}')
+
+          TOTAL=$(echo "$DATA" | jq '.total_analyzed')
+          COUNT=$(echo "$DATA" | jq '.flaky_tests | length')
+
+          # Build markdown table of top 20 flaky tests
+          TABLE=$(echo "$DATA" | jq -r '
+            ["| Test | Suite | Stability | Flake Score | Runs |",
+             "|------|-------|-----------|-------------|------|"]
+            + [.flaky_tests[0:20][]
+               | "| `\(.name)` | `\(.suite)` | \(.stability_score | . * 100 | round)% | \(.flake_score | . * 100 | round / 100) | \(.run_count) |"]
+            | .[]
+          ')
+
+          WEEK=$(date +"%Y-W%V")
+
+          BODY="## LiminalQA Flaky Test Report — $WEEK
+
+          **$COUNT flaky tests** detected out of $TOTAL analyzed.
+
+          $TABLE
+
+          ---
+          *Generated automatically by [LiminalQA](https://github.com/${{ github.repository }})*
+          *Full details: ${{ secrets.LIMINALQA_URL }}/api/resonance/flaky*"
+
+          echo "count=$COUNT"   >> "$GITHUB_OUTPUT"
+          echo "week=$WEEK"     >> "$GITHUB_OUTPUT"
+          echo "body<<LIMEOF"   >> "$GITHUB_OUTPUT"
+          echo "$BODY"          >> "$GITHUB_OUTPUT"
+          echo "LIMEOF"         >> "$GITHUB_OUTPUT"
+
+      - name: Create issue (if flaky tests found)
+        if: steps.flaky.outputs.count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `[LiminalQA] Flaky Test Report — ${{ steps.flaky.outputs.week }}`;
+            const body  = `${{ steps.flaky.outputs.body }}`;
+            const label = 'flaky-tests';
+
+            // Ensure the label exists
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                name:  label,
+                color: 'fbca04',
+              });
+            } catch (_) { /* already exists */ }
+
+            // Close any previous weekly report issue still open
+            const existing = await github.rest.issues.listForRepo({
+              owner:  context.repo.owner,
+              repo:   context.repo.repo,
+              labels: label,
+              state:  'open',
+            });
+            for (const issue of existing.data) {
+              if (issue.title.startsWith('[LiminalQA] Flaky Test Report')) {
+                await github.rest.issues.update({
+                  owner:        context.repo.owner,
+                  repo:         context.repo.repo,
+                  issue_number: issue.number,
+                  state:        'closed',
+                });
+              }
+            }
+
+            // Open new issue
+            await github.rest.issues.create({
+              owner:  context.repo.owner,
+              repo:   context.repo.repo,
+              title,
+              body,
+              labels: [label],
+            });

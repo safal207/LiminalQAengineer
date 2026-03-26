@@ -1,0 +1,55 @@
+# liminalqa-status-check.yml
+#
+# Standalone status-check job that FAILS the PR if LiminalQA detects a
+# new regression (triage verdict = "new_bug") in the test results from the
+# current run.
+#
+# Add this as a required status check in your branch protection rules to
+# block merges when a previously-stable test starts failing.
+#
+# Depends on liminalqa-run.yml having run first (reuses its run_id output).
+# If you prefer a single-file setup, merge this job into liminalqa-run.yml.
+#
+# Required secrets: LIMINALQA_URL, LIMINALQA_TOKEN
+
+name: LiminalQA Status Check
+
+on:
+  workflow_run:
+    workflows: ["LiminalQA Test Ingest"]
+    types: [completed]
+
+jobs:
+  regression-gate:
+    name: Regression Gate
+    runs-on: ubuntu-latest
+    # Only run on PR-triggered workflow runs
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion != 'skipped'
+
+    steps:
+      - name: Check for new regressions
+        run: |
+          TRIAGE=$(curl -sf \
+            "${{ secrets.LIMINALQA_URL }}/api/triage" \
+            -H "Authorization: Bearer ${{ secrets.LIMINALQA_TOKEN }}")
+
+          NEW_BUGS=$(echo "$TRIAGE" | jq '[.tests[] | select(.verdict=="new_bug")] | length')
+
+          if [ "$NEW_BUGS" -gt 0 ]; then
+            echo "::error::LiminalQA detected $NEW_BUGS new regression(s)."
+            echo ""
+            echo "Affected tests:"
+            echo "$TRIAGE" | jq -r '
+              [.tests[] | select(.verdict=="new_bug")]
+              | .[0:10][]
+              | "  ❌  \(.suite)/\(.name)  (stability was \(.stability_score | . * 100 | round)%)"
+            '
+            echo ""
+            echo "These tests were stable before this change. Please investigate"
+            echo "or mark them as known-flaky before merging."
+            exit 1
+          fi
+
+          echo "✅ No new regressions detected (analyzed $(echo "$TRIAGE" | jq '.total_analyzed') tests)."
