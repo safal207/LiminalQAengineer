@@ -94,6 +94,38 @@ cargo test -p liminalqa-core --test dashboard_demo -- --nocapture
 
 ---
 
+## Case studies
+
+### Case 1: Flaky payment test — 25-minute investigation → 2 seconds
+
+A `payments/charge_card` test was failing 30% of the time.  Engineers spent
+25–40 minutes per incident deciding: real bug or flake?  Should we block?
+
+LiminalQA analysed 30 runs and returned in 2 seconds:
+**verdict `FLAKE`, confidence 80%, merge policy `🟡 WARN`** — with root cause
+ranked as `infrastructure_flake (44%)` and a counterfactual showing that fixing
+the infra issue would raise pass rate from **70% → 94%**.
+
+Result: false merge blocks dropped from **3–5/week to 0–1**.
+[Read the full case study →](docs/case-studies/flaky-ci-bottleneck.md)
+
+---
+
+### Case 2: Silent regression — caught in 2 seconds, not 6 hours
+
+A routine refactor of token validation logic passed all checks and was merged.
+Six hours later, 8% of API calls were returning 401.
+
+With LiminalQA, the CI would have shown:
+**verdict `NEW_BUG`, severity `CRITICAL`, merge policy `🔴 BLOCK`** — before
+any human reviewed the PR.  Evidence: the test had a 99% pass rate over 25
+runs, then failed 3 consecutive times with only 5% flake probability.
+
+Result: regression caught **pre-merge** instead of post-incident.
+[Read the full case study →](docs/case-studies/regression-critical-path.md)
+
+---
+
 ## 🎯 Философия LIMINAL
 
 ```
