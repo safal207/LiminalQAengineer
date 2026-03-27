@@ -1,0 +1,165 @@
+# gitlab-ci-liminalqa.yml
+#
+# GitLab CI include template for LiminalQA test ingest.
+#
+# Usage — add to your project's .gitlab-ci.yml:
+#
+#   include:
+#     - project: 'your-org/liminalqa'
+#       file: 'examples/github-actions/gitlab-ci-liminalqa.yml'
+#       ref: main
+#
+# Or simply copy the jobs below directly into your .gitlab-ci.yml.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   LIMINALQA_URL    — e.g. https://liminalqa.example.com
+#   LIMINALQA_TOKEN  — bearer token
+#   LIMINALQA_ENV    — prod | staging | dev  (default: dev)
+
+# ---------------------------------------------------------------------------
+# Hidden job: shared configuration
+# ---------------------------------------------------------------------------
+.liminalqa_defaults: &liminalqa_defaults
+  image: python:3.12-slim
+  variables:
+    LIMINALQA_ENV: ${LIMINALQA_ENV:-dev}
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl jq 2>/dev/null
+
+# ---------------------------------------------------------------------------
+# Job: liminalqa-ingest
+#
+# Runs after your test job, reads JUnit XML artifacts, and ships results.
+# ---------------------------------------------------------------------------
+liminalqa-ingest:
+  <<: *liminalqa_defaults
+  stage: .post
+  needs:
+    - job: test        # replace with your actual test job name(s)
+      artifacts: true
+  rules:
+    - when: always     # run even if tests fail
+  script:
+    # Start a run
+    - |
+      RUN_RESP=$(curl -sf \
+        -X POST "$LIMINALQA_URL/ingest/run" \
+        -H "Authorization: Bearer $LIMINALQA_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"plan_name\": \"$CI_PROJECT_NAME\",
+          \"env\": {
+            \"CI\": \"true\",
+            \"CI_PIPELINE_ID\": \"$CI_PIPELINE_ID\",
+            \"CI_COMMIT_SHA\": \"$CI_COMMIT_SHA\",
+            \"CI_MERGE_REQUEST_IID\": \"${CI_MERGE_REQUEST_IID:-}\",
+            \"LIMINALQA_ENV\": \"$LIMINALQA_ENV\"
+          },
+          \"runner_version\": \"gitlab-ci-v1\"
+        }")
+      RUN_ID=$(echo "$RUN_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['run_id'])")
+      echo "LIMINALQA_RUN_ID=$RUN_ID" >> ingest.env
+
+    # Ingest JUnit XML files
+    - |
+      source ingest.env
+      find . -name "*.xml" \( -path "*/test-results/*" -o -name "junit.xml" \) \
+        -not -path "./.git/*" | head -20 | while read xml; do
+        python3 - "$xml" "$LIMINALQA_RUN_ID" <<'PYEOF'
+      import sys, json, xml.etree.ElementTree as ET, urllib.request, os
+      xml_path, run_id = sys.argv[1], sys.argv[2]
+      url, token = os.environ["LIMINALQA_URL"], os.environ["LIMINALQA_TOKEN"]
+      tree = ET.parse(xml_path)
+      tests = []
+      for tc in tree.iter("testcase"):
+          status = "pass"
+          if tc.find("failure") is not None or tc.find("error") is not None:
+              status = "fail"
+          elif tc.find("skipped") is not None:
+              status = "skip"
+          tests.append({
+              "name": tc.get("name", "unknown"),
+              "suite": tc.get("classname", tc.get("file", "unknown")),
+              "status": status,
+              "duration_ms": int(float(tc.get("time", "0")) * 1000),
+              "run_id": run_id,
+          })
+      if not tests:
+          print(f"No tests in {xml_path}")
+          sys.exit(0)
+      body = json.dumps({"run_id": run_id, "tests": tests}).encode()
+      req = urllib.request.Request(
+          f"{url}/ingest/batch", data=body,
+          headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+          method="POST")
+      with urllib.request.urlopen(req) as r:
+          print(f"Ingested {len(tests)} tests: HTTP {r.status}")
+      PYEOF
+      done
+
+    # Close the run
+    - |
+      source ingest.env
+      curl -sf \
+        -X PATCH "$LIMINALQA_URL/ingest/run/$LIMINALQA_RUN_ID" \
+        -H "Authorization: Bearer $LIMINALQA_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{}' || true
+
+    # Regression gate: fail job if new bugs detected
+    - |
+      sleep 3
+      TRIAGE=$(curl -sf \
+        "$LIMINALQA_URL/api/triage" \
+        -H "Authorization: Bearer $LIMINALQA_TOKEN" || echo '{"tests":[]}')
+      NEW_BUGS=$(echo "$TRIAGE" | python3 -c "
+      import sys, json
+      d = json.load(sys.stdin)
+      print(len([t for t in d.get('tests',[]) if t['verdict']=='new_bug']))")
+      if [ "$NEW_BUGS" -gt 0 ]; then
+        echo "LiminalQA: $NEW_BUGS new regression(s) detected!"
+        echo "$TRIAGE" | python3 -c "
+      import sys, json
+      d = json.load(sys.stdin)
+      for t in d.get('tests',[]):
+          if t['verdict'] == 'new_bug':
+              print(f\"  ❌ {t['suite']}/{t['name']}  (stability={t['stability_score']*100:.0f}%)\")
+      "
+        exit 1
+      fi
+      echo "✅ No new regressions."
+
+  artifacts:
+    reports:
+      dotenv: ingest.env
+    expire_in: 1 day
+
+# ---------------------------------------------------------------------------
+# Job: liminalqa-mr-comment  (merge request note)
+# ---------------------------------------------------------------------------
+liminalqa-mr-comment:
+  <<: *liminalqa_defaults
+  stage: .post
+  needs:
+    - liminalqa-ingest
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+      when: always
+  script:
+    - |
+      source ingest.env
+      TRIAGE=$(curl -sf \
+        "$LIMINALQA_URL/api/triage" \
+        -H "Authorization: Bearer $LIMINALQA_TOKEN" || echo '{"tests":[],"total_analyzed":0}')
+
+      NEW_BUGS=$(echo "$TRIAGE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len([t for t in d['tests'] if t['verdict']=='new_bug']))")
+      FLAKES=$(echo "$TRIAGE"   | python3 -c "import sys,json; d=json.load(sys.stdin); print(len([t for t in d['tests'] if t['verdict']=='flake']))")
+      TOTAL=$(echo "$TRIAGE"    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['total_analyzed'])")
+
+      BODY="## LiminalQA Triage\n\n| Verdict | Count |\n|---------|-------|\n| 🔴 New Bug | $NEW_BUGS |\n| 🟡 Flaky | $FLAKES |\n| **Total** | $TOTAL |\n\nRun: \`$LIMINALQA_RUN_ID\`"
+
+      curl -sf \
+        -X POST "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes" \
+        -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"body\": \"$(echo -e $BODY)\"}" || true

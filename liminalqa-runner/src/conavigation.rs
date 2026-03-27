@@ -2,23 +2,28 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use liminalqa_core::retry::RetryPolicy;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tracing::{debug, warn};
 
-/// Co-Navigator handles adaptive execution strategies
+/// Co-Navigator handles adaptive execution strategies.
+///
+/// The `policy` field drives how many retries are attempted and with what
+/// delay. Use [`CoNavigator::with_policy`] to supply a triage-derived
+/// [`RetryPolicy`]; the navigator falls back to `RetryPolicy::default()`
+/// (one retry, 1 s delay) when history is unavailable.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoNavigator {
-    pub max_retries: u32,
-    pub retry_delay_ms: u64,
+    /// Adaptive retry policy — derived from triage verdict at runtime.
+    pub policy: RetryPolicy,
     pub flexible_wait_ms: u64,
 }
 
 impl Default for CoNavigator {
     fn default() -> Self {
         Self {
-            max_retries: 3,
-            retry_delay_ms: 1000,
+            policy: RetryPolicy::default(),
             flexible_wait_ms: 5000,
         }
     }
@@ -29,43 +34,72 @@ impl CoNavigator {
         Self::default()
     }
 
+    /// Override the retry policy (e.g. from a triage verdict).
+    pub fn with_policy(mut self, policy: RetryPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
+    /// Convenience: set a fixed number of retries with a flat delay.
     pub fn with_retries(mut self, max_retries: u32) -> Self {
-        self.max_retries = max_retries;
+        self.policy = RetryPolicy::Backoff {
+            max_retries,
+            base_delay_ms: 1_000,
+            max_delay_ms: 8_000,
+        };
         self
     }
 
-    pub fn with_retry_delay(mut self, delay_ms: u64) -> Self {
-        self.retry_delay_ms = delay_ms;
-        self
-    }
-
-    /// Execute with automatic retries on failure
-    pub async fn execute_with_retry<F, Fut, T, E>(&self, operation: F) -> Result<T, E>
+    /// Execute with retries according to the current [`RetryPolicy`].
+    ///
+    /// Returns `(result, attempts)` — `attempts` is the total number of
+    /// times the operation was called (1 = passed on first try).
+    pub async fn execute_with_retry<F, Fut, T, E>(
+        &self,
+        test_name: &str,
+        operation: F,
+    ) -> (Result<T, E>, u32)
     where
-        F: Fn() -> Fut,
+        F: Fn(u32) -> Fut,
         Fut: std::future::Future<Output = Result<T, E>>,
         E: std::fmt::Display,
     {
-        let mut attempts = 0;
-
+        let max_retries = self.policy.max_retries();
+        let mut attempt = 0u32;
+        debug!(
+            "execute_with_retry: {} — {}",
+            test_name,
+            self.policy.describe()
+        );
         loop {
-            attempts += 1;
-
-            match operation().await {
-                Ok(result) => {
-                    if attempts > 1 {
-                        debug!("Operation succeeded after {} attempts", attempts);
+            let result = operation(attempt).await;
+            match result {
+                Ok(v) => {
+                    if attempt > 0 {
+                        debug!("{}: passed on attempt {}", test_name, attempt + 1);
                     }
-                    return Ok(result);
+                    return (Ok(v), attempt + 1);
                 }
                 Err(e) => {
-                    if attempts >= self.max_retries {
-                        warn!("Operation failed after {} attempts: {}", attempts, e);
-                        return Err(e);
+                    if attempt >= max_retries {
+                        warn!(
+                            "{}: failed after {} attempt(s): {}",
+                            test_name,
+                            attempt + 1,
+                            e
+                        );
+                        return (Err(e), attempt + 1);
                     }
-
-                    warn!("Attempt {} failed: {}. Retrying...", attempts, e);
-                    tokio::time::sleep(Duration::from_millis(self.retry_delay_ms)).await;
+                    let delay = self.policy.delay_for(attempt);
+                    warn!(
+                        "{}: attempt {} failed, retrying in {:?}: {}",
+                        test_name,
+                        attempt + 1,
+                        delay,
+                        e
+                    );
+                    tokio::time::sleep(delay).await;
+                    attempt += 1;
                 }
             }
         }

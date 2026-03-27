@@ -1,0 +1,129 @@
+# LiminalQA — Production Docker Compose
+#
+# Usage:
+#   # Create the secrets file first:
+#   echo "LIMINAL_AUTH_TOKEN=$(openssl rand -hex 32)" > .env.prod
+#   echo "GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)" >> .env.prod
+#
+#   docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Differences from dev:
+#   - No hardcoded passwords — all secrets come from .env.prod / Docker secrets
+#   - Named volumes with explicit drivers for persistence
+#   - restart: always on every service
+#   - Health-checks on all stateful services
+#   - Grafana admin password from env, sign-up disabled
+#   - Prometheus retention 90d
+#   - Resource limits on ingest
+
+version: "3.8"
+
+services:
+  # ── Ingest REST API ──────────────────────────────────────────────────────
+  ingest:
+    image: ghcr.io/safal207/liminalqa-ingest:${IMAGE_TAG:-latest}
+    container_name: liminalqa-ingest
+    restart: always
+    environment:
+      RUST_LOG: info
+      LIMINAL_BIND_ADDR: "0.0.0.0:8080"
+      LIMINAL_DB_PATH: "/data/liminaldb"
+      LIMINAL_RATE_LIMIT_RPS: "1000"
+      LIMINAL_AUTH_TOKEN: "${LIMINAL_AUTH_TOKEN}"
+    ports:
+      - "8080:8080"
+    volumes:
+      - liminaldb-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    networks:
+      - liminal
+
+  # ── gRPC Ingest ─────────────────────────────────────────────────────────
+  grpc:
+    image: ghcr.io/safal207/liminalqa-grpc:${IMAGE_TAG:-latest}
+    container_name: liminalqa-grpc
+    restart: always
+    environment:
+      RUST_LOG: info
+      LIMINAL_GRPC_ADDR: "0.0.0.0:50051"
+      LIMINAL_DB_PATH: "/data/liminaldb"
+      LIMINAL_AUTH_TOKEN: "${LIMINAL_AUTH_TOKEN}"
+    ports:
+      - "50051:50051"
+    volumes:
+      - liminaldb-data:/data
+    depends_on:
+      ingest:
+        condition: service_healthy
+    networks:
+      - liminal
+
+  # ── Prometheus ───────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: liminalqa-prometheus
+    restart: always
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=90d
+      - --web.enable-lifecycle
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    expose:
+      - "9090"
+    networks:
+      - liminal
+
+  # ── Grafana ──────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: liminalqa-grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/"
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - liminal
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  liminaldb-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  liminal:
+    driver: bridge

@@ -1,0 +1,49 @@
+# LiminalQA gRPC Service — systemd unit file
+#
+# Install:
+#   sudo cp deploy/systemd/liminalqa-grpc.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now liminalqa-grpc
+#
+# Requires the shared sled DB written by liminalqa-ingest.
+# Start ingest first, or run both pointing at the same LIMINAL_DB_PATH.
+
+[Unit]
+Description=LiminalQA gRPC Ingest Service
+Documentation=https://github.com/safal207/LiminalQAengineer
+After=network.target liminalqa-ingest.service
+Wants=network-online.target
+BindsTo=liminalqa-ingest.service
+
+[Service]
+Type=simple
+User=liminalqa
+Group=liminalqa
+
+ExecStart=/usr/local/bin/liminalqa-grpc
+
+EnvironmentFile=-/etc/liminalqa/ingest.env
+Environment=RUST_LOG=info
+Environment=LIMINAL_GRPC_ADDR=0.0.0.0:50051
+Environment=LIMINAL_DB_PATH=/var/lib/liminalqa/db
+
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+WorkingDirectory=/var/lib/liminalqa
+RuntimeDirectory=liminalqa
+StateDirectory=liminalqa
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/liminalqa
+CapabilityBoundingSet=
+
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

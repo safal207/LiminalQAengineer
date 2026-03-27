@@ -82,3 +82,72 @@ groups:
         annotations:
           summary: "Test Duration Drift Detected"
           description: "Test {{ $labels.name }} duration P95 is > 2 sigma from baseline."
+
+  # ---------------------------------------------------------------------------
+  # Q2: Flakiness & Triage alerts
+  # ---------------------------------------------------------------------------
+  - name: liminalqa_q2_alerts
+    interval: 60s
+    rules:
+      # Alert: flaky test rate is rising — more than 20 % of recently-analyzed
+      # tests are flagged flaky.
+      - alert: FlakyTestRateHigh
+        expr: |
+          liminalqa_flaky_tests_count
+          /
+          liminalqa_analyzed_tests_total > 0.20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High flaky-test rate (>20 %)"
+          description: >-
+            {{ $value | humanizePercentage }} of analyzed tests are currently
+            classified as flaky. Investigate oscillating tests via
+            GET /api/resonance/flaky.
+
+      # Alert: a previously-stable test has started failing in every recent run
+      # (triage verdict = new_bug). Fires when the new_bug counter grows.
+      - alert: NewRegressionDetected
+        expr: increase(liminalqa_triage_new_bug_total[15m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "New regression detected"
+          description: >-
+            At least one stable test has started failing consistently.
+            Check GET /api/triage for affected tests.
+
+      # Alert: p95 signal latency is ≥ 2× the rolling baseline mean
+      # (after outlier filtering). This fires on genuine API/DB slowness,
+      # not on isolated spikes removed by the noise filter.
+      - alert: SignalLatencyP95Spike
+        expr: |
+          histogram_quantile(0.95,
+            rate(liminalqa_signal_latency_ms_bucket[5m])
+          )
+          > 2 * liminalqa_signal_latency_baseline_mean_ms
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Signal p95 latency > 2× baseline"
+          description: >-
+            p95 latency is {{ $value }}ms vs baseline
+            {{ $labels.baseline_mean }}ms.  Possible API degradation.
+            Check GET /api/resonance/signals/<run_id> for ranked signals.
+
+      # Alert: overall test stability (pass-rate) dropped below 80 % in the
+      # last analysis window.
+      - alert: StabilityDropLow
+        expr: liminalqa_overall_stability_score < 0.80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Overall test stability dropped below 80 %"
+          description: >-
+            Current stability score is {{ $value | humanizePercentage }}.
+            A broad instability may indicate environment or infrastructure
+            problems rather than individual test flakiness.

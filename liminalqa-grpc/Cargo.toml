@@ -17,5 +17,9 @@ tokio-stream = "0.1"
 async-stream = "0.3"
 serde_json.workspace = true
 
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1.35", features = ["full"] }
+
 [build-dependencies]
 tonic-build = "0.11"

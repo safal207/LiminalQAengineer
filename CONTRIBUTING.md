@@ -1,10 +1,26 @@
-# 🤝 Contributing to LiminalQA
+# Contributing to LiminalQA
 
-Thank you for your interest in contributing to LiminalQA! ❤️
+LiminalQA turns raw test outcomes into actionable quality decisions.
+Contributions that make that core loop faster, more accurate, or easier to
+understand are most welcome.
+
+This guide tells you everything you need to start.
+
+## Where to start
+
+**Good first issues** — look for the `good first issue` label on GitHub.
+These are self-contained, well-scoped, and have a clear acceptance criterion.
+
+**Bigger contributions** — open a discussion issue first.  Describe what
+you want to change and why.  This avoids duplicate work and ensures your
+effort lands.
+
+**Case studies** — if you've used LiminalQA on a real project, a case study
+(even anonymised) is one of the highest-value contributions you can make.
+See `docs/case-studies/` for the format.
 
 ## 📋 Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [Development Workflow](#development-workflow)
 - [Code Style](#code-style)
@@ -13,9 +29,11 @@ Thank you for your interest in contributing to LiminalQA! ❤️
 - [Submitting Changes](#submitting-changes)
 - [Review Process](#review-process)
 
-## 📜 Code of Conduct
+## Code of Conduct
 
-Be respectful, inclusive, and professional. We're all here to build something great together.
+Be direct, respectful, and professional.
+Focus on the code and the product, not on people.
+Disagreement is fine; dismissiveness is not.
 
 ## 🚀 Getting Started
 

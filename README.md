@@ -1,12 +1,130 @@
-# LiminalQA Engineer
+# LiminalQA
 
 [![CI](https://github.com/safal207/LiminalQAengineer/workflows/CI/badge.svg)](https://github.com/safal207/LiminalQAengineer/actions/workflows/ci.yml)
 [![Security Audit](https://github.com/safal207/LiminalQAengineer/workflows/Security%20Audit/badge.svg)](https://github.com/safal207/LiminalQAengineer/actions/workflows/security-audit.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Миссия**: Превратить QA из набора ассёртов в систему коллективной осознанности продуктов.
+> **From raw test outcomes to actionable quality decisions.**
 
-**Опора**: Rust-движок тестов + собственные LIMINAL-DB (би-темпоральная) и LiminalOS (герметичные прогоны).
+---
+
+## Why this exists
+
+Every team runs tests. Most teams get a red/green result and then spend 30–60 minutes answering the same questions manually:
+
+- Is this a real bug or a flake?
+- Did this test fail because of *my* change or an infrastructure issue?
+- Should I block the merge or let it through with a warning?
+- What have other teams done when they saw the same pattern?
+
+**LiminalQA answers all four questions automatically, before the engineer even opens the CI log.**
+
+It does this by combining:
+
+| Signal | What it detects |
+|--------|-----------------|
+| EMA baselines + trend analysis | Duration degradation, timeout drift |
+| Flake probability model | Tests that fail non-deterministically |
+| Triage engine | New bug vs flake vs known issue vs stable |
+| Root-cause analysis | Infra flake / regression / test design / external dep |
+| Counterfactual reasoning | "If we fixed the infra issue, pass rate goes from 70% → 94%" |
+| Community pattern matching | "12 other projects had the same pattern — here's what worked" |
+
+The result is a structured **decision packet** — readable by humans, consumable by GitHub Action bots and AI agents (Claude, Copilot) in a single tool call.
+
+### The gap LiminalQA fills
+
+```
+  CI shows red
+       │
+       ▼
+  ┌─────────────────────────────────────────────┐
+  │  ← this gap costs ~30–60 min per incident   │  ← LiminalQA lives here
+  │                                             │
+  │  Is it a flake?  New bug?  Known issue?     │
+  │  Who owns it?  Should I retry?  Block PR?   │
+  └─────────────────────────────────────────────┘
+       │
+       ▼
+  Engineer knows what to do
+```
+
+### What it looks like in practice
+
+```
+cargo test -p liminalqa-core --test dashboard_demo -- --nocapture
+```
+
+```
+╔════════════════════════════════════════════════════════════════════╗
+║  LIMINALQA · payments/charge_card                                  ║
+╚════════════════════════════════════════════════════════════════════╝
+
+┌─ A  TEST RISK CARD ────────────────────────────────────────────────┐
+│  verdict:        ⚠ FLAKE                confidence:  80%           │
+│  severity:       HIGH                   merge:  🟡 WARN             │
+│  action:         retry_with_backoff     trend:  ↗ degrading        │
+│  flake risk:     ████████████████░░░░ 82%                          │
+│  timeout:        0.7s (EMA mean + 3σ)                              │
+│  insight:        Test oscillates between pass and fail (70% stab…  │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ B  ROOT CAUSE ANALYSIS ───────────────────────────────────────────┐
+│  most likely:    infrastructure_flake (44%)                         │
+│  ▶ infrastructure_flake      ███████░░░░░░░░░░░  44%               │
+│    · high flake probability (82%)                                   │
+│    · triage verdict: flake                                          │
+│  ▶ code_regression           ███░░░░░░░░░░░░░░░  19%               │
+│  fix:  Add retry logic with exponential backoff                     │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ C  WHAT-IF  /  COUNTERFACTUAL ────────────────────────────────────┐
+│  current pass rate    ██████████████░░░░░░  70%                     │
+│  if infra flake fixed      ██████████████████░░  94%  (+24pp)       │
+│  if code regression fixed  ████████████████░░░░  80%  (+10pp)       │
+└────────────────────────────────────────────────────────────────────┘
+
+┌─ D  COMMUNITY INSIGHTS ────────────────────────────────────────────┐
+│  matches:  1 similar incident in community knowledge base           │
+│  ▶ similarity 99%   seen in 4 project(s)                            │
+│    action:  Add retry with exponential backoff                      │
+│    effective: █████░░░░░ 50% of reporters resolved with this action │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Case studies
+
+### Case 1: Flaky payment test — 25-minute investigation → 2 seconds
+
+A `payments/charge_card` test was failing 30% of the time.  Engineers spent
+25–40 minutes per incident deciding: real bug or flake?  Should we block?
+
+LiminalQA analysed 30 runs and returned in 2 seconds:
+**verdict `FLAKE`, confidence 80%, merge policy `🟡 WARN`** — with root cause
+ranked as `infrastructure_flake (44%)` and a counterfactual showing that fixing
+the infra issue would raise pass rate from **70% → 94%**.
+
+Result: false merge blocks dropped from **3–5/week to 0–1**.
+[Read the full case study →](docs/case-studies/flaky-ci-bottleneck.md)
+
+---
+
+### Case 2: Silent regression — caught in 2 seconds, not 6 hours
+
+A routine refactor of token validation logic passed all checks and was merged.
+Six hours later, 8% of API calls were returning 401.
+
+With LiminalQA, the CI would have shown:
+**verdict `NEW_BUG`, severity `CRITICAL`, merge policy `🔴 BLOCK`** — before
+any human reviewed the PR.  Evidence: the test had a 99% pass rate over 25
+runs, then failed 3 consecutive times with only 5% flake probability.
+
+Result: regression caught **pre-merge** instead of post-incident.
+[Read the full case study →](docs/case-studies/regression-critical-path.md)
+
+---
 
 ## 🎯 Философия LIMINAL
 

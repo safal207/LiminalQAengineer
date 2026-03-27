@@ -185,69 +185,65 @@
 
 ### Month 7: Baselines & Detection
 **Week 25-27**:
-- [ ] Statistical baselines
-  - [ ] Exponential moving average (EMA) for metrics
+- [x] Statistical baselines
+  - [x] Exponential moving average (EMA) for metrics (`baseline::ExponentialBaseline`)
   - [ ] Seasonal decomposition (hourly, daily, weekly patterns)
-  - [ ] Confidence intervals (95%, 99%)
-- [ ] Anomaly detection v1
-  - [ ] Univariate (per-metric thresholds)
+  - [x] Confidence intervals — EMA confidence grows 0→1 as samples accumulate
+- [x] Anomaly detection v1
+  - [x] Univariate (per-metric thresholds via EMA mean ± kσ)
   - [ ] Multivariate (correlations between metrics)
   - [ ] Isolation Forest / LOF (unsupervised ML)
 
 **Week 28-30**:
-- [ ] Trend analysis
-  - [ ] Linear regression (test duration over time)
-  - [ ] Mann-Kendall test (monotonic trends)
+- [x] Trend analysis
+  - [x] Linear regression on test duration over time (`baseline::TrendStats`)
+  - [x] Monotonic trend detection (slope sign + significance threshold)
   - [ ] Changepoint detection (PELT algorithm)
-- [ ] Predictive flake detection
-  - [ ] Features: history, duration, environment
-  - [ ] Model: Logistic Regression / Random Forest
-  - [ ] Output: flake probability (0-100%)
+- [x] Predictive flake detection
+  - [x] Features: history, duration trend, environment (`baseline::FlakeRiskScore`)
+  - [x] Logistic-regression-style scoring with configurable weights
+  - [x] Output: flake probability (0–100%)
 
-**Deliverable**: Система обнаруживает аномалии и тренды
+**Deliverable**: ✅ Система обнаруживает аномалии и тренды
 
 ### Month 8: Adaptive Behavior
 **Week 31-33**:
-- [ ] Auto-adjust timeouts
-  - [ ] Per-test timeout = baseline + 3σ
-  - [ ] Dynamic updates (daily recompute)
-  - [ ] Manual overrides (config)
-- [ ] Smart test selection
-  - [ ] Skip stable tests (ran 100× without fail)
-  - [ ] Focus on flaky tests (< 90% success rate)
-  - [ ] Run new tests always
+- [x] Auto-adjust timeouts
+  - [x] Per-test timeout = EMA mean + 3σ (`retry::AdaptiveTimeout`)
+  - [x] Dynamic updates on every run
+  - [x] Manual cap override via `max_timeout_ms`
+- [x] Smart test selection
+  - [x] Skip stable tests (≥97% pass rate over ≥10 runs)
+  - [x] Always run flaky / new tests (`retry::SmartSelector`)
 
 **Week 34-36**:
-- [ ] Environment-aware execution
-  - [ ] Detect environment from signals (prod vs staging)
-  - [ ] Adjust thresholds per environment
-  - [ ] Different retry logic per env
-- [ ] Feedback loops
-  - [ ] Pattern detected → action taken → measure outcome
-  - [ ] Reinforcement learning (Q-learning, simple)
-  - [ ] Policy updates (weekly)
+- [x] Environment-aware execution
+  - [x] Env class from `export::EnvClass` (prod/staging/dev/ci)
+  - [x] Context multiplier adjusts thresholds per env (`context::SignalContext`)
+- [x] Feedback loops (foundation)
+  - [x] Pattern detected → action recorded → outcome updates weights
+  - [x] Online Bayesian weight update in `rootcause::RootCauseEngine`
 
-**Deliverable**: Самообучающаяся система
+**Deliverable**: ✅ Самообучающаяся система
 
 ### Month 9: Integration & Polish
 **Week 37-39**:
-- [ ] GitHub Actions integration
-  - [ ] Action: "Run LiminalQA tests"
-  - [ ] Automatic report upload (artifacts)
-  - [ ] Status checks (pass/fail)
-- [ ] GitLab CI integration
-  - [ ] .gitlab-ci.yml templates
-  - [ ] Merge request comments with report link
-- [ ] Jenkins plugin (optional)
+- [x] GitHub Actions integration
+  - [x] Workflow template: ingest results + status check
+  - [x] Report upload as artifact
+- [x] GitLab CI integration
+  - [x] `.gitlab-ci.yml` template with MR comment support
+- [ ] Jenkins plugin (optional, deferred)
 
 **Week 40-42**:
-- [ ] LiminalOS integration
-  - [ ] Hermetic runners (OCI containers)
-  - [ ] Artifact determinism (reproducible builds)
-  - [ ] Secret handling via file descriptors
-- [ ] Beta launch MVP-3
+- [x] Agent-facing decision layer (`decision::TestDecision`, `SuiteDecision`)
+  - [x] Merge policy (block / allow / allow_with_warning)
+  - [x] Structured JSON for OpenAI/Anthropic tool calling
+  - [x] `limctl decision <suite>/<test>` CLI support
+- [ ] LiminalOS hermetic runners (deferred to post-1.0)
+- [ ] Beta launch MVP-3 (in progress)
 
-**Q3 Milestone**: **MVP-3: Adaptive Intelligence** 🤖
+**Q3 Milestone**: **MVP-3: Adaptive Intelligence** ✅ (core complete)
 
 ---
 
@@ -257,50 +253,50 @@
 
 ### Month 10: Knowledge Sharing
 **Week 43-45**:
-- [ ] Anonymized pattern export
-  - [ ] Strip PII (test names, URLs, IPs)
-  - [ ] Hash identifiers
-  - [ ] Export format (JSON schema)
-- [ ] Cross-project resonance DB
-  - [ ] Shared pattern storage (PostgreSQL + vector embeddings)
-  - [ ] Pattern similarity search (cosine distance)
-  - [ ] Access control (public vs private patterns)
+- [x] Anonymized pattern export (`export::ExportBuilder`, `Anonymizer`)
+  - [x] Strip PII: IPs, URLs, file paths replaced with `<ip>/<url>/<path>`
+  - [x] Hash identifiers: SHA-256(salt ‖ name) → 16-char token
+  - [x] Export format: versioned JSON bundle (`PatternExportBundle`)
+- [x] Cross-project resonance DB (`community::PatternStore`)
+  - [x] In-memory store with cosine-similarity nearest-neighbour search
+  - [x] Near-duplicate deduplication (similarity ≥ 0.95 → increment count)
+  - [ ] PostgreSQL + pgvector backend (deferred)
+  - [ ] Access control (public vs private patterns — deferred)
 
 **Week 46-48**:
-- [ ] Community patterns library
-  - [ ] Web UI for pattern browsing
-  - [ ] Pattern voting (upvote/downvote)
-  - [ ] Pattern tagging (flake, timeout, network)
-- [ ] Pattern matching & import
-  - [ ] Auto-match imported patterns to local tests
-  - [ ] Suggested actions based on community knowledge
-  - [ ] Pattern effectiveness tracking
+- [x] Pattern matching & import
+  - [x] `PatternStore::import_bundle` — bulk import from export bundle
+  - [x] `PatternStore::find_similar` — top-K cosine matches with threshold
+  - [x] `community::generate_suggestions` — actionable advice from matches
+  - [x] `PatternStore::record_feedback` — Bayesian effectiveness tracking
+- [ ] Web UI for community pattern browsing (deferred to post-MVP)
+- [ ] Pattern voting UI (deferred)
 
-**Deliverable**: Коллективная база знаний
+**Deliverable**: ✅ Коллективная база знаний (core engine complete)
 
 ### Month 11: Advanced Analytics
 **Week 49-51**:
-- [ ] Root cause ML models
-  - [ ] Features: signals, environment, time, patterns
-  - [ ] Labels: confirmed root causes (manual)
-  - [ ] Model: Gradient Boosting / Neural Net
-  - [ ] Output: top 3 likely root causes with confidence
-- [ ] Causal inference
-  - [ ] Bayesian networks (structure learning)
-  - [ ] Do-calculus for interventions
-  - [ ] Counterfactual reasoning ("What if we disabled X?")
+- [x] Root cause analysis engine (`rootcause::RootCauseEngine`)
+  - [x] Features: triage verdict, flake probability, trend slope, env class, community matches
+  - [x] 6 hypothesis kinds: InfrastructureFlake / CodeRegression / TestDesignFlaw / ExternalDependency / ResourceExhaustion / EnvironmentConfig
+  - [x] Top-3 hypotheses ranked by weighted evidence score + normalized confidence
+  - [x] Online Bayesian weight update via `record_outcome` (learning rate 1/√n)
+- [x] Counterfactual reasoning
+  - [x] `what_if_fixed(result, kind)` → predicted success prob after intervention
+  - [x] Per-hypothesis `counterfactual_success_prob` field
+  - [ ] Full do-calculus / Bayesian network structure learning (deferred)
 
 **Week 52-54** (New Year):
 - [ ] Predictive analytics dashboard
-  - [ ] "This test will likely fail next run" (probability)
-  - [ ] "This environment is degrading" (trend forecast)
-  - [ ] "Next incident expected in X hours" (time series)
-- [ ] Recommendation engine
-  - [ ] "We recommend investigating service Y" (evidence-based)
-  - [ ] "Consider adding retry logic to test Z" (pattern-based)
-  - [ ] "Similar projects solved this by..." (community knowledge)
+  - [x] "This test will likely fail next run" — `FlakeRiskScore.flake_probability`
+  - [x] "This environment is degrading" — `TrendStats.slope` with significance
+  - [ ] Dashboard UI (deferred)
+- [x] Recommendation engine (foundation)
+  - [x] Evidence-based fix suggestions in `RootCauseHypothesis.suggested_fix`
+  - [x] Community-knowledge suggestions via `generate_suggestions`
+  - [ ] "Similar projects solved this by..." — requires community DB population
 
-**Deliverable**: Предиктивная аналитика
+**Deliverable**: ✅ Предиктивная аналитика (core engine complete)
 
 ### Month 12: Vision Fulfillment
 **Week 55-57**:

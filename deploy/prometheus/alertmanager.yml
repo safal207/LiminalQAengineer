@@ -1,0 +1,109 @@
+---
+# AlertManager configuration for LiminalQA.
+#
+# Slack and email receivers are enabled via environment variables injected
+# at runtime (see deploy/systemd/liminalqa-ingest.env.example).
+#
+# Required env vars for Slack:
+#   LIMINAL_SLACK_WEBHOOK_URL   — incoming-webhook URL
+#   LIMINAL_SLACK_CHANNEL       — e.g. #alerts-qa  (default: #liminalqa-alerts)
+#
+# Required env vars for email:
+#   LIMINAL_SMTP_HOST, LIMINAL_SMTP_PORT, LIMINAL_SMTP_FROM
+#   LIMINAL_SMTP_TO             — comma-separated recipient list
+#   LIMINAL_SMTP_USERNAME, LIMINAL_SMTP_PASSWORD (optional, for auth)
+
+global:
+  resolve_timeout: 5m
+  # SMTP defaults — override via env or edit below
+  smtp_smarthost: "${LIMINAL_SMTP_HOST}:${LIMINAL_SMTP_PORT}"
+  smtp_from: "${LIMINAL_SMTP_FROM}"
+  smtp_auth_username: "${LIMINAL_SMTP_USERNAME}"
+  smtp_auth_password: "${LIMINAL_SMTP_PASSWORD}"
+
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"
+
+# ---------------------------------------------------------------------------
+# Routing tree
+# ---------------------------------------------------------------------------
+route:
+  receiver: "default-slack"
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Critical alerts (new regressions, service down) go to both Slack + email
+    - matchers:
+        - severity = critical
+      receiver: "critical"
+      continue: false
+
+    # Warning alerts go to Slack only
+    - matchers:
+        - severity = warning
+      receiver: "default-slack"
+      continue: false
+
+    # Info / low-priority go to Slack with longer repeat
+    - matchers:
+        - severity = info
+      receiver: "default-slack"
+      repeat_interval: 24h
+
+# ---------------------------------------------------------------------------
+# Inhibition rules — suppress lower-priority alerts when a higher one fires
+# ---------------------------------------------------------------------------
+inhibit_rules:
+  # If the whole service is down, suppress derived warnings from that service
+  - source_matchers:
+      - alertname = ServiceDown
+    target_matchers:
+      - severity =~ "warning|info"
+    equal: ["job"]
+
+# ---------------------------------------------------------------------------
+# Receivers
+# ---------------------------------------------------------------------------
+receivers:
+  - name: "default-slack"
+    slack_configs:
+      - api_url: "${LIMINAL_SLACK_WEBHOOK_URL}"
+        channel: "${LIMINAL_SLACK_CHANNEL:-#liminalqa-alerts}"
+        send_resolved: true
+        title: >-
+          [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}]
+          {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Severity:* {{ .Labels.severity }}
+          {{ if .Annotations.description }}*Details:* {{ .Annotations.description }}{{ end }}
+          *Starts at:* {{ .StartsAt | since }}
+          {{ end }}
+
+  - name: "critical"
+    slack_configs:
+      - api_url: "${LIMINAL_SLACK_WEBHOOK_URL}"
+        channel: "${LIMINAL_SLACK_CHANNEL:-#liminalqa-alerts}"
+        send_resolved: true
+        title: >-
+          :rotating_light: [CRITICAL] {{ .CommonLabels.alertname }}
+        text: >-
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+          {{ end }}
+    email_configs:
+      - to: "${LIMINAL_SMTP_TO}"
+        send_resolved: true
+        headers:
+          Subject: >-
+            [LiminalQA CRITICAL] {{ .CommonLabels.alertname }}
+        html: >-
+          <b>{{ .CommonLabels.alertname }}</b><br>
+          {{ range .Alerts }}
+          <p><b>{{ .Annotations.summary }}</b><br>
+          {{ .Annotations.description }}</p>
+          {{ end }}

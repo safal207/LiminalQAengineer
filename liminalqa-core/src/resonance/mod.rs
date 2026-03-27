@@ -1,4 +1,7 @@
-use crate::types::TestStatus;
+use crate::{
+    entities::Signal,
+    types::{SignalType, TestStatus},
+};
 
 pub struct FlakeDetector {
     window_size: usize,
@@ -64,6 +67,61 @@ impl FlakeDetector {
 
     pub fn is_flaky(&self, history: &[TestStatus]) -> bool {
         self.calculate_score(history) > self.threshold
+    }
+}
+
+/// Pass rate over a history slice: `passes / total` (0.0–1.0).
+/// Returns 1.0 for empty or all-skip histories.
+pub fn stability_score(history: &[TestStatus]) -> f64 {
+    let relevant: Vec<_> = history
+        .iter()
+        .filter(|s| !matches!(s, TestStatus::Skip | TestStatus::XFail))
+        .collect();
+    if relevant.is_empty() {
+        return 1.0;
+    }
+    let passes = relevant
+        .iter()
+        .filter(|s| matches!(s, TestStatus::Pass))
+        .count();
+    passes as f64 / relevant.len() as f64
+}
+
+// ---------------------------------------------------------------------------
+// Signal importance scoring
+// ---------------------------------------------------------------------------
+
+/// Weights and scoring for observed signals.
+///
+/// `importance = type_weight × latency_factor`
+///
+/// - `type_weight`   — how critical this signal class is (0.5–1.0)
+/// - `latency_factor` — 1.0 (no latency) … 2.0 (≥ 5 000 ms)
+///
+/// Range: 0.5 (System, 0 ms) to 2.0 (API, 5 s+).
+pub struct SignalImportance;
+
+impl SignalImportance {
+    /// Base importance weight for a signal type.
+    pub fn type_weight(signal_type: SignalType) -> f64 {
+        match signal_type {
+            SignalType::API => 1.00,
+            SignalType::Database => 0.95,
+            SignalType::UI => 0.90,
+            SignalType::GRPC => 0.85,
+            SignalType::WebSocket => 0.75,
+            SignalType::Network => 0.60,
+            SignalType::System => 0.50,
+        }
+    }
+
+    /// Compute the importance score for a signal (higher = more noteworthy).
+    pub fn compute(signal: &Signal) -> f64 {
+        let tw = Self::type_weight(signal.signal_type);
+        let latency_ms = signal.latency_ms.unwrap_or(0) as f64;
+        // Latency factor: 1.0 at 0 ms, 2.0 at ≥ 5 000 ms
+        let latency_factor = 1.0 + (latency_ms.min(5_000.0) / 5_000.0);
+        tw * latency_factor
     }
 }
 
