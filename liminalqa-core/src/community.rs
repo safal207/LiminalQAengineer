@@ -26,7 +26,7 @@
 //! Cosine similarity is used for fast nearest-neighbour lookup.
 //! No external ML library required — pure Rust arithmetic.
 
-use crate::export::{AnonymizedPattern, EnvClass, PatternStats};
+use crate::export::{AnonymizedPattern, EnvClass};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------

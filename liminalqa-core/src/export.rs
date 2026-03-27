@@ -109,7 +109,7 @@ pub struct PatternExportBundle {
 /// use liminalqa_core::export::Anonymizer;
 ///
 /// let salt = b"my-secret-per-export-salt";
-/// let anon = Anonymizer::new(salt);
+/// let mut anon = Anonymizer::new(salt);
 /// let token = anon.hash_identifier("payments::charge_card");
 /// assert_eq!(token.len(), 16); // hex-truncated
 /// ```
@@ -180,6 +180,9 @@ impl Anonymizer {
     }
 
     /// Build an anonymized pattern from raw inputs.
+    ///
+    /// Always returns a pattern; the caller is responsible for the `min_runs`
+    /// check (see [`ExportBuilder`]) to stay within clippy's argument limit.
     pub fn anonymize_pattern(
         &mut self,
         test_name: &str,
@@ -188,21 +191,17 @@ impl Anonymizer {
         stats: PatternStats,
         env_class: EnvClass,
         tags: Vec<String>,
-        min_runs: u32,
-    ) -> Option<AnonymizedPattern> {
-        if stats.run_count < min_runs {
-            return None;
-        }
+    ) -> AnonymizedPattern {
         let test_token = self.hash_identifier(test_name);
         let suite_token = self.hash_identifier(suite_name);
-        Some(AnonymizedPattern {
+        AnonymizedPattern {
             test_token,
             suite_token,
             failure_kind: failure_kind.to_owned(),
             stats,
             env_class,
             tags,
-        })
+        }
     }
 }
 
@@ -355,13 +354,14 @@ impl ExportBuilder {
         let mut dropped = 0u32;
 
         for (test, suite, kind, stats, env, tags) in self.patterns {
-            match self
-                .anonymizer
-                .anonymize_pattern(&test, &suite, &kind, stats, env, tags, self.min_runs)
-            {
-                Some(p) => exported.push(p),
-                None => dropped += 1,
+            if stats.run_count < self.min_runs {
+                dropped += 1;
+                continue;
             }
+            let p = self
+                .anonymizer
+                .anonymize_pattern(&test, &suite, &kind, stats, env, tags);
+            exported.push(p);
         }
 
         // Stable sort: highest failure-rate patterns first (most interesting)

@@ -19,17 +19,19 @@
 //!
 //! # Usage
 //!
-//! ```no_run
+//! ```ignore
 //! use liminalqa_core::dashboard::{DashboardReport, DashboardInput};
 //!
-//! let input = DashboardInput { /* ... */ };
+//! // Build `input` from DecisionEngine + RootCauseEngine + PatternStore
+//! // (see tests/dashboard_demo.rs for a full working example)
+//! let input: DashboardInput = todo!();
 //! let report = DashboardReport::build(input);
 //! println!("{}", report.render_text());
 //! ```
 
 use crate::{
     community::SimilarityMatch,
-    decision::{MergePolicy, RecommendedAction, Severity, TestDecision},
+    decision::{MergePolicy, TestDecision},
     rootcause::{RootCauseResult, what_if_fixed, RootCauseKind},
 };
 

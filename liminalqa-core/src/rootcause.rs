@@ -300,7 +300,6 @@ impl RootCauseEngine {
     // ------------------------------------------------------------------
 
     fn build_candidates(&self, input: &RootCauseInput) -> Vec<RootCauseHypothesis> {
-        use RootCauseKind::*;
         vec![
             self.hypothesis_infrastructure_flake(input),
             self.hypothesis_code_regression(input),
@@ -649,17 +648,19 @@ mod tests {
     #[test]
     fn record_outcome_updates_weights() {
         let mut engine = RootCauseEngine::default();
-        let initial = *engine
+        let initial = engine
             .weights
             .priors
             .get(&RootCauseKind::InfrastructureFlake)
-            .unwrap();
+            .copied()
+            .expect("InfrastructureFlake prior must exist");
         engine.record_outcome(&RootCauseKind::InfrastructureFlake, true);
-        let updated = *engine
+        let updated = engine
             .weights
             .priors
             .get(&RootCauseKind::InfrastructureFlake)
-            .unwrap();
+            .copied()
+            .expect("InfrastructureFlake prior must exist");
         assert!(updated > initial, "Weight should increase after correct outcome");
     }
 
@@ -669,7 +670,7 @@ mod tests {
         let input = make_input(TriageVerdict::Flake, 0.85, 0.3);
         let result = engine.analyze(&input);
         let p = what_if_fixed(&result, &RootCauseKind::InfrastructureFlake);
-        assert!(p >= 0.0 && p <= 1.0);
+        assert!((0.0..=1.0).contains(&p));
     }
 
     #[test]
