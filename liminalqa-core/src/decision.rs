@@ -315,21 +315,37 @@ impl DecisionEngine {
         let (ema_mean, ema_stddev, ema_confidence, suggested_timeout) = match baseline {
             Some(b) => {
                 let (mean, stddev, conf) = b.stats();
-                (Some(mean), Some(stddev), Some(conf), b.suggested_timeout_ms(3.0))
+                (
+                    Some(mean),
+                    Some(stddev),
+                    Some(conf),
+                    b.suggested_timeout_ms(3.0),
+                )
             }
             None => (None, None, None, None),
         };
 
         // --- core policy --------------------------------------------------
-        let (action, merge_policy, severity) =
-            Self::policy(&verdict, stability, flake_probability, is_degrading, run_count);
+        let (action, merge_policy, severity) = Self::policy(
+            &verdict,
+            stability,
+            flake_probability,
+            is_degrading,
+            run_count,
+        );
 
         // --- retry policy string ------------------------------------------
         let retry_policy = RetryPolicy::from_triage(&verdict, stability).describe();
 
         // --- root cause hints ---------------------------------------------
-        let root_cause_hints =
-            Self::hints(&verdict, stability, flake_probability, trend_dir, slope, run_count);
+        let root_cause_hints = Self::hints(
+            &verdict,
+            stability,
+            flake_probability,
+            trend_dir,
+            slope,
+            run_count,
+        );
 
         let signals = SignalSnapshot {
             stability_score: stability,
@@ -504,10 +520,7 @@ impl DecisionEngine {
             .iter()
             .filter(|d| d.merge_policy == MergePolicy::BlockSoft)
             .count();
-        let flaky = decisions
-            .iter()
-            .filter(|d| d.verdict == "flake")
-            .count();
+        let flaky = decisions.iter().filter(|d| d.verdict == "flake").count();
         let degrading = decisions
             .iter()
             .filter(|d| d.signals.trend_direction == "degrading")
@@ -516,10 +529,7 @@ impl DecisionEngine {
             .iter()
             .filter(|d| d.recommended_action == RecommendedAction::Skip)
             .count();
-        let stable = decisions
-            .iter()
-            .filter(|d| d.verdict == "stable")
-            .count();
+        let stable = decisions.iter().filter(|d| d.verdict == "stable").count();
 
         // Worst-case merge policy
         let merge_policy = if blocking > 0 {
@@ -727,7 +737,11 @@ mod tests {
         );
         // After 30 runs: history_conf ≈ 0.95, ema_conf = 0 (no baseline passed)
         // → confidence ≈ 0.7 × 0.95 = 0.665
-        assert!(high.confidence > 0.6, "expected > 0.6, got {}", high.confidence);
+        assert!(
+            high.confidence > 0.6,
+            "expected > 0.6, got {}",
+            high.confidence
+        );
     }
 
     // ── suite-level ───────────────────────────────────────────────────────

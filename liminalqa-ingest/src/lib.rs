@@ -30,7 +30,7 @@ use crate::decision_handler::{get_suite_decision, get_test_decision};
 use crate::handlers::*;
 use crate::resonance::{
     get_baseline, get_causality_chain, get_flake_risk, get_flaky_tests, get_run_plan,
-    get_signals_by_run, get_triage, get_timeout_advice, get_trend,
+    get_signals_by_run, get_timeout_advice, get_trend, get_triage,
 };
 
 // ---------------------------------------------------------------------------
@@ -226,14 +226,8 @@ pub fn app(state: AppState) -> Router {
         .route("/api/trend/:suite/:test_name", get(get_trend))
         .route("/api/flake-risk/:suite/:test_name", get(get_flake_risk))
         // Decision layer — agent-facing endpoints
-        .route(
-            "/api/decision/suite/:suite",
-            get(get_suite_decision),
-        )
-        .route(
-            "/api/decision/:suite/:test_name",
-            get(get_test_decision),
-        )
+        .route("/api/decision/suite/:suite", get(get_suite_decision))
+        .route("/api/decision/:suite/:test_name", get(get_test_decision))
         .route("/metrics", get(metrics_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),

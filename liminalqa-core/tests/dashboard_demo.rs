@@ -33,8 +33,9 @@ fn scenario_flaky_network_test() {
 
     // 30-run history with gradual degradation
     let mut baseline = ExponentialBaseline::new(20);
-    for ms in [440.0, 460.0, 455.0, 490.0, 510.0, 480.0,
-               530.0, 520.0, 560.0, 580.0, 595.0, 610.0] {
+    for ms in [
+        440.0, 460.0, 455.0, 490.0, 510.0, 480.0, 530.0, 520.0, 560.0, 580.0, 595.0, 610.0,
+    ] {
         baseline.update(ms);
     }
     let trend = TrendStats {
@@ -72,7 +73,11 @@ fn scenario_flaky_network_test() {
 
     let community = make_community_store(0.72, 0.80, EnvClass::Production, "flake");
 
-    let input = DashboardInput { decision, root_cause: rc, community };
+    let input = DashboardInput {
+        decision,
+        root_cause: rc,
+        community,
+    };
     let report = DashboardReport::build(input);
     println!("{}", report.render_text());
 }
@@ -127,7 +132,11 @@ fn scenario_new_regression() {
 
     let community = make_community_store(0.08, 0.05, EnvClass::Production, "new_bug");
 
-    let input = DashboardInput { decision, root_cause: rc, community };
+    let input = DashboardInput {
+        decision,
+        root_cause: rc,
+        community,
+    };
     let report = DashboardReport::build(input);
     println!("{}", report.render_text());
 }
@@ -143,8 +152,10 @@ fn scenario_stable_skippable() {
     println!("{}\n", "═".repeat(70));
 
     let mut baseline = ExponentialBaseline::new(20);
-    for ms in [12.0, 11.0, 13.0, 12.0, 11.0, 12.0, 13.0, 12.0,
-               11.0, 12.0, 13.0, 12.0, 11.0, 12.0, 13.0, 12.0] {
+    for ms in [
+        12.0, 11.0, 13.0, 12.0, 11.0, 12.0, 13.0, 12.0, 11.0, 12.0, 13.0, 12.0, 11.0, 12.0, 13.0,
+        12.0,
+    ] {
         baseline.update(ms);
     }
     let trend = TrendStats {
@@ -180,7 +191,11 @@ fn scenario_stable_skippable() {
         context_multiplier: 1.0,
     });
 
-    let input = DashboardInput { decision, root_cause: rc, community: vec![] };
+    let input = DashboardInput {
+        decision,
+        root_cause: rc,
+        community: vec![],
+    };
     let report = DashboardReport::build(input);
     println!("{}", report.render_text());
 }

@@ -69,11 +69,7 @@ fn build_test_decision(
         .flatten()
         .and_then(|t| t.regression());
 
-    let baseline = state
-        .db
-        .get_ema_baseline(name, suite)
-        .ok()
-        .flatten();
+    let baseline = state.db.get_ema_baseline(name, suite).ok().flatten();
 
     let decision = DecisionEngine::evaluate_test(TestSignals {
         name,
@@ -140,9 +136,7 @@ pub async fn get_test_decision(
     Path((suite, name)): Path<(String, String)>,
 ) -> impl IntoResponse {
     match build_test_decision(&state, &name, &suite) {
-        Ok(Some(decision)) => {
-            (StatusCode::OK, Json(serde_json::json!(decision))).into_response()
-        }
+        Ok(Some(decision)) => (StatusCode::OK, Json(serde_json::json!(decision))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!(ApiResponse::error(
@@ -231,9 +225,5 @@ pub async fn get_suite_decision(
     }
 
     let suite_decision: SuiteDecision = DecisionEngine::evaluate_suite(&suite, &decisions);
-    (
-        StatusCode::OK,
-        Json(serde_json::json!(suite_decision)),
-    )
-        .into_response()
+    (StatusCode::OK, Json(serde_json::json!(suite_decision))).into_response()
 }

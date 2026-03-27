@@ -144,10 +144,7 @@ impl Anonymizer {
         hasher.update(id.as_bytes());
         let digest = hasher.finalize();
         // Take first 8 bytes → 16 hex chars
-        let token: String = digest[..8]
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
+        let token: String = digest[..8].iter().map(|b| format!("{b:02x}")).collect();
         self.cache.insert(id.to_owned(), token.clone());
         token
     }
@@ -466,11 +463,36 @@ mod tests {
     #[test]
     fn patterns_sorted_by_failure_rate_descending() {
         let mut builder = ExportBuilder::new(b"salt", 1);
-        builder.add("t1", "s", "flake", make_stats(10, 0.2), EnvClass::Ci, vec![]);
-        builder.add("t2", "s", "flake", make_stats(10, 0.8), EnvClass::Ci, vec![]);
-        builder.add("t3", "s", "flake", make_stats(10, 0.5), EnvClass::Ci, vec![]);
+        builder.add(
+            "t1",
+            "s",
+            "flake",
+            make_stats(10, 0.2),
+            EnvClass::Ci,
+            vec![],
+        );
+        builder.add(
+            "t2",
+            "s",
+            "flake",
+            make_stats(10, 0.8),
+            EnvClass::Ci,
+            vec![],
+        );
+        builder.add(
+            "t3",
+            "s",
+            "flake",
+            make_stats(10, 0.5),
+            EnvClass::Ci,
+            vec![],
+        );
         let bundle = builder.build();
-        let rates: Vec<f64> = bundle.patterns.iter().map(|p| p.stats.failure_rate).collect();
+        let rates: Vec<f64> = bundle
+            .patterns
+            .iter()
+            .map(|p| p.stats.failure_rate)
+            .collect();
         assert!(rates[0] >= rates[1] && rates[1] >= rates[2]);
     }
 
@@ -496,6 +518,9 @@ mod tests {
     fn sanitize_text_strips_ip() {
         let text = "Connection to 192.168.1.100 failed";
         let sanitized = Anonymizer::sanitize_text(text);
-        assert!(!sanitized.contains("192.168.1.100"), "IP not stripped: {sanitized}");
+        assert!(
+            !sanitized.contains("192.168.1.100"),
+            "IP not stripped: {sanitized}"
+        );
     }
 }

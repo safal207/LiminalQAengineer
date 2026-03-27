@@ -457,8 +457,14 @@ mod tests {
         }
         let (mean, stddev, confidence) = ema.stats();
         assert!((mean - 50.0).abs() < 0.001, "mean should converge to 50");
-        assert!(stddev < 0.001, "stddev should be near 0 for constant series");
-        assert!(confidence > 0.99, "confidence should be near 1 after 100 samples");
+        assert!(
+            stddev < 0.001,
+            "stddev should be near 0 for constant series"
+        );
+        assert!(
+            confidence > 0.99,
+            "confidence should be near 1 after 100 samples"
+        );
     }
 
     #[test]
@@ -483,7 +489,10 @@ mod tests {
         }
         assert!(ema.is_warmed_up());
         let (mean, stddev, _) = ema.stats();
-        assert!(stddev > 0.0, "stddev should be >0 after alternating series, got {stddev}");
+        assert!(
+            stddev > 0.0,
+            "stddev should be >0 after alternating series, got {stddev}"
+        );
         // A value 5 stddevs away should always register as drift
         assert!(
             ema.is_drift(mean + 5.0 * stddev, 2.0),

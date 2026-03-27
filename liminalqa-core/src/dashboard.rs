@@ -32,7 +32,7 @@
 use crate::{
     community::SimilarityMatch,
     decision::{MergePolicy, TestDecision},
-    rootcause::{RootCauseResult, what_if_fixed, RootCauseKind},
+    rootcause::{what_if_fixed, RootCauseKind, RootCauseResult},
 };
 
 // ---------------------------------------------------------------------------
@@ -158,12 +158,11 @@ impl DashboardReport {
             merge: merge_label(&decision.merge_policy),
             flake_pct: (decision.signals.flake_probability * 100.0) as u8,
             trend: decision.signals.trend_direction.clone(),
-            timeout: decision.signals.suggested_timeout_ms.map(|ms| {
-                format!("{:.1}s (EMA mean + 3σ)", ms as f64 / 1000.0)
-            }),
-            hint: decision.root_cause_hints.first().map(|s| {
-                truncate(s, 72)
-            }),
+            timeout: decision
+                .signals
+                .suggested_timeout_ms
+                .map(|ms| format!("{:.1}s (EMA mean + 3σ)", ms as f64 / 1000.0)),
+            hint: decision.root_cause_hints.first().map(|s| truncate(s, 72)),
         };
 
         // Panel B
@@ -270,10 +269,7 @@ impl DashboardReport {
     }
 
     fn render_header(&self, out: &mut String) {
-        let title = format!(
-            "  LIMINALQA · {}/{}",
-            self.risk.suite, self.risk.test_name
-        );
+        let title = format!("  LIMINALQA · {}/{}", self.risk.suite, self.risk.test_name);
         out.push_str(&box_top(70));
         out.push_str(&box_line(&title, 70));
         out.push_str(&box_bot(70));
@@ -289,16 +285,24 @@ impl DashboardReport {
             "KNOWN_ISSUE" => "◉",
             _ => "✓",
         };
-        row2(out, "verdict", &format!("{verdict_color} {}", r.verdict),
-             "confidence", &format!("{}%", r.confidence_pct));
-        row2(out, "severity", &r.severity,
-             "merge", &r.merge);
-        row2(out, "action", &r.action,
-             "trend", &trend_arrow(&r.trend));
+        row2(
+            out,
+            "verdict",
+            &format!("{verdict_color} {}", r.verdict),
+            "confidence",
+            &format!("{}%", r.confidence_pct),
+        );
+        row2(out, "severity", &r.severity, "merge", &r.merge);
+        row2(out, "action", &r.action, "trend", &trend_arrow(&r.trend));
 
         let bar = progress_bar(r.flake_pct as usize, 20);
-        row2(out, "flake risk", &format!("{bar} {}%", r.flake_pct),
-             "runs", &format!("{}", r.confidence_pct)); // reuse confidence as proxy
+        row2(
+            out,
+            "flake risk",
+            &format!("{bar} {}%", r.flake_pct),
+            "runs",
+            &format!("{}", r.confidence_pct),
+        ); // reuse confidence as proxy
 
         if let Some(t) = &r.timeout {
             panel_row(out, "timeout", t, 70);
@@ -314,8 +318,12 @@ impl DashboardReport {
         let rc = &self.root_cause;
         panel_title(out, "B  ROOT CAUSE ANALYSIS", 70);
 
-        panel_row(out, "most likely",
-            &format!("{} ({}%)", rc.most_likely, rc.most_likely_pct), 70);
+        panel_row(
+            out,
+            "most likely",
+            &format!("{} ({}%)", rc.most_likely, rc.most_likely_pct),
+            70,
+        );
         panel_blank(out, 70);
 
         for h in &rc.hypotheses {
@@ -364,12 +372,22 @@ impl DashboardReport {
 
         if c.match_count == 0 {
             panel_line(out, "  No community matches found yet.", 70);
-            panel_line(out, "  Export this pattern to contribute to shared knowledge.", 70);
+            panel_line(
+                out,
+                "  Export this pattern to contribute to shared knowledge.",
+                70,
+            );
         } else {
             let s = if c.match_count == 1 { "" } else { "s" };
-            panel_row(out, "matches",
-                &format!("{} similar incident{s} in community knowledge base", c.match_count),
-                70);
+            panel_row(
+                out,
+                "matches",
+                &format!(
+                    "{} similar incident{s} in community knowledge base",
+                    c.match_count
+                ),
+                70,
+            );
             panel_blank(out, 70);
             for m in &c.top_matches {
                 let eff_bar = progress_bar(m.effectiveness_pct as usize, 10);
@@ -520,11 +538,7 @@ mod tests {
         triage::TriageVerdict,
     };
 
-    fn build_demo_input(
-        verdict: TriageVerdict,
-        stability: f64,
-        flake_prob: f64,
-    ) -> DashboardInput {
+    fn build_demo_input(verdict: TriageVerdict, stability: f64, flake_prob: f64) -> DashboardInput {
         // Decision
         let mut baseline = ExponentialBaseline::new(20);
         for v in [450.0, 480.0, 510.0, 490.0, 530.0, 560.0, 520.0, 580.0] {
@@ -603,7 +617,11 @@ mod tests {
         };
         let community = store.find_similar(&query, 5, 0.0);
 
-        DashboardInput { decision, root_cause, community }
+        DashboardInput {
+            decision,
+            root_cause,
+            community,
+        }
     }
 
     #[test]
@@ -623,11 +641,17 @@ mod tests {
         assert!(text.contains("retry"), "action not shown");
 
         // Root cause content
-        assert!(text.contains("infrastructure_flake"), "root cause not shown");
+        assert!(
+            text.contains("infrastructure_flake"),
+            "root cause not shown"
+        );
         assert!(text.contains("fix"), "fix not shown");
 
         // What-if has at least current pass rate
-        assert!(text.contains("current pass rate"), "what-if current not shown");
+        assert!(
+            text.contains("current pass rate"),
+            "what-if current not shown"
+        );
     }
 
     #[test]
@@ -658,10 +682,7 @@ mod tests {
         for (i, line) in text.lines().enumerate() {
             // Count Unicode code points (not bytes) for display width
             let w = line.chars().count();
-            assert!(
-                w <= 72,
-                "line {i} too wide ({w} chars): {line}"
-            );
+            assert!(w <= 72, "line {i} too wide ({w} chars): {line}");
         }
     }
 

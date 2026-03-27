@@ -237,8 +237,7 @@ impl PatternStore {
             if entry.pattern.test_token == test_token {
                 let n = entry.occurrence_count as f64;
                 let outcome = if effective { 1.0 } else { 0.0 };
-                entry.action_effectiveness =
-                    (entry.action_effectiveness * n + outcome) / (n + 1.0);
+                entry.action_effectiveness = (entry.action_effectiveness * n + outcome) / (n + 1.0);
                 break;
             }
         }

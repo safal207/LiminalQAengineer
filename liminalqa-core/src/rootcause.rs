@@ -34,11 +34,7 @@
 //! `what_if_disabled(component)` estimates success probability if a component
 //! were removed from the causal chain — useful for prioritising fixes.
 
-use crate::{
-    community::SimilarityMatch,
-    export::EnvClass,
-    triage::TriageVerdict,
-};
+use crate::{community::SimilarityMatch, export::EnvClass, triage::TriageVerdict};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -280,7 +276,10 @@ impl RootCauseEngine {
         }
 
         let summary = build_summary(&hypotheses[0]);
-        RootCauseResult { hypotheses, summary }
+        RootCauseResult {
+            hypotheses,
+            summary,
+        }
     }
 
     /// Record whether the top hypothesis was correct (for weight learning).
@@ -320,12 +319,18 @@ impl RootCauseEngine {
 
         if i.flake_probability >= 0.7 {
             evidence.push(Evidence::new(
-                format!("high flake probability ({:.0}%)", i.flake_probability * 100.0),
+                format!(
+                    "high flake probability ({:.0}%)",
+                    i.flake_probability * 100.0
+                ),
                 0.35,
             ));
         } else if i.flake_probability >= 0.4 {
             evidence.push(Evidence::new(
-                format!("moderate flake probability ({:.0}%)", i.flake_probability * 100.0),
+                format!(
+                    "moderate flake probability ({:.0}%)",
+                    i.flake_probability * 100.0
+                ),
                 0.15,
             ));
         }
@@ -335,13 +340,19 @@ impl RootCauseEngine {
         }
 
         if i.has_network_calls {
-            evidence.push(Evidence::new("test involves network calls (common flake source)", 0.15));
+            evidence.push(Evidence::new(
+                "test involves network calls (common flake source)",
+                0.15,
+            ));
         }
 
         let community_boost = community_kind_boost(&i.community_matches, "flake");
         if community_boost > 0.0 {
             evidence.push(Evidence::new(
-                format!("community confirms similar pattern ({:.0}% of reports)", community_boost * 100.0),
+                format!(
+                    "community confirms similar pattern ({:.0}% of reports)",
+                    community_boost * 100.0
+                ),
                 community_boost * 0.20,
             ));
         }
@@ -362,12 +373,18 @@ impl RootCauseEngine {
         let mut evidence = vec![Evidence::new("prior", self.prior(&kind))];
 
         if matches!(i.triage, TriageVerdict::NewBug) {
-            evidence.push(Evidence::new("triage verdict: new_bug (stable → failing)", 0.45));
+            evidence.push(Evidence::new(
+                "triage verdict: new_bug (stable → failing)",
+                0.45,
+            ));
         }
 
         if i.failure_rate >= 0.8 && i.flake_probability < 0.3 {
             evidence.push(Evidence::new(
-                format!("high failure rate ({:.0}%) with low flake probability", i.failure_rate * 100.0),
+                format!(
+                    "high failure rate ({:.0}%) with low flake probability",
+                    i.failure_rate * 100.0
+                ),
                 0.30,
             ));
         }
@@ -412,11 +429,17 @@ impl RootCauseEngine {
 
         // High stddev relative to mean suggests timing sensitivity
         if i.trend_slope.abs() > 20.0 {
-            evidence.push(Evidence::new("high duration variability (possible sleep/wait)", 0.20));
+            evidence.push(Evidence::new(
+                "high duration variability (possible sleep/wait)",
+                0.20,
+            ));
         }
 
         if i.failure_rate > 0.1 && i.failure_rate < 0.5 && i.flake_probability > 0.5 {
-            evidence.push(Evidence::new("moderate failure rate with high flake probability", 0.15));
+            evidence.push(Evidence::new(
+                "moderate failure rate with high flake probability",
+                0.15,
+            ));
         }
 
         RootCauseHypothesis {
@@ -447,7 +470,10 @@ impl RootCauseEngine {
         // Context: high load often stresses external deps
         if i.context_multiplier > 1.3 {
             evidence.push(Evidence::new(
-                format!("high-load context (multiplier {:.2}×)", i.context_multiplier),
+                format!(
+                    "high-load context (multiplier {:.2}×)",
+                    i.context_multiplier
+                ),
                 0.15,
             ));
         }
@@ -461,7 +487,8 @@ impl RootCauseEngine {
             confidence: 0.0,
             evidence,
             suggested_fix:
-                "Add circuit breaker; stub external dependency in test; check SLA dashboards.".into(),
+                "Add circuit breaker; stub external dependency in test; check SLA dashboards."
+                    .into(),
             counterfactual_success_prob: 0.80,
         }
     }
@@ -471,7 +498,10 @@ impl RootCauseEngine {
         let mut evidence = vec![Evidence::new("prior", self.prior(&kind))];
 
         if i.resource_signal {
-            evidence.push(Evidence::new("resource constraint signal observed (OOM/disk/CPU)", 0.60));
+            evidence.push(Evidence::new(
+                "resource constraint signal observed (OOM/disk/CPU)",
+                0.60,
+            ));
         }
 
         if i.trend_slope > 10.0 {
@@ -485,7 +515,8 @@ impl RootCauseEngine {
             kind,
             confidence: 0.0,
             evidence,
-            suggested_fix: "Profile memory usage; ensure test cleanup; increase resource limits.".into(),
+            suggested_fix: "Profile memory usage; ensure test cleanup; increase resource limits."
+                .into(),
             counterfactual_success_prob: 0.90,
         }
     }
@@ -499,7 +530,10 @@ impl RootCauseEngine {
         }
 
         if matches!(i.env_class, EnvClass::Staging | EnvClass::Development) {
-            evidence.push(Evidence::new("non-production env — config drift is common", 0.10));
+            evidence.push(Evidence::new(
+                "non-production env — config drift is common",
+                0.10,
+            ));
         }
 
         RootCauseHypothesis {
@@ -507,7 +541,8 @@ impl RootCauseEngine {
             confidence: 0.0,
             evidence,
             suggested_fix:
-                "Verify environment variables, secrets, and service versions match expectations.".into(),
+                "Verify environment variables, secrets, and service versions match expectations."
+                    .into(),
             counterfactual_success_prob: 0.92,
         }
     }
@@ -587,7 +622,10 @@ mod tests {
         let input = make_input(TriageVerdict::Flake, 0.85, 0.3);
         let result = engine.analyze(&input);
         assert!(!result.hypotheses.is_empty());
-        assert_eq!(result.hypotheses[0].kind, RootCauseKind::InfrastructureFlake);
+        assert_eq!(
+            result.hypotheses[0].kind,
+            RootCauseKind::InfrastructureFlake
+        );
     }
 
     #[test]
@@ -661,7 +699,10 @@ mod tests {
             .get(&RootCauseKind::InfrastructureFlake)
             .copied()
             .expect("InfrastructureFlake prior must exist");
-        assert!(updated > initial, "Weight should increase after correct outcome");
+        assert!(
+            updated > initial,
+            "Weight should increase after correct outcome"
+        );
     }
 
     #[test]
