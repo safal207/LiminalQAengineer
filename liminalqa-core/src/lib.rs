@@ -9,6 +9,7 @@ pub mod baseline;
 pub mod causality;
 pub mod community;
 pub mod context;
+pub mod dashboard;
 pub mod decision;
 pub mod entities;
 pub mod export;
