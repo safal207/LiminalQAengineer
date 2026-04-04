@@ -1,11 +1,12 @@
 # Self-dogfooding: ship LiminalQA's own test results to a LiminalQA instance.
 #
-# Only runs when LIMINALQA_URL secret is configured.  Designed to be a
-# no-op / skipped in forks without the secret.
+# This workflow runs only when the LIMINALQA_URL repository variable is set.
+# That makes it a safe no-op in forks or repos without a reachable LiminalQA
+# deployment.
 #
-# Required secrets (optional — job is skipped when absent):
-#   LIMINALQA_URL    — target LiminalQA instance
-#   LIMINALQA_TOKEN  — bearer token
+# Required configuration:
+#   Repository Variable: LIMINALQA_URL
+#   Repository Secret: LIMINALQA_TOKEN
 
 name: LiminalQA Self-Test Ingest
 
@@ -19,6 +20,9 @@ jobs:
     name: Ingest own test results
     runs-on: ubuntu-latest
     if: vars.LIMINALQA_URL != ''
+    env:
+      LIMINALQA_URL: ${{ vars.LIMINALQA_URL }}
+      LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
 
     steps:
       - uses: actions/checkout@v6
@@ -51,10 +55,6 @@ jobs:
 
       - name: Start LiminalQA run
         id: start-run
-        if: env.LIMINALQA_URL != ''
-        env:
-          LIMINALQA_URL: ${{ vars.LIMINALQA_URL }}
-          LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
         run: |
           RESP=$(curl -sf \
             -X POST "$LIMINALQA_URL/ingest/run" \
@@ -70,8 +70,6 @@ jobs:
       - name: Ingest nextest JUnit results
         if: steps.start-run.outputs.run_id != ''
         env:
-          LIMINALQA_URL: ${{ vars.LIMINALQA_URL }}
-          LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
           RUN_ID: ${{ steps.start-run.outputs.run_id }}
         run: |
           find target/nextest -name "*.xml" | head -5 | while read xml; do
