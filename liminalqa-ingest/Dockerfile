@@ -1,10 +1,7 @@
 FROM rust:1.90-bookworm AS builder
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    pkg-config \
-    libssl-dev \
-    clang \
+RUN apt-get update -o Acquire::Retries=5 && apt-get install -y --no-install-recommends \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
