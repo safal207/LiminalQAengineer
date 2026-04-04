@@ -70,7 +70,7 @@ returns table(
   select fact_id, test_name, status, duration_ms, valid_from
   from test_fact
   where run_id = p_run_id
-    and tsrange(valid_from, valid_to, '[)') @> p_valid_at
+    and tstzrange(valid_from, valid_to, '[)') @> p_valid_at
     and tx_at <= p_tx_at
   order by test_name;
 $$;

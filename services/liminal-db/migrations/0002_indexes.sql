@@ -1,5 +1,7 @@
 -- LIMINAL-DB Indexes for bi-temporal queries and analytics
 
+create extension if not exists pg_trgm;
+
 -- Test fact indexes
 create index test_fact_name_idx on test_fact (test_name);
 create index test_fact_status_idx on test_fact (status);
@@ -7,7 +9,7 @@ create index test_fact_run_idx on test_fact (run_id);
 create index test_fact_suite_idx on test_fact (suite);
 
 -- Bi-temporal range index (GiST for overlaps)
-create index test_fact_valid_range_idx on test_fact using gist (tsrange(valid_from, valid_to, '[)'));
+create index test_fact_valid_range_idx on test_fact using gist (tstzrange(valid_from, valid_to, '[)'));
 
 -- Transaction time index (for "as-of" queries)
 create index test_fact_tx_at_idx on test_fact (tx_at);
@@ -38,4 +40,3 @@ create index resonance_first_seen_idx on resonance (first_seen);
 
 -- Full-text search on test names (for fuzzy matching)
 create index test_fact_name_trgm_idx on test_fact using gin (test_name gin_trgm_ops);
-create extension if not exists pg_trgm;
