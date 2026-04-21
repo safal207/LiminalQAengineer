@@ -26,6 +26,8 @@
 //! Cosine similarity is used for fast nearest-neighbour lookup.
 //! No external ML library required — pure Rust arithmetic.
 
+use std::cmp::Reverse;
+
 use crate::export::{AnonymizedPattern, EnvClass};
 use serde::{Deserialize, Serialize};
 
@@ -255,7 +257,7 @@ impl PatternStore {
     /// Return the top patterns by occurrence count (most widespread issues).
     pub fn top_patterns(&self, n: usize) -> Vec<&StoredPattern> {
         let mut sorted: Vec<&StoredPattern> = self.entries.iter().collect();
-        sorted.sort_by(|a, b| b.occurrence_count.cmp(&a.occurrence_count));
+        sorted.sort_by_key(|pattern| Reverse(pattern.occurrence_count));
         sorted.truncate(n);
         sorted
     }
@@ -341,7 +343,7 @@ pub fn generate_suggestions(matches: &[SimilarityMatch]) -> Vec<CommunitySuggest
         })
         .collect();
 
-    suggestions.sort_by(|a, b| b.seen_by_n_projects.cmp(&a.seen_by_n_projects));
+    suggestions.sort_by_key(|suggestion| Reverse(suggestion.seen_by_n_projects));
     suggestions
 }
 
