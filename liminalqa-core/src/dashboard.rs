@@ -29,6 +29,8 @@
 //! println!("{}", report.render_text());
 //! ```
 
+use std::cmp::Reverse;
+
 use crate::{
     community::SimilarityMatch,
     decision::{MergePolicy, TestDecision},
@@ -218,7 +220,7 @@ impl DashboardReport {
                 }
             })
             .collect();
-        scenarios.sort_by(|a, b| b.1.cmp(&a.1));
+        scenarios.sort_by_key(|scenario| Reverse(scenario.1));
         scenarios.truncate(3);
 
         let what_if = WhatIfPanel {
