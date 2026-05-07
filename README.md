@@ -368,6 +368,7 @@ POST /query
 
 ## 📚 Документация
 
+- **[Grant Evidence Package](docs/GRANT_EVIDENCE.md)** — reviewer-facing evidence matrix, product wedge, limitations, and roadmap
 - **[MVP-1 Quickstart](docs/MVP1_QUICKSTART.md)** — начало работы за 5 минут
 - **[Architecture](docs/ARCHITECTURE.md)** — подробная архитектура системы
 - **[Quickstart (Development)](docs/QUICKSTART.md)** — локальная разработка
