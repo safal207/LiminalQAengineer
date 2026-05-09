@@ -19,7 +19,7 @@ hyper.workspace = true
 liminalqa-core = { path = "../liminalqa-core" }
 liminalqa-db = { path = "../liminalqa-db" }
 liminalqa-grpc = { path = "../liminalqa-grpc" }
-tonic = "0.11"
+tonic = "0.14"
 prometheus-client = "0.24.0"
 utoipa = { version = "4", features = ["axum_extras", "chrono"] }
 utoipa-swagger-ui = { version = "7", features = ["axum"] }
