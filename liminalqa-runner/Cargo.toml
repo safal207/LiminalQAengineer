@@ -19,4 +19,4 @@ ulid.workspace = true
 
 # HTTP client for ingest
 reqwest = { version = "0.13", features = ["json"] }
-prometheus-client = "0.24.0"
+prometheus-client = "0.25.0"
