@@ -44,23 +44,23 @@ jobs:
           config="audits/tradernet/chart-quote-public.json"
           python3 -m json.tool "${config}" >/dev/null
           jq -e '
-            .target_url == "https://tradernet.ru/charts/MICEXINDEXCF" and
-            .ticker == "MICEXINDEXCF" and
-            .observation_ms <= 30000 and
-            .profiles | length == 2
+            (.target_url == "https://tradernet.ru/charts/MICEXINDEXCF") and
+            (.ticker == "MICEXINDEXCF") and
+            (.observation_ms <= 30000) and
+            ((.profiles | length) == 2)
           ' "${config}" >/dev/null
           jq -e '
-            .boundaries.public_page_only == true and
-            .boundaries.one_ticker_only == true and
-            .boundaries.one_timeframe_switch_only == true and
-            .boundaries.authenticated_testing == false and
-            .boundaries.direct_api_testing == false and
-            .boundaries.financial_operations == false and
-            .boundaries.order_entry == false and
-            .boundaries.market_depth_subscription == false and
-            .boundaries.fuzzing == false and
-            .boundaries.load_testing == false and
-            .boundaries.active_security_testing == false
+            (.boundaries.public_page_only == true) and
+            (.boundaries.one_ticker_only == true) and
+            (.boundaries.one_timeframe_switch_only == true) and
+            (.boundaries.authenticated_testing == false) and
+            (.boundaries.direct_api_testing == false) and
+            (.boundaries.financial_operations == false) and
+            (.boundaries.order_entry == false) and
+            (.boundaries.market_depth_subscription == false) and
+            (.boundaries.fuzzing == false) and
+            (.boundaries.load_testing == false) and
+            (.boundaries.active_security_testing == false)
           ' "${config}" >/dev/null
 
       - name: Install pinned browser driver
