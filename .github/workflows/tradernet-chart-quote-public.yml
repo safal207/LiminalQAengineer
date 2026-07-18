@@ -1,0 +1,106 @@
+name: Tradernet Public Chart and Quote Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-chart-quote-audit
+    paths:
+      - .github/workflows/tradernet-chart-quote-public.yml
+      - audits/tradernet/chart-quote-public.json
+      - scripts/tradernet_chart_quote_observer.mjs
+  pull_request:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/tradernet-chart-quote-public.yml
+      - audits/tradernet/chart-quote-public.json
+      - scripts/tradernet_chart_quote_observer.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-public-chart-quote-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Passive public chart and quote observation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate exact safety boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/tradernet/chart-quote-public.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .target_url == "https://tradernet.ru/charts/MICEXINDEXCF" and
+            .ticker == "MICEXINDEXCF" and
+            .observation_ms <= 30000 and
+            .profiles | length == 2
+          ' "${config}" >/dev/null
+          jq -e '
+            .boundaries.public_page_only == true and
+            .boundaries.one_ticker_only == true and
+            .boundaries.one_timeframe_switch_only == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.order_entry == false and
+            .boundaries.market_depth_subscription == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate observer and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          node --check scripts/tradernet_chart_quote_observer.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [[ -z "${chrome}" ]]; then
+            echo "Chrome executable was not found" >&2
+            exit 1
+          fi
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Observe desktop and mobile public chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradernet-chart-quote
+          node scripts/tradernet_chart_quote_observer.mjs \
+            --config audits/tradernet/chart-quote-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradernet-chart-quote
+          cat reports/tradernet-chart-quote/result/chart-quote-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-public-chart-quote-${{ github.run_id }}
+          path: reports/tradernet-chart-quote/
+          if-no-files-found: error
+          retention-days: 14
