@@ -1,0 +1,44 @@
+{
+  "schema_version": "liminalqa-takeprofit-quote-freshness-ordering-v2",
+  "name": "TakeProfit public quote freshness and application-ordering experiment",
+  "target_url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "expected_symbol": "BTC/USDT",
+  "quote_url_fragment": "QuoteApi/ListQuotes",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 1,
+    "isMobile": true,
+    "hasTouch": true
+  },
+  "navigation_timeout_ms": 90000,
+  "bootstrap_timeout_ms": 90000,
+  "held_non_empty_response_number": 1,
+  "hold_durations_ms": [90000, 105000, 120000],
+  "hold_sample_interval_ms": 1000,
+  "post_release_high_frequency_ms": 5000,
+  "high_frequency_sample_interval_ms": 100,
+  "post_release_observation_ms": 15000,
+  "post_release_sample_interval_ms": 1000,
+  "minimum_newer_non_empty_responses": 1,
+  "price_match_tolerance": 0.11,
+  "boundaries": {
+    "public_page_only": true,
+    "browser_local_natural_response_delay_only": true,
+    "response_bodies_retained_in_evidence_artifact": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "exploitation": false,
+    "vulnerability_claim": false
+  },
+  "limitations": [
+    "The experiment delays only naturally initiated public-page quote responses.",
+    "Generic protobuf candidate extraction is diagnostic and does not claim a field schema without an authoritative descriptor.",
+    "Application rollback is confirmed only when a visible DOM price is bound to distinct held and newer response candidates.",
+    "The public indicator card does not establish authenticated workspace transport, recovery, or trading-decision impact."
+  ]
+}
