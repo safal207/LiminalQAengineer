@@ -19,6 +19,7 @@ on:
       - .github/workflows/tradernet-lighthouse.yml
       - audits/lighthouse/tradernet/**
       - scripts/lighthouse_to_liminalqa.py
+      - scripts/lighthouse_causality_graph.py
   pull_request:
     branches:
       - main
@@ -26,6 +27,7 @@ on:
       - .github/workflows/tradernet-lighthouse.yml
       - audits/lighthouse/tradernet/**
       - scripts/lighthouse_to_liminalqa.py
+      - scripts/lighthouse_causality_graph.py
 
 permissions:
   contents: read
@@ -71,6 +73,9 @@ jobs:
           node --version
           npm --version
           python3 --version
+          python3 -m py_compile \
+            scripts/lighthouse_to_liminalqa.py \
+            scripts/lighthouse_causality_graph.py
 
       - name: Collect Lighthouse evidence
         env:
@@ -83,7 +88,7 @@ jobs:
           npx --yes @lhci/cli@0.15.1 autorun \
             --config=audits/lighthouse/tradernet/lighthouserc.cjs
 
-      - name: Build LiminalQA decision packet
+      - name: Build LiminalQA decision and causality packets
         shell: bash
         run: |
           set -euo pipefail
@@ -91,7 +96,14 @@ jobs:
             --policy audits/lighthouse/tradernet/policy.json \
             --input-dir .lighthouseci \
             --output-dir reports/lighthouse
+
+          python3 scripts/lighthouse_causality_graph.py \
+            --input-dir .lighthouseci \
+            --output-dir reports/lighthouse
+
           cat reports/lighthouse/summary.md >> "${GITHUB_STEP_SUMMARY}"
+          printf '\n\n' >> "${GITHUB_STEP_SUMMARY}"
+          cat reports/lighthouse/causality-graph.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload audit evidence
         if: always()
