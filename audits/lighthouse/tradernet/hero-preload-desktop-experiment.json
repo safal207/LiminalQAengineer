@@ -2,7 +2,7 @@
   "schema_version": "liminalqa-browser-counterfactual-v2",
   "name": "Tradernet desktop-web hero preload counterfactual",
   "target_url": "https://tradernet.ru/?site_lang=ru",
-  "hero_url": "https://tradernet.ru/images/2022/invest/hero.light.2x.webp",
+  "hero_url": "https://tradernet.ru/images/2022/invest/hero.light.1x.webp",
   "runs_per_variant": 3,
   "runtime_profile": {
     "id": "desktop_broadband",
@@ -30,7 +30,7 @@
     },
     {
       "id": "hero_preload",
-      "description": "Browser-local response-stage injection of the exact same-origin hero preload with fetchpriority=high."
+      "description": "Browser-local response-stage injection of the exact same-origin desktop LCP hero preload with fetchpriority=high."
     }
   ],
   "primary_metrics": [
