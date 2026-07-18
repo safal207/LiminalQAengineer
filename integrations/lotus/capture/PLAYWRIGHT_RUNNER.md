@@ -11,9 +11,37 @@ python3 -m pip install playwright
 python3 -m playwright install chromium
 ```
 
-Playwright is not installed or executed by CI. CI runs only the standard-library plan, packaging, redaction, allowlist, and regression checks.
+Playwright is not installed or executed by CI. CI runs only the standard-library plan, packaging, redaction, allowlist, orchestration, and regression checks.
 
-## Validate the plan
+## Recommended: one-command session
+
+The session wrapper executes the plan, two independent attempts, screenshot-review attestation, finalization, and capture gate in one bounded interactive flow:
+
+```bash
+python3 scripts/lotus_airbnb_capture_session.py run \
+  --listing-url 'https://www.airbnb.com/rooms/REPLACE_WITH_PUBLIC_LISTING' \
+  --output-root artifacts/ABNB-RUN-002 \
+  --locale en-US \
+  --timezone Europe/Istanbul \
+  --ip-country TR \
+  --acknowledge-safe-scope
+```
+
+The output directory must be absent or empty. This prevents artifacts from an earlier session being mixed into the new evidence package.
+
+After both browser attempts, the wrapper pauses and requires the exact token `REVIEWED`. Enter it only after manually examining every generated PNG for personal or unrelated information. The wrapper then finalizes the package and invokes the existing capture gate.
+
+Preview the exact command sequence without importing Playwright or contacting Airbnb:
+
+```bash
+python3 scripts/lotus_airbnb_capture_session.py plan \
+  --listing-url 'https://www.airbnb.com/rooms/REPLACE_WITH_PUBLIC_LISTING' \
+  --output-root artifacts/ABNB-RUN-002
+```
+
+The wrapper passes argument vectors directly to Python subprocesses and never uses a shell command string.
+
+## Low-level: validate the runner plan
 
 ```bash
 python3 scripts/lotus_playwright_capture.py plan \
@@ -23,7 +51,7 @@ python3 scripts/lotus_playwright_capture.py plan \
 
 This command imports no browser module and performs no target interaction.
 
-## Capture attempt 1
+## Low-level: capture attempt 1
 
 ```bash
 python3 scripts/lotus_playwright_capture.py run \
@@ -59,7 +87,7 @@ After Chromium closes, the runner:
 
 Screenshots still require human review. Do not finalize until personal data, account information, host details not needed for the report, and unrelated browser content have been removed or masked.
 
-## Finalize two attempts
+## Low-level: finalize two attempts
 
 ```bash
 python3 scripts/lotus_playwright_capture.py finalize \
@@ -105,4 +133,4 @@ python3 scripts/lotus_capture_gate.py \
 
 ## Truth boundary
 
-A complete repeated capture may reach `READY_FOR_REVIEW / F3`. The runner and capture gate never set `confirmed_defect=true`. Pythia or a human reviewer must compare the exact states, network evidence, expected product rule, and user impact before any defect or bounty claim is made.
+A complete repeated capture may reach `READY_FOR_REVIEW / F3`. The runner, session wrapper, and capture gate never set `confirmed_defect=true`. Pythia or a human reviewer must compare the exact states, network evidence, expected product rule, and user impact before any defect or bounty claim is made.
