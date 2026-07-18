@@ -7,6 +7,7 @@ module.exports = {
     collect: {
       url: [targetUrl],
       numberOfRuns: 3,
+      chromeFlags: "--headless --no-sandbox --disable-dev-shm-usage --disable-background-networking",
       settings: {
         onlyCategories: ["performance", "accessibility", "best-practices", "seo"],
         formFactor: "mobile",
@@ -26,8 +27,7 @@ module.exports = {
           deviceScaleFactor: 1,
           disabled: false
         },
-        emulatedUserAgent: "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36",
-        chromeFlags: "--headless --no-sandbox --disable-dev-shm-usage --disable-background-networking"
+        emulatedUserAgent: "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36"
       }
     },
     assert: {
