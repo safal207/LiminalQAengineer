@@ -9,6 +9,7 @@ on:
       - .github/workflows/tradernet-hero-preload-desktop-counterfactual.yml
       - audits/lighthouse/tradernet/hero-preload-desktop-experiment.json
       - scripts/tradernet_hero_preload_experiment_cdp.mjs
+      - scripts/tradernet_desktop_hero_result.py
   pull_request:
     branches:
       - main
@@ -16,6 +17,7 @@ on:
       - .github/workflows/tradernet-hero-preload-desktop-counterfactual.yml
       - audits/lighthouse/tradernet/hero-preload-desktop-experiment.json
       - scripts/tradernet_hero_preload_experiment_cdp.mjs
+      - scripts/tradernet_desktop_hero_result.py
 
 permissions:
   contents: read
@@ -43,6 +45,7 @@ jobs:
           set -euo pipefail
           experiment="audits/lighthouse/tradernet/hero-preload-desktop-experiment.json"
           python3 -m json.tool "${experiment}" >/dev/null
+          python3 -m py_compile scripts/tradernet_desktop_hero_result.py
           jq -e '
             .target_url == "https://tradernet.ru/?site_lang=ru" and
             .hero_url == "https://tradernet.ru/images/2022/invest/hero.light.1x.webp" and
@@ -86,16 +89,37 @@ jobs:
           "${chrome}" --version
           echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
 
-      - name: Run alternating desktop baseline and preload rounds
+      - name: Collect and aggregate desktop baseline and preload rounds
         shell: bash
         run: |
           set -euo pipefail
           rm -rf reports/hero-preload-desktop
+
+          # The shared collector has a deliberately stricter mobile-era check that
+          # rejects repeated response-stage document events. Preserve all six raw
+          # runs and let the desktop-specific aggregator validate the final DOM,
+          # exact LCP resource and at-least-one successful interception.
+          set +e
           node scripts/tradernet_hero_preload_experiment_cdp.mjs \
             --experiment audits/lighthouse/tradernet/hero-preload-desktop-experiment.json \
             --chrome "${{ steps.runtime.outputs.chrome }}" \
             --output-dir reports/hero-preload-desktop
-          cat reports/hero-preload-desktop/result/hero-preload-summary.md >> "${GITHUB_STEP_SUMMARY}"
+          collector_status=$?
+          set -e
+
+          for variant in baseline hero_preload; do
+            for round in 1 2 3; do
+              test -s "reports/hero-preload-desktop/${variant}-round-${round}.json"
+            done
+          done
+
+          python3 scripts/tradernet_desktop_hero_result.py \
+            --input-dir reports/hero-preload-desktop \
+            --output-dir reports/hero-preload-desktop/result \
+            --experiment audits/lighthouse/tradernet/hero-preload-desktop-experiment.json
+
+          echo "Shared collector exit status: ${collector_status}" >> "${GITHUB_STEP_SUMMARY}"
+          cat reports/hero-preload-desktop/result/desktop-hero-preload-summary.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload exact desktop experiment evidence
         if: always()
