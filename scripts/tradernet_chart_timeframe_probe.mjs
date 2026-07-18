@@ -10,7 +10,9 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index];
     const value = argv[index + 1];
-    if (!key?.startsWith("--") || value === undefined) throw new Error(`Invalid argument near ${key}`);
+    if (!key?.startsWith("--") || value === undefined) {
+      throw new Error(`Invalid argument near ${key ?? "<end>"}`);
+    }
     args[key.slice(2)] = value;
   }
   return args;
@@ -19,58 +21,132 @@ function parseArgs(argv) {
 function requestShape(url) {
   try {
     const parsed = new URL(url);
-    const q = JSON.parse(parsed.searchParams.get("q"));
+    const rawQuery = parsed.searchParams.get("q");
+    if (!rawQuery) return null;
+    const q = JSON.parse(rawQuery);
     return {
-      id: q.params?.id,
-      timeframe: q.params?.timeframe,
-      interval: q.params?.interval,
-      date_from: q.params?.date_from,
-      date_to: q.params?.date_to,
-      count: q.params?.count,
-      demo: q.params?.demo,
+      id: q.params?.id ?? null,
+      timeframe: q.params?.timeframe ?? null,
+      interval: q.params?.interval ?? null,
+      interval_mode: q.params?.intervalMode ?? null,
+      date_from: q.params?.date_from ?? null,
+      date_to: q.params?.date_to ?? null,
+      count: q.params?.count ?? null,
+      demo: q.params?.demo ?? null,
     };
   } catch {
     return null;
   }
 }
 
-async function visibleTextInventory(page) {
+function analyzeHloc(json, ticker) {
+  const candles = json?.hloc?.[ticker];
+  const timestamps = json?.xSeries?.[ticker];
+  const volumes = json?.vl?.[ticker];
+  const violations = [];
+
+  if (!Array.isArray(candles)) violations.push("HLOC_MISSING");
+  if (!Array.isArray(timestamps)) violations.push("TIMESTAMPS_MISSING");
+  if (!Array.isArray(volumes)) violations.push("VOLUMES_MISSING");
+  if (!Array.isArray(candles) || !Array.isArray(timestamps) || !Array.isArray(volumes)) {
+    return { candle_count: 0, timestamp_count: 0, volume_count: 0, violations };
+  }
+
+  if (candles.length !== timestamps.length) violations.push("HLOC_TIMESTAMP_LENGTH_MISMATCH");
+  if (candles.length !== volumes.length) violations.push("HLOC_VOLUME_LENGTH_MISMATCH");
+
+  let previousTimestamp = null;
+  const seen = new Set();
+  candles.forEach((row, index) => {
+    if (!Array.isArray(row) || row.length < 4) {
+      violations.push(`CANDLE_SHAPE_INVALID:${index}`);
+      return;
+    }
+    const [high, low, open, close] = row.map(Number);
+    if (![high, low, open, close].every(Number.isFinite)) {
+      violations.push(`CANDLE_NON_NUMERIC:${index}`);
+      return;
+    }
+    if (high < low) violations.push(`HIGH_BELOW_LOW:${index}`);
+    if (open < low || open > high) violations.push(`OPEN_OUTSIDE_RANGE:${index}`);
+    if (close < low || close > high) violations.push(`CLOSE_OUTSIDE_RANGE:${index}`);
+
+    const timestamp = Number(timestamps[index]);
+    if (!Number.isFinite(timestamp)) {
+      violations.push(`TIMESTAMP_NON_NUMERIC:${index}`);
+    } else {
+      if (seen.has(timestamp)) violations.push(`TIMESTAMP_DUPLICATE:${index}`);
+      if (Number.isFinite(previousTimestamp) && timestamp <= previousTimestamp) {
+        violations.push(`TIMESTAMP_NOT_INCREASING:${index}`);
+      }
+      seen.add(timestamp);
+      previousTimestamp = timestamp;
+    }
+
+    const volume = Number(volumes[index]);
+    if (!Number.isFinite(volume)) violations.push(`VOLUME_NON_NUMERIC:${index}`);
+    if (volume < 0) violations.push(`VOLUME_NEGATIVE:${index}`);
+  });
+
+  return {
+    candle_count: candles.length,
+    timestamp_count: timestamps.length,
+    volume_count: volumes.length,
+    first_timestamp: timestamps.length ? Number(timestamps[0]) : null,
+    last_timestamp: timestamps.length ? Number(timestamps.at(-1)) : null,
+    violations: violations.slice(0, 100),
+  };
+}
+
+async function chartState(page) {
   return page.evaluate(() => {
     const visible = (element) => {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
-      return rect.width > 2 && rect.height > 2 && style.display !== "none" && style.visibility !== "hidden";
+      return (
+        rect.width >= 120 &&
+        rect.height >= 80 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
     };
-    const values = [...document.querySelectorAll('button, a, [role="button"], [role="option"], li, span, div')]
-      .filter(visible)
-      .map((element) => element.textContent?.replace(/\s+/g, " ").trim())
-      .filter((text) => text && text.length <= 60)
-      .filter((text) => /мин|час|днев|недел|месяц|тик|сек|minute|hour|day|week|month/i.test(text));
-    return [...new Set(values)].slice(0, 100);
+    const opener = document.querySelector(".js-intervalSelector");
+    const selectedText = opener?.textContent?.replace(/\s+/g, " ").trim() ?? null;
+    const selectedValue = opener?.getAttribute("data-value") ?? null;
+    const chartSurfaces = [
+      ...document.querySelectorAll(
+        'canvas, svg, [id*="chart" i], [class*="chart" i], [id*="graph" i], [class*="graph" i]'
+      ),
+    ].filter(visible);
+    return {
+      selected_text: selectedText,
+      selected_value: selectedValue,
+      chart_visible: chartSurfaces.length > 0,
+      visible_chart_surface_count: chartSurfaces.length,
+      title: document.title,
+      final_url: location.href,
+    };
   });
 }
 
-async function clickExactVisibleText(page, text) {
-  return page.evaluate((target) => {
-    const visible = (element) => {
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return rect.width > 2 && rect.height > 2 && style.display !== "none" && style.visibility !== "hidden";
-    };
-    const candidates = [...document.querySelectorAll('button, a, [role="button"], [role="option"], li, span, div')]
-      .filter(visible)
-      .filter((element) => element.textContent?.replace(/\s+/g, " ").trim() === target)
-      .sort((left, right) => left.getBoundingClientRect().width - right.getBoundingClientRect().width);
-    const element = candidates[0];
-    if (!element) return { clicked: false };
-    element.click();
+async function clickExactInterval(page, value) {
+  return page.evaluate((targetValue) => {
+    const opener = document.querySelector(".js-intervalSelector");
+    if (!opener) return { opened: false, selected: false, reason: "opener_not_found" };
+    opener.click();
+    const option = document.querySelector(`.js-selectInterval .js-chart-click[data-value="${targetValue}"]`);
+    if (!option) return { opened: true, selected: false, reason: "option_not_found" };
+    const text = option.textContent?.replace(/\s+/g, " ").trim() ?? null;
+    option.click();
     return {
-      clicked: true,
-      tag: element.tagName,
-      id: element.id || null,
-      class: typeof element.className === "string" ? element.className.slice(0, 200) : null,
+      opened: true,
+      selected: true,
+      target_value: targetValue,
+      target_text: text,
+      option_tag: option.tagName,
+      option_class: typeof option.className === "string" ? option.className : null,
     };
-  }, text);
+  }, value);
 }
 
 async function main() {
@@ -78,9 +154,12 @@ async function main() {
   for (const key of ["config", "chrome", "output-dir"]) {
     if (!args[key]) throw new Error(`--${key} is required`);
   }
+
   const config = JSON.parse(await fs.readFile(args.config, "utf8"));
   const profile = config.profiles.find((item) => item.id === "desktop_broadband");
-  if (!profile) throw new Error("Desktop profile is missing");
+  if (!profile || config.target_url !== "https://tradernet.ru/charts/MICEXINDEXCF") {
+    throw new Error("Unexpected audit configuration");
+  }
 
   await fs.mkdir(args["output-dir"], { recursive: true });
   const browser = await puppeteer.launch({
@@ -94,16 +173,29 @@ async function main() {
   await page.setViewport(profile.viewport);
   await page.setCacheEnabled(false);
 
-  const getHlocRequests = [];
+  const observations = [];
+  const pendingBodies = [];
   page.on("response", (response) => {
-    if (response.url().includes("getHloc")) {
-      getHlocRequests.push({
-        status: response.status(),
-        url: response.url(),
-        shape: requestShape(response.url()),
-        observed_at: new Date().toISOString(),
-      });
-    }
+    if (!response.url().includes("getHloc")) return;
+    const observation = {
+      status: response.status(),
+      url: response.url(),
+      shape: requestShape(response.url()),
+      observed_at: new Date().toISOString(),
+      body_analysis: null,
+      body_error: null,
+    };
+    observations.push(observation);
+    pendingBodies.push(
+      (async () => {
+        try {
+          const json = await response.json();
+          observation.body_analysis = analyzeHloc(json, config.ticker);
+        } catch (error) {
+          observation.body_error = String(error?.message || error);
+        }
+      })()
+    );
   });
 
   let navigationError = null;
@@ -112,105 +204,84 @@ async function main() {
   } catch (error) {
     navigationError = String(error?.stack || error);
   }
-  const firstDeadline = Date.now() + 35_000;
-  while (getHlocRequests.length < 1 && Date.now() < firstDeadline) {
+
+  const initialDeadline = Date.now() + 35_000;
+  while (!observations.some((item) => item.shape?.interval === "D1") && Date.now() < initialDeadline) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-  await page.screenshot({ path: path.join(args["output-dir"], "before-dropdown.png"), fullPage: true });
+  await Promise.allSettled(pendingBodies);
+  const before = await chartState(page);
+  await page.screenshot({ path: path.join(args["output-dir"], "before-D1.png"), fullPage: true });
 
-  const opener = await clickExactVisibleText(page, "Дневной");
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  const menuTexts = await visibleTextInventory(page);
-  await page.screenshot({ path: path.join(args["output-dir"], "dropdown-open.png"), fullPage: true });
-
-  const preferences = [
-    "Часовой",
-    "1 час",
-    "60 минут",
-    "Пятиминутный",
-    "5 минут",
-    "Недельный",
-    "Месячный",
-  ];
-  const selectedText = preferences.find((value) => menuTexts.includes(value)) ||
-    menuTexts.find((value) => value !== "Дневной") ||
-    null;
-  const option = selectedText ? await clickExactVisibleText(page, selectedText) : { clicked: false };
-
-  if (option.clicked) {
-    const secondDeadline = Date.now() + 35_000;
-    while (getHlocRequests.length < 2 && Date.now() < secondDeadline) {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+  const action = await clickExactInterval(page, "H1");
+  const transitionDeadline = Date.now() + 35_000;
+  while (!observations.some((item) => item.shape?.interval === "H1") && Date.now() < transitionDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  await page.screenshot({ path: path.join(args["output-dir"], "after-transition.png"), fullPage: true });
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  await Promise.allSettled(pendingBodies);
 
-  const selectedState = await page.evaluate(() => {
-    const text = document.body?.innerText || "";
-    return {
-      has_chart_surface: [...document.querySelectorAll('canvas, svg, [id*="chart" i], [class*="chart" i]')]
-        .some((element) => {
-          const rect = element.getBoundingClientRect();
-          const style = getComputedStyle(element);
-          return rect.width >= 120 && rect.height >= 80 && style.display !== "none" && style.visibility !== "hidden";
-        }),
-      visible_interval_texts: [...new Set(text.split(/\n+/).map((line) => line.trim()).filter((line) => /мин|час|днев|недел|месяц/i.test(line)))].slice(0, 30),
-    };
-  });
+  const after = await chartState(page);
+  await page.screenshot({ path: path.join(args["output-dir"], "after-H1.png"), fullPage: true });
 
-  const initial = getHlocRequests[0]?.shape || null;
-  const transitioned = getHlocRequests[1]?.shape || null;
-  const requestChanged = Boolean(
-    initial && transitioned &&
-    (initial.timeframe !== transitioned.timeframe || initial.interval !== transitioned.interval || initial.date_from !== transitioned.date_from)
+  const d1 = observations.find((item) => item.shape?.interval === "D1") ?? null;
+  const h1 = observations.find((item) => item.shape?.interval === "H1") ?? null;
+  const h1IntegrityPass = Boolean(
+    h1?.body_analysis &&
+    h1.body_analysis.candle_count > 0 &&
+    h1.body_analysis.violations.length === 0
   );
-  const verdict = navigationError
-    ? "EVIDENCE_FAILURE"
-    : !opener.clicked
-      ? "INTERVAL_CONTROL_NOT_FOUND"
-      : !selectedText || !option.clicked
-        ? "MENU_DISCOVERED_NO_ALTERNATIVE_SELECTED"
-        : getHlocRequests.length < 2
-          ? "UI_CHANGED_WITHOUT_NEW_HLOC"
-          : requestChanged
-            ? "TRANSITION_OBSERVED"
-            : "STALE_REQUEST_SHAPE";
+
+  let verdict;
+  if (navigationError) verdict = "EVIDENCE_FAILURE";
+  else if (!before.chart_visible) verdict = "INITIAL_CHART_NOT_VISIBLE";
+  else if (!action.opened || !action.selected) verdict = "EXACT_INTERVAL_CONTROL_FAILED";
+  else if (!h1) verdict = "UI_CHANGED_WITHOUT_H1_REQUEST";
+  else if (h1.shape?.timeframe === d1?.shape?.timeframe) verdict = "TIMEFRAME_DID_NOT_CHANGE";
+  else if (after.selected_value !== "H1" || !after.chart_visible) verdict = "UI_REQUEST_STATE_DIVERGENCE";
+  else if (!h1IntegrityPass) verdict = "H1_DATA_INTEGRITY_WARN";
+  else verdict = "TRANSITION_PASS";
 
   const result = {
-    schema_version: "liminalqa-chart-timeframe-transition-v1",
+    schema_version: "liminalqa-chart-timeframe-transition-v2",
     target_url: config.target_url,
+    ticker: config.ticker,
     verdict,
     navigation_error: navigationError,
-    opener,
-    menu_texts: menuTexts,
-    selected_text: selectedText,
-    option,
-    get_hloc_requests: getHlocRequests,
-    request_changed: requestChanged,
-    selected_state: selectedState,
+    before,
+    action,
+    after,
+    d1_observation: d1,
+    h1_observation: h1,
+    all_get_hloc_observations: observations,
     generated_at: new Date().toISOString(),
   };
+
   await fs.writeFile(
     path.join(args["output-dir"], "timeframe-transition-result.json"),
-    `${JSON.stringify(result, null, 2)}\n`
+    `${JSON.stringify(result, null, 2)}\n`,
+    "utf8"
   );
   const lines = [
-    "# Tradernet chart timeframe transition",
+    "# Tradernet chart interval transition",
     "",
     `**Verdict:** ${verdict}  `,
-    `**Selected option:** ${selectedText ?? "n/a"}  `,
-    `**getHloc responses:** ${getHlocRequests.length}`,
+    `**UI:** ${before.selected_value ?? "n/a"} → ${after.selected_value ?? "n/a"}  `,
+    `**Requests observed:** ${observations.length}`,
     "",
-    "| Phase | Timeframe | Interval | Date from | Date to | Status |",
-    "|---|---:|---|---|---|---:|",
-    ...getHlocRequests.slice(0, 3).map((request, index) =>
-      `| ${index === 0 ? "Initial" : "After switch"} | ${request.shape?.timeframe ?? "n/a"} | ${request.shape?.interval ?? "n/a"} | ${request.shape?.date_from ?? "n/a"} | ${request.shape?.date_to ?? "n/a"} | ${request.status} |`
-    ),
+    "| Phase | Timeframe | Interval | Candles | Violations | Status |",
+    "|---|---:|---|---:|---:|---:|",
+    `| Initial | ${d1?.shape?.timeframe ?? "n/a"} | ${d1?.shape?.interval ?? "n/a"} | ${d1?.body_analysis?.candle_count ?? 0} | ${d1?.body_analysis?.violations.length ?? "n/a"} | ${d1?.status ?? "n/a"} |`,
+    `| After switch | ${h1?.shape?.timeframe ?? "n/a"} | ${h1?.shape?.interval ?? "n/a"} | ${h1?.body_analysis?.candle_count ?? 0} | ${h1?.body_analysis?.violations.length ?? "n/a"} | ${h1?.status ?? "n/a"} |`,
+    "",
+    "> The audit clicked exactly one public UI control and only observed the requests naturally initiated by that interaction.",
     "",
   ];
-  await fs.writeFile(path.join(args["output-dir"], "timeframe-transition-summary.md"), lines.join("\n"));
+  await fs.writeFile(
+    path.join(args["output-dir"], "timeframe-transition-summary.md"),
+    lines.join("\n"),
+    "utf8"
+  );
 
   await context.close();
   await browser.close();
