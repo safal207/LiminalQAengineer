@@ -13,14 +13,19 @@ SPEC.loader.exec_module(validator)
 
 
 class LotusEvidenceContractTests(unittest.TestCase):
+    """Protect the evidence, judgment, trace, and storage invariants."""
+
     def setUp(self) -> None:
+        """Load a fresh copy of the repository fixture for every test."""
         with validator.RUN_PATH.open(encoding="utf-8") as handle:
             self.run = json.load(handle)
 
     def test_repository_example_is_valid(self) -> None:
+        """The checked-in vertical-slice example must satisfy all invariants."""
         validator.validate_all()
 
     def test_planned_run_cannot_claim_confirmed_defect(self) -> None:
+        """A planned investigation cannot be promoted to a confirmed defect."""
         invalid = copy.deepcopy(self.run)
         invalid["lotus"]["pythia"]["confirmed_defect"] = True
         with self.assertRaisesRegex(
@@ -29,6 +34,7 @@ class LotusEvidenceContractTests(unittest.TestCase):
             validator.validate_run(invalid)
 
     def test_claim_kinds_cannot_collapse_into_hypotheses(self) -> None:
+        """Fact, observation, and hypothesis must remain distinct claim kinds."""
         invalid = copy.deepcopy(self.run)
         for claim in invalid["claims"]:
             claim["kind"] = "hypothesis"
@@ -38,6 +44,7 @@ class LotusEvidenceContractTests(unittest.TestCase):
             validator.validate_run(invalid)
 
     def test_storage_projection_must_be_append_only(self) -> None:
+        """The LiminalDB projection cannot silently become mutable."""
         invalid = copy.deepcopy(self.run)
         invalid["liminaldb_projection"]["append_only"] = False
         with self.assertRaisesRegex(
