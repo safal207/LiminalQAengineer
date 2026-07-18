@@ -1,0 +1,56 @@
+{
+  "schema_version": "liminalqa-openai-homepage-lcp-counterfactual-v1",
+  "name": "OpenAI homepage LCP asset and discovery counterfactual",
+  "target_url": "https://openai.com/",
+  "hero_url": "https://cdn.openai.com/ctf-cdn/gpt-5-6/5.6%20Blog%20Art%20Card%20-%20Motion%20-%204_5%20(1).png?w=750&q=70&fm=webp",
+  "runs_per_variant": 3,
+  "runtime_profile": {
+    "id": "mobile_slow_4g_cpu4",
+    "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+    "viewport": {
+      "width": 390,
+      "height": 844,
+      "deviceScaleFactor": 1,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "network": {
+      "latency_ms": 150,
+      "download_bytes_per_second": 210000,
+      "upload_bytes_per_second": 95000,
+      "connection_type": "cellular3g"
+    },
+    "cpu_throttling_rate": 4,
+    "observation_ms": 70000
+  },
+  "optimized_asset": {
+    "width_px": 960,
+    "format": "webp",
+    "quality": 70,
+    "effort": 5
+  },
+  "boundaries": {
+    "public_page_only": true,
+    "browser_local_modification_only": true,
+    "sequential_runs_only": true,
+    "exact_asset_only": true,
+    "one_exact_public_asset_preparation_fetch": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "prompt_submission": false,
+    "api_testing": false,
+    "agent_or_tool_execution": false,
+    "account_or_billing_actions": false,
+    "active_security_testing": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "The exact LCP URL is pinned from hardened OpenAI benchmark run 29662883190.",
+    "Preload and optimized-asset experiments each use three sequential same-runner baseline/treatment pairs.",
+    "The optimized treatment fulfills only the exact image request with a locally resized WebP derived from one public preparation fetch.",
+    "The early-discovery treatment injects one exact preload into the locally delivered document response.",
+    "If the exact historical asset is no longer the baseline LCP, the result is INCONCLUSIVE rather than silently changing targets."
+  ]
+}
