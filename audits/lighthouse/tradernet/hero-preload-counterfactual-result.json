@@ -1,0 +1,112 @@
+{
+  "schema_version": "liminalqa-browser-counterfactual-result-v1",
+  "experiment_run": {
+    "github_run_id": 29661704633,
+    "exact_head_sha": "74590ddc0839227f28ff69678c82f76b84d6d86a",
+    "artifact_name": "tradernet-hero-preload-counterfactual-29661704633",
+    "artifact_sha256": "1b13ec0135eacbf2ac622963e616f06b0cd608a4723fe5788bdb56bb1bc327ec",
+    "method": "same-runner alternating browser-local CDP response-stage injection",
+    "runs_per_variant": 3
+  },
+  "verdict": "SUPPORTED",
+  "confidence": "MEDIUM",
+  "target_url": "https://tradernet.ru/?site_lang=ru",
+  "hero_url": "https://tradernet.ru/images/2022/invest/hero.light.2x.webp",
+  "variants": {
+    "baseline": {
+      "run_count": 3,
+      "medians": {
+        "first_contentful_paint_ms": 7376.0,
+        "largest_contentful_paint_ms": 11360.0,
+        "hero_request_start_ms": 7321.9,
+        "hero_response_end_ms": 11340.0,
+        "hero_load_to_lcp_gap_ms": 20.0,
+        "long_task_total_ms": 1198.0,
+        "script_transfer_bytes": 1277150.0,
+        "script_request_count": 56.0,
+        "navigation_response_end_ms": 612.4
+      },
+      "run_sha256": [
+        "2fc404859729d3c37851288bba98959a635fa3e4c76b67318a17e872167304d6",
+        "361ed5a8c71232f67719e0f433877fe8df5f50104ca2ba89c9704314a798bbd6",
+        "81482db30a2dac6d208efce379ea22dfa02615be6128e58c86537e0004e1e609"
+      ]
+    },
+    "hero_preload": {
+      "run_count": 3,
+      "medians": {
+        "first_contentful_paint_ms": 7596.0,
+        "largest_contentful_paint_ms": 7596.0,
+        "hero_request_start_ms": 617.1,
+        "hero_response_end_ms": 2652.9,
+        "hero_load_to_lcp_gap_ms": 4890.2,
+        "long_task_total_ms": 1216.0,
+        "script_transfer_bytes": 1277150.0,
+        "script_request_count": 56.0,
+        "navigation_response_end_ms": 591.6
+      },
+      "run_sha256": [
+        "4b09aa5108786c9f8efa27c53ab7533792fc85f70c138b70f91ed5d1a4ea45c2",
+        "1f948e21abe2a6e78372374aef3ac0895f7b5c1b393aacc3a8a1628e743de4a3",
+        "0ff004a65a9d6197a50f20572f7a0ca730bc4d8f2ab899b11247b40ea84504e9"
+      ]
+    }
+  },
+  "effects": {
+    "hero_request_start_ms": {
+      "treatment_minus_baseline": -6704.8,
+      "improvement_percent": 91.57
+    },
+    "hero_response_end_ms": {
+      "treatment_minus_baseline": -8687.1,
+      "improvement_percent": 76.61
+    },
+    "largest_contentful_paint_ms": {
+      "treatment_minus_baseline": -3764.0,
+      "improvement_percent": 33.13
+    },
+    "hero_load_to_lcp_gap_ms": {
+      "treatment_minus_baseline": 4870.2,
+      "interpretation": "The network bottleneck is reduced, exposing a separate render, hydration, or visibility gate."
+    },
+    "first_contentful_paint_ms": {
+      "treatment_minus_baseline": 220.0,
+      "improvement_percent": -2.98
+    },
+    "long_task_total_ms": {
+      "treatment_minus_baseline": 18.0,
+      "improvement_percent": -1.5
+    },
+    "script_transfer_bytes": {
+      "treatment_minus_baseline": 0.0
+    },
+    "script_request_count": {
+      "treatment_minus_baseline": 0.0
+    }
+  },
+  "causal_interpretation": {
+    "confirmed": [
+      "The desktop hero is discovered very late in the baseline mobile navigation.",
+      "A browser-local same-origin preload advances the hero request by about 6.7 seconds.",
+      "The treatment improves median LCP by about 3.76 seconds without reducing script count, script bytes, or long-task time."
+    ],
+    "remaining_bottleneck": "In the treatment, the hero finishes loading at about 2.65 seconds but is not painted as LCP until about 7.60 seconds, leaving a median 4.89-second post-load render gap.",
+    "inference": "Late network discovery is a material cause, while runtime, hydration, DOM insertion, CSS visibility, or responsive reconciliation remains a second independent cause.",
+    "recommended_fix_order": [
+      "Expose the correct responsive LCP image in initial HTML.",
+      "Add an exact same-origin preload or fetchpriority=high for the actual mobile LCP resource.",
+      "Prevent both mobile and desktop hero variants from transferring in one mobile navigation.",
+      "Measure and remove the post-load visibility or hydration gate.",
+      "Reduce the broad shared JavaScript bootstrap after the LCP path is fixed."
+    ]
+  },
+  "boundaries": {
+    "browser_local_response_injection": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "load_testing": false,
+    "production_performance_claim": false
+  }
+}
