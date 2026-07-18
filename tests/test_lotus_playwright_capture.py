@@ -14,6 +14,12 @@ assert SPEC and SPEC.loader
 runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
 
+GATE_SCRIPT = ROOT / "scripts" / "lotus_capture_gate.py"
+GATE_SPEC = importlib.util.spec_from_file_location("lotus_capture_gate", GATE_SCRIPT)
+assert GATE_SPEC and GATE_SPEC.loader
+gate = importlib.util.module_from_spec(GATE_SPEC)
+GATE_SPEC.loader.exec_module(gate)
+
 PROFILE = ROOT / "integrations/lotus/capture/airbnb-currency-atomicity-v0.1.json"
 TEMPLATE = ROOT / "integrations/lotus/examples/airbnb-run-002.capture.json"
 
@@ -123,6 +129,28 @@ class LotusPlaywrightCaptureTests(unittest.TestCase):
                     "transition_trace",
                 },
             )
+            result = gate.validate_capture(
+                json.loads(PROFILE.read_text(encoding="utf-8")),
+                capture,
+                output,
+            )
+            self.assertEqual(result.status, "READY_FOR_REVIEW")
+            self.assertEqual(result.evidence_grade, "F3")
+            self.assertFalse(result.confirmed_defect)
+
+    def test_finalize_rejects_single_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            self._attempt(output, "attempt-01", "ctx-01", "inconsistent", "10:00")
+            with self.assertRaisesRegex(runner.RunnerError, "at least two independent"):
+                runner.finalize(
+                    Namespace(
+                        profile=PROFILE,
+                        capture_template=TEMPLATE,
+                        output_root=output,
+                        confirm_screenshots_reviewed=True,
+                    )
+                )
 
     def test_finalize_rejects_duplicate_context(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
