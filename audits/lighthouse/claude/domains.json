@@ -1,0 +1,86 @@
+{
+  "schema_version": "liminalqa-public-domain-portfolio-v1",
+  "name": "Claude public web benchmark",
+  "scope_kind": "passive_public_quality",
+  "max_parallel": 2,
+  "targets": [
+    {
+      "slug": "claude-public-shell",
+      "url": "https://claude.ai/",
+      "origin": "https://claude.ai",
+      "surface": "unauthenticated Claude web entry shell",
+      "evidence": "Official Claude web entry linked from the canonical Claude product site",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "claude-product-overview",
+      "url": "https://claude.com/product/overview",
+      "origin": "https://claude.com",
+      "surface": "Claude product overview",
+      "evidence": "Canonical destination of the former anthropic.com/claude product route",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "claude-code-product",
+      "url": "https://claude.com/product/claude-code",
+      "origin": "https://claude.com",
+      "surface": "Claude Code product overview",
+      "evidence": "Canonical Claude Code product page",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "claude-platform-docs",
+      "url": "https://platform.claude.com/docs/en/home",
+      "origin": "https://platform.claude.com",
+      "surface": "Claude Platform documentation landing",
+      "evidence": "Canonical destination of the former docs.anthropic.com documentation route",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "claude-api-overview",
+      "url": "https://platform.claude.com/docs/en/api/overview",
+      "origin": "https://platform.claude.com",
+      "surface": "public Claude API overview documentation",
+      "evidence": "Canonical public API overview in Claude Platform Docs",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "claude-help",
+      "url": "https://support.claude.com/en/",
+      "origin": "https://support.claude.com",
+      "surface": "public Claude Help Center landing",
+      "evidence": "Canonical destination of the former support.anthropic.com Help Center route",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "claude-status",
+      "url": "https://status.claude.com/",
+      "origin": "https://status.claude.com",
+      "surface": "public Claude service status dashboard",
+      "evidence": "Official Claude Status page",
+      "status": "confirmed_public"
+    }
+  ],
+  "boundaries": {
+    "one_navigation_per_target": true,
+    "public_pages_only": true,
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "prompt_submission": false,
+    "agent_or_tool_execution": false,
+    "account_or_billing_actions": false,
+    "file_uploads": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Each exact allowlisted target receives one passive Lighthouse navigation with at most two targets running concurrently.",
+    "Claude.ai is observed only as delivered to a non-authenticated public browser session; redirects are recorded as delivered evidence.",
+    "The benchmark records QA, accessibility, performance, SEO, and browser-best-practice signals only.",
+    "No credentials, API keys, prompts, conversations, files, payments, account changes, tool calls, or agent actions are used.",
+    "Inventory URLs were verified against official Claude and Anthropic public surfaces on 2026-07-19.",
+    "Legacy anthropic.com and docs/support Anthropic routes were used only to identify their current canonical Claude destinations; benchmark navigation uses canonical URLs."
+  ]
+}
