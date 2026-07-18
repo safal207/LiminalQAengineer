@@ -1,0 +1,127 @@
+name: Tradernet Redirect Counterfactual
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/tradernet-redirect-counterfactual.yml
+      - audits/lighthouse/tradernet/redirect-experiment.json
+      - audits/lighthouse/tradernet/lighthouserc-counterfactual.cjs
+      - scripts/lighthouse_counterfactual_compare.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-redirect-counterfactual.yml
+      - audits/lighthouse/tradernet/redirect-experiment.json
+      - audits/lighthouse/tradernet/lighthouserc-counterfactual.cjs
+      - scripts/lighthouse_counterfactual_compare.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-redirect-counterfactual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    name: Same-runner redirect experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate exact experiment boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          experiment="audits/lighthouse/tradernet/redirect-experiment.json"
+          python3 -m json.tool "${experiment}" >/dev/null
+          jq -e '
+            .runs_per_variant == 3 and
+            .boundaries.public_page_only == true and
+            .boundaries.passive_navigation_only == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .variants == [
+              {
+                "id": "redirect_root",
+                "url": "https://tradernet.ru/",
+                "treatment": "Public root URL; server may redirect to a language-specific URL."
+              },
+              {
+                "id": "direct_ru",
+                "url": "https://tradernet.ru/?site_lang=ru",
+                "treatment": "Exact public Russian-language URL; expected to avoid the initial language redirect."
+              }
+            ]
+          ' "${experiment}" >/dev/null
+
+      - name: Record runtime versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          python3 --version
+          python3 -m py_compile scripts/lighthouse_counterfactual_compare.py
+
+      - name: Collect root variant three times
+        env:
+          LIGHTHOUSE_TARGET_URL: https://tradernet.ru/
+          LIGHTHOUSE_OUTPUT_DIR: reports/counterfactual/redirect_root/html
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci reports/counterfactual
+          mkdir -p reports/counterfactual/redirect_root/html
+          npx --yes @lhci/cli@0.15.1 autorun \
+            --config=audits/lighthouse/tradernet/lighthouserc-counterfactual.cjs
+          mkdir -p reports/counterfactual/redirect_root/raw
+          cp -R .lighthouseci/. reports/counterfactual/redirect_root/raw/
+
+      - name: Collect direct-language variant three times
+        env:
+          LIGHTHOUSE_TARGET_URL: https://tradernet.ru/?site_lang=ru
+          LIGHTHOUSE_OUTPUT_DIR: reports/counterfactual/direct_ru/html
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci
+          mkdir -p reports/counterfactual/direct_ru/html
+          npx --yes @lhci/cli@0.15.1 autorun \
+            --config=audits/lighthouse/tradernet/lighthouserc-counterfactual.cjs
+          mkdir -p reports/counterfactual/direct_ru/raw
+          cp -R .lighthouseci/. reports/counterfactual/direct_ru/raw/
+
+      - name: Build LiminalQA counterfactual packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/lighthouse_counterfactual_compare.py \
+            --experiment audits/lighthouse/tradernet/redirect-experiment.json \
+            --redirect-dir reports/counterfactual/redirect_root/raw \
+            --direct-dir reports/counterfactual/direct_ru/raw \
+            --output-dir reports/counterfactual/result
+          cat reports/counterfactual/result/counterfactual-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-redirect-counterfactual-${{ github.run_id }}
+          path: reports/counterfactual/
+          if-no-files-found: error
+          retention-days: 14
