@@ -24,6 +24,18 @@ function percentile(values, p) {
   return s[Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1))];
 }
 
+async function dismissCookieBanner(page) {
+  const clicked = await page.evaluate(() => {
+    const candidates = [...document.querySelectorAll('button')];
+    const button = candidates.find((el) => (el.textContent || '').trim().toLowerCase() === 'accept');
+    if (!button) return false;
+    button.click();
+    return true;
+  });
+  if (clicked) await sleep(1800);
+  return clicked;
+}
+
 async function snapshot(page) {
   return page.evaluate(() => {
     const visible = (el) => {
@@ -177,7 +189,7 @@ async function main() {
   cdp.on('Network.webSocketFrameReceived', (x) => frames.push({ id: x.requestId, at: Date.now(), length: x.response.payloadData?.length || 0 }));
 
   const r = {
-    schemaVersion: 'liminalqa-takeprofit-chart-quote-probe-v3', startedAt: iso(),
+    schemaVersion: 'liminalqa-takeprofit-chart-quote-probe-v4', startedAt: iso(),
     target: { requestedUrl: cfg.targetUrl, finalUrl: null }, environment: { viewport: cfg.viewport, chrome: await browser.version() },
     stages: {}, console: {}, network: {}, transport: {}, boundaries: cfg.boundaries, evidence: {}
   };
@@ -186,6 +198,8 @@ async function main() {
     const t0 = Date.now();
     await page.goto(cfg.targetUrl, { waitUntil: 'domcontentloaded', timeout: cfg.navigationTimeoutMs });
     r.target.finalUrl = page.url();
+    await sleep(1200);
+    r.evidence.cookieBannerDismissed = await dismissCookieBanner(page);
     await sleep(cfg.initialWaitMs);
     const initial = await snapshot(page);
     r.stages.initial = { elapsedMs: Date.now() - t0, expectedSymbolDetected: `${initial.textSample} ${initial.tickerHints.join(' ')}`.toUpperCase().includes(cfg.expectedSymbolHint.toUpperCase()), snapshot: initial };
