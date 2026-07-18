@@ -5,14 +5,18 @@ on:
     paths:
       - "integrations/lotus/**"
       - "scripts/validate_lotus_evidence.py"
+      - "scripts/lotus_capture_gate.py"
       - "tests/test_lotus_evidence.py"
+      - "tests/test_lotus_capture_gate.py"
       - ".github/workflows/lotus-evidence-contract.yml"
   push:
     branches: [main]
     paths:
       - "integrations/lotus/**"
       - "scripts/validate_lotus_evidence.py"
+      - "scripts/lotus_capture_gate.py"
       - "tests/test_lotus_evidence.py"
+      - "tests/test_lotus_capture_gate.py"
 
 permissions:
   contents: read
@@ -27,5 +31,12 @@ jobs:
           python-version: "3.12"
       - name: Validate vertical-slice contract
         run: python3 scripts/validate_lotus_evidence.py
+      - name: Validate planned browser capture template
+        run: |
+          python3 scripts/lotus_capture_gate.py \
+            --spec integrations/lotus/capture/airbnb-currency-atomicity-v0.1.json \
+            --capture integrations/lotus/examples/airbnb-run-002.capture.json
       - name: Run contract regression tests
-        run: python3 -m unittest tests/test_lotus_evidence.py -v
+        run: |
+          python3 -m unittest tests/test_lotus_evidence.py -v
+          python3 -m unittest tests/test_lotus_capture_gate.py -v
