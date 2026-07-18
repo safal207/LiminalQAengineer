@@ -1,0 +1,90 @@
+name: TakeProfit Chart Quote Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-chart-quote-probe.yml
+      - audits/browser/takeprofit/chart-quote-probe.json
+      - scripts/takeprofit_chart_quote_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-chart-quote-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Public chart and quote causal probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/takeprofit/chart-quote-probe.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .targetUrl == "https://takeprofit.com/platform" and
+            .switchSymbol == "BTCUSDT" and
+            .boundaries.public_page_only == true and
+            .boundaries.browser_local_diagnostics_only == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.application_api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.vulnerability_claim == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Locate Chrome and validate script
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --check scripts/takeprofit_chart_quote_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [[ -z "${chrome}" ]]; then
+            echo "Chrome executable was not found" >&2
+            exit 1
+          fi
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run bounded public browser probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/takeprofit-chart-quote
+          node scripts/takeprofit_chart_quote_probe.mjs \
+            --config audits/browser/takeprofit/chart-quote-probe.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output reports/takeprofit-chart-quote
+          cat reports/takeprofit-chart-quote/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-chart-quote-${{ github.run_id }}
+          path: reports/takeprofit-chart-quote/
+          if-no-files-found: warn
+          retention-days: 14
