@@ -43,7 +43,7 @@ They are not vendored dependencies and do not imply conformance certification.
 - No payment, reservation, account mutation, or destructive action is performed by
   this example.
 
-## Example
+## Evidence contract example
 
 `examples/airbnb-run-001.json` is a **planned, non-executed** Airbnb currency
 atomicity investigation. It demonstrates the full contract while explicitly
@@ -66,3 +66,41 @@ The validator checks:
 - the evidence manifest hashes match repository files;
 - the LiminalDB projection preserves `valid_time` separately from
   `transaction_time`.
+
+## Browser capture gate
+
+`capture/airbnb-currency-atomicity-v0.1.json` defines the safe capture profile
+for `ABNB-RUN-002`. The matching template is
+`examples/airbnb-run-002.capture.json`.
+
+The capture gate does not interact with Airbnb. It validates a browser evidence
+packet created by an authorized operator or runner:
+
+```bash
+python3 scripts/lotus_capture_gate.py \
+  --spec integrations/lotus/capture/airbnb-currency-atomicity-v0.1.json \
+  --capture integrations/lotus/examples/airbnb-run-002.capture.json
+```
+
+A planned template remains `F0`. An executed packet requires:
+
+- two independent attempts;
+- exact timezone-aware timestamps;
+- browser, locale, device timezone, IP country, and authentication state;
+- screenshots before and after;
+- a network archive;
+- before/after state snapshots;
+- a transition trace;
+- SHA-256 integrity for every artifact;
+- `payment_submitted=false` and `reservation_created=false`;
+- explicit secret redaction.
+
+The highest automatic result is `READY_FOR_REVIEW / F3`. The gate always emits
+`confirmed_defect=false`; only Pythia or a human reviewer may conclude that the
+evidence proves a defect.
+
+Run capture-gate tests:
+
+```bash
+python3 -m unittest tests/test_lotus_capture_gate.py -v
+```
