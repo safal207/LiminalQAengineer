@@ -1,0 +1,64 @@
+{
+  "schema_version": "liminalqa-browser-counterfactual-v2",
+  "name": "Tradernet desktop-web hero preload counterfactual",
+  "target_url": "https://tradernet.ru/?site_lang=ru",
+  "hero_url": "https://tradernet.ru/images/2022/invest/hero.light.2x.webp",
+  "runs_per_variant": 3,
+  "runtime_profile": {
+    "id": "desktop_broadband",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "viewport": {
+      "width": 1440,
+      "height": 900,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false
+    },
+    "network": {
+      "latency_ms": 40,
+      "download_bytes_per_second": 1250000,
+      "upload_bytes_per_second": 625000,
+      "connection_type": "ethernet"
+    },
+    "cpu_throttling_rate": 1,
+    "observation_ms": 10000
+  },
+  "variants": [
+    {
+      "id": "baseline",
+      "description": "Unmodified public desktop-web navigation."
+    },
+    {
+      "id": "hero_preload",
+      "description": "Browser-local response-stage injection of the exact same-origin hero preload with fetchpriority=high."
+    }
+  ],
+  "primary_metrics": [
+    "hero_request_start_ms",
+    "largest_contentful_paint_ms"
+  ],
+  "secondary_metrics": [
+    "first_contentful_paint_ms",
+    "hero_response_end_ms",
+    "hero_load_to_lcp_gap_ms",
+    "long_task_total_ms",
+    "script_transfer_bytes",
+    "script_request_count"
+  ],
+  "boundaries": {
+    "public_page_only": true,
+    "browser_local_modification_only": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "active_security_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false
+  },
+  "limitations": [
+    "This is a reproducible desktop laboratory profile, not real-user field data.",
+    "The browser-local treatment does not modify Tradernet servers.",
+    "Three alternating runs per variant provide directional evidence; deployment must be remeasured."
+  ]
+}
