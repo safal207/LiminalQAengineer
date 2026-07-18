@@ -1,0 +1,92 @@
+{
+  "schema_version": "liminalqa-takeprofit-quote-application-order-evidence-v1",
+  "run": {
+    "workflow_run_id": 29665870021,
+    "exact_head_sha": "d9d5e2d08c20bea2296f0c167565642121cd9874",
+    "artifact_id": 8435761035,
+    "artifact_digest": "sha256:93f8238f436ec5b3fd7d7f8cd6fb167b517c0f546c02c34dc21c00018a10d20a",
+    "raw_result_sha256": "sha256:031b61578fa9982ad89b8245a64331bc054ebc8a23ca498b4159193f089ff560",
+    "runner_evidence_sha256": "4a09e4a607c50b74f59a3029914242859b1f5cfa5e734a3e9c6b76d41cc2f8fa"
+  },
+  "target": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "rounds": [
+    {
+      "round": 1,
+      "first_quote_decimal_candidate": 64835.7,
+      "held_quote_decimal_candidate": 64835.6,
+      "hold_duration_ms": 90545,
+      "newer_non_empty_responses_during_hold": 0,
+      "freshness_terms": [],
+      "chart_crop_sha256": "72402381f037ca7afec422a9d8dcaa1cced117742811f8f63c195c289b9ffc79"
+    },
+    {
+      "round": 2,
+      "first_quote_decimal_candidate": 64816.9,
+      "held_quote_decimal_candidate": 64816.8,
+      "hold_duration_ms": 90375,
+      "newer_non_empty_responses_during_hold": 0,
+      "freshness_terms": [],
+      "chart_crop_sha256": "72402381f037ca7afec422a9d8dcaa1cced117742811f8f63c195c289b9ffc79"
+    },
+    {
+      "round": 3,
+      "first_quote_decimal_candidate": 64812.6,
+      "held_quote_decimal_candidate": 64812.5,
+      "hold_duration_ms": 90554,
+      "newer_non_empty_responses_during_hold": 0,
+      "freshness_terms": [],
+      "chart_crop_sha256": "72402381f037ca7afec422a9d8dcaa1cced117742811f8f63c195c289b9ffc79"
+    }
+  ],
+  "visible_chart": {
+    "right_axis_labels_observed": [61516.2, 59235.6],
+    "crop_unchanged_before_hold_during_hold_and_after_release": true,
+    "canvas_text_hook_observed_draws": false,
+    "interpretation": "The public published-indicator chart behaved as a fixed visible snapshot in these rounds. The naturally loaded quote payload changed, but no visible chart change was observed."
+  },
+  "judgments": {
+    "steady_state_polling": "SERIALIZED_WHILE_RESPONSE_PENDING",
+    "steady_state_out_of_order_application": "NOT_REPRODUCED",
+    "live_price_staleness_claim_on_this_surface": "BLOCKED_AS_UNSUPPORTED",
+    "freshness_or_snapshot_clarity": "ESCALATE_PRODUCT_INTENT",
+    "current_quote_polling_visible_dependency": "UNVERIFIED_COUNTERFACTUAL_REQUIRED",
+    "chartstore_required_field_regression": "RECONFIRMED_IN_3_OF_3_ROUNDS"
+  },
+  "pythia": {
+    "verdict": "ESCALATE",
+    "stop_reason": "VISIBLE_CHART_IS_NOT_PROVEN_TO_CONSUME_CURRENT_QUOTES",
+    "publishable_claims": [
+      "Steady-state polling did not overlap while the second non-empty response was pending in three rounds.",
+      "The chart crop remained byte-identical across each 90-second hold and release sequence.",
+      "No stale, delayed, offline, disconnected, or reconnecting marker appeared.",
+      "ChartStore missing-required-field errors recurred in every round."
+    ],
+    "blocked_claims": [
+      "The visible public chart rolled back to an older live quote.",
+      "The visible 61516.2 label is a stale current BTC quote.",
+      "The authenticated workspace uses the same quote transport or display policy."
+    ]
+  },
+  "cml": {
+    "memory": "The earlier older-after-newer delivery belongs to startup overlap evidence, not proven steady-state polling behavior.",
+    "shared_root_cause_with_chartstore": "UNCONFIRMED"
+  },
+  "ls": {
+    "risk": "LIVE_HISTORICAL_CLARITY_UNKNOWN",
+    "reason": "The page displays a plausible chart while loading current quote payloads, but the visible surface does not explicitly establish whether the chart is live, delayed, or a historical snapshot."
+  },
+  "next_experiments": [
+    "Block naturally initiated ListQuotes responses in browser-local treatment rounds and compare visible chart behavior to test whether polling has a visible dependency.",
+    "Repeat the application-order probe specifically against the first-load duplicate quote pair, where overlap was previously observed.",
+    "Use an authorized workspace or an explicitly live public surface before making live-price freshness claims."
+  ],
+  "boundaries": {
+    "public_page_only": true,
+    "naturally_initiated_responses_only": true,
+    "browser_local_delay_only": true,
+    "direct_api_testing": false,
+    "authenticated_testing": false,
+    "financial_operations": false,
+    "security_claim": false
+  }
+}
