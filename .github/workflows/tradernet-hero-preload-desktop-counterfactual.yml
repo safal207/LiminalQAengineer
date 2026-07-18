@@ -45,7 +45,7 @@ jobs:
           python3 -m json.tool "${experiment}" >/dev/null
           jq -e '
             .target_url == "https://tradernet.ru/?site_lang=ru" and
-            .hero_url == "https://tradernet.ru/images/2022/invest/hero.light.2x.webp" and
+            .hero_url == "https://tradernet.ru/images/2022/invest/hero.light.1x.webp" and
             .runs_per_variant == 3 and
             .runtime_profile.id == "desktop_broadband" and
             .runtime_profile.viewport.width == 1440 and
