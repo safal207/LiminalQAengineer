@@ -1,0 +1,43 @@
+{
+  "schema_version": "liminalqa-lighthouse-policy-v1",
+  "name": "OpenAI public web quality benchmark",
+  "allowed_origins": [
+    "https://openai.com",
+    "https://chatgpt.com",
+    "https://developers.openai.com",
+    "https://platform.openai.com",
+    "https://help.openai.com",
+    "https://status.openai.com"
+  ],
+  "allowed_paths": [
+    "/",
+    "/codex/",
+    "/docs/quickstart/make-your-first-api-request",
+    "/en-us"
+  ],
+  "category_thresholds": {
+    "performance": 0.65,
+    "accessibility": 0.85,
+    "best-practices": 0.85,
+    "seo": 0.85
+  },
+  "number_of_runs": 1,
+  "boundaries": {
+    "public_pages_only": true,
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "prompt_submission": false,
+    "agent_or_tool_execution": false,
+    "account_or_billing_actions": false,
+    "file_uploads": false,
+    "load_testing": false
+  },
+  "notes": [
+    "The benchmark is limited to exact allowlisted public HTTPS pages.",
+    "Results are quality and regression signals, not proof of a security vulnerability or service outage.",
+    "No sign-in, API key, prompt, conversation, file upload, payment, workspace change, tool call, or agent action is performed.",
+    "The Status page is treated as a public web surface; its incident content is contextual and is not used alone to infer root cause.",
+    "Any future authenticated, API, adversarial, or security work requires a separate written scope and authorization."
+  ]
+}
