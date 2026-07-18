@@ -56,11 +56,14 @@ def validate_run(run: dict[str, Any]) -> None:
     if not SHA_RE.fullmatch(run["source_base"]["head_sha"]):
         raise ContractError("run: source_base.head_sha must be a full Git SHA")
 
-    names = set()
+    names: set[str] = set()
     for pin in run["protocol_pins"]:
+        name = pin.get("name")
+        if name in names:
+            raise ContractError(f"run: duplicate protocol pin name {name!r}")
         if not SHA_RE.fullmatch(pin["commit_sha"]):
-            raise ContractError(f"run: invalid protocol pin for {pin.get('name')}")
-        names.add(pin["name"])
+            raise ContractError(f"run: invalid protocol pin for {name}")
+        names.add(name)
     expected_names = {"T-Trace", "DRP", "ProofPath", "LiminalDB"}
     if names != expected_names:
         raise ContractError(f"run: protocol pins must equal {sorted(expected_names)}")
@@ -111,18 +114,14 @@ def load_and_validate_trace(path: Path, run_id: str, decision_id: str) -> None:
 
     if [record.get("type") for record in records] != ["sense", "transition", "commit"]:
         raise ContractError("trace: required order is sense -> transition -> commit")
-
     ids = [record.get("id") for record in records]
     if len(ids) != len(set(ids)):
         raise ContractError("trace: ids must be unique")
-
     timestamps = [parse_ts(record["ts"]) for record in records]
     if timestamps != sorted(timestamps):
         raise ContractError("trace: timestamps must be monotonic")
-
     if any(record.get("thread_id") != run_id for record in records):
         raise ContractError("trace: every record must use the run_id as thread_id")
-
     if records[-1].get("decision_ref") != decision_id:
         raise ContractError("trace: commit must reference the DRP decision")
 
@@ -136,21 +135,58 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_manifest(manifest: dict[str, Any]) -> None:
-    """Verify the integrity-only boundary and every referenced artifact digest."""
+def safe_artifact_path(root: Path, relative: Any) -> Path:
+    """Resolve a manifest path and require containment beneath the repository root."""
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        raise ContractError("manifest: artifact path must be a non-empty relative path")
+    resolved_root = root.resolve()
+    candidate = (resolved_root / relative).resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ContractError(
+            f"manifest: artifact path escapes repository root: {relative}"
+        ) from exc
+    return candidate
+
+
+def validate_manifest(manifest: dict[str, Any], *, root: Path = ROOT) -> None:
+    """Verify the integrity-only boundary and every contained artifact digest."""
     if manifest.get("integrity_only") is not True or manifest.get("truth_claim") is not False:
         raise ContractError("manifest: integrity/truth boundary must be explicit")
-
     for artifact in manifest.get("artifacts", []):
-        path = ROOT / artifact["path"]
+        relative = artifact.get("path")
+        path = safe_artifact_path(root, relative)
         if not path.is_file():
-            raise ContractError(f"manifest: missing artifact {artifact['path']}")
+            raise ContractError(f"manifest: missing artifact {relative}")
         actual = sha256_file(path)
         if actual != artifact["sha256"]:
             raise ContractError(
-                f"manifest: SHA mismatch for {artifact['path']}: "
+                f"manifest: SHA mismatch for {relative}: "
                 f"expected {artifact['sha256']}, got {actual}"
             )
+
+
+def validate_links(
+    run: dict[str, Any],
+    manifest: dict[str, Any],
+    *,
+    manifest_path: Path = MANIFEST_PATH,
+    root: Path = ROOT,
+) -> None:
+    """Bind the loaded manifest to the run ID, path, and exact DRP decision."""
+    resolved_root = root.resolve()
+    resolved_manifest = manifest_path.resolve()
+    try:
+        expected_manifest = resolved_manifest.relative_to(resolved_root).as_posix()
+    except ValueError as exc:
+        raise ContractError("run: loaded evidence manifest escapes repository root") from exc
+    if run.get("evidence_manifest") != expected_manifest:
+        raise ContractError("run: evidence_manifest does not reference the loaded manifest")
+    if manifest.get("bundle_id") != run.get("run_id"):
+        raise ContractError("manifest: bundle_id must match run_id")
+    if manifest.get("decision_ref") != run["drp_decision"].get("record_id"):
+        raise ContractError("manifest: decision_ref must match the DRP decision")
 
 
 def validate_all() -> None:
@@ -158,6 +194,7 @@ def validate_all() -> None:
     run = load_json(RUN_PATH)
     manifest = load_json(MANIFEST_PATH)
     validate_run(run)
+    validate_links(run, manifest)
     load_and_validate_trace(
         TRACE_PATH,
         run_id=run["run_id"],
