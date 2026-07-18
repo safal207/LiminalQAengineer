@@ -1,0 +1,3 @@
+{"id":"abnb-001-sense-001","type":"sense","ts":"2026-07-19T07:00:00Z","thread_id":"ABNB-RUN-001","input":"currency atomicity rule and stale-state hypothesis registered"}
+{"id":"abnb-001-transition-001","type":"transition","ts":"2026-07-19T07:00:01Z","thread_id":"ABNB-RUN-001","from":"unstructured_hypothesis","to":"planned_evidence_run"}
+{"id":"abnb-001-commit-001","type":"commit","ts":"2026-07-19T07:00:02Z","thread_id":"ABNB-RUN-001","confidence":0.2,"decision_ref":"DRP-ABNB-RUN-001-DEC-001","verdict":"ESCALATE"}
