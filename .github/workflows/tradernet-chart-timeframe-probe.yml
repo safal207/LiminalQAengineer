@@ -1,4 +1,4 @@
-name: Tradernet Chart Timeframe Probe
+name: Tradernet Chart Interval DOM Discovery
 
 on:
   workflow_dispatch:
@@ -8,27 +8,27 @@ on:
     paths:
       - .github/workflows/tradernet-chart-timeframe-probe.yml
       - audits/tradernet/chart-quote-public.json
-      - scripts/tradernet_chart_timeframe_probe.mjs
+      - scripts/tradernet_chart_interval_dom_discovery.mjs
   pull_request:
     branches:
       - agent/tradernet-lighthouse-audit
     paths:
       - .github/workflows/tradernet-chart-timeframe-probe.yml
       - audits/tradernet/chart-quote-public.json
-      - scripts/tradernet_chart_timeframe_probe.mjs
+      - scripts/tradernet_chart_interval_dom_discovery.mjs
 
 permissions:
   contents: read
 
 concurrency:
-  group: tradernet-chart-timeframe-probe-${{ github.ref }}
+  group: tradernet-chart-interval-discovery-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  probe:
-    name: One bounded timeframe transition
+  discover:
+    name: Discover exact interval control DOM
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 10
     env:
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
@@ -41,11 +41,10 @@ jobs:
           jq -e '
             (.target_url == "https://tradernet.ru/charts/MICEXINDEXCF") and
             (.ticker == "MICEXINDEXCF") and
-            (.boundaries.one_timeframe_switch_only == true) and
+            (.boundaries.public_page_only == true) and
             (.boundaries.direct_api_testing == false) and
             (.boundaries.authenticated_testing == false) and
-            (.boundaries.financial_operations == false) and
-            (.boundaries.load_testing == false)
+            (.boundaries.financial_operations == false)
           ' audits/tradernet/chart-quote-public.json >/dev/null
       - name: Install pinned browser driver
         run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
@@ -54,25 +53,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --check scripts/tradernet_chart_timeframe_probe.mjs
+          node --check scripts/tradernet_chart_interval_dom_discovery.mjs
           chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "${chrome}"
           echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
-      - name: Probe one timeframe transition
+      - name: Discover interval control structure
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf reports/tradernet-chart-timeframe
-          node scripts/tradernet_chart_timeframe_probe.mjs \
+          rm -rf reports/tradernet-chart-interval-dom
+          node scripts/tradernet_chart_interval_dom_discovery.mjs \
             --config audits/tradernet/chart-quote-public.json \
             --chrome "${{ steps.runtime.outputs.chrome }}" \
-            --output-dir reports/tradernet-chart-timeframe
-          cat reports/tradernet-chart-timeframe/timeframe-transition-summary.md >> "${GITHUB_STEP_SUMMARY}"
+            --output-dir reports/tradernet-chart-interval-dom
       - name: Upload exact evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tradernet-chart-timeframe-${{ github.run_id }}
-          path: reports/tradernet-chart-timeframe/
+          name: tradernet-chart-interval-dom-${{ github.run_id }}
+          path: reports/tradernet-chart-interval-dom/
           if-no-files-found: error
           retention-days: 14
