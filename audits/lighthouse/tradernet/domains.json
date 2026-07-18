@@ -1,0 +1,72 @@
+{
+  "schema_version": "liminalqa-public-domain-portfolio-v1",
+  "name": "Tradernet public web portfolio",
+  "scope_kind": "passive_public_quality",
+  "max_parallel": 2,
+  "targets": [
+    {
+      "slug": "tradernet-ru",
+      "url": "https://tradernet.ru/",
+      "origin": "https://tradernet.ru",
+      "region_hint": "Russia / Russian-language landing",
+      "evidence": "Official website listed by the current Tradernet mobile application",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "tradernet-com",
+      "url": "https://tradernet.com/",
+      "origin": "https://tradernet.com",
+      "region_hint": "International / English-language landing",
+      "evidence": "Linked as the Tradernet platform by Freedom Finance Technologies",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "tradernet-rc-faq",
+      "url": "https://rc.tradernet.com/faq/13096-how-to-open-an-account-as-an-individual?site_lang=en",
+      "origin": "https://rc.tradernet.com",
+      "region_hint": "Regional client / FAQ surface",
+      "evidence": "Public Tradernet help article",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "tradernet-translate",
+      "url": "https://translate.tradernet.com/",
+      "origin": "https://translate.tradernet.com",
+      "region_hint": "Translation/localization surface",
+      "evidence": "Public Tradernet-branded page indexed by search",
+      "status": "candidate_public"
+    },
+    {
+      "slug": "tradernet-global",
+      "url": "https://tradernet.global/",
+      "origin": "https://tradernet.global",
+      "region_hint": "Freedom Finance Global / Kazakhstan-facing surface",
+      "evidence": "Public Tradernet Global landing and API documentation",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "tradernet-am",
+      "url": "https://tradernet.am/",
+      "origin": "https://tradernet.am",
+      "region_hint": "Armenia-facing surface",
+      "evidence": "Public Tradernet Armenia landing and feedback page",
+      "status": "confirmed_public"
+    }
+  ],
+  "boundaries": {
+    "one_navigation_per_target": true,
+    "public_pages_only": true,
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Inventory membership does not prove common legal ownership or security-testing authorization.",
+    "Each target receives one Lighthouse navigation with at most two targets running concurrently.",
+    "Results are QA, accessibility, performance, SEO, and browser-best-practice signals only."
+  ]
+}
