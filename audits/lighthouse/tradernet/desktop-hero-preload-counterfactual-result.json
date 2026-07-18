@@ -1,0 +1,50 @@
+{
+  "schema_version": "liminalqa-desktop-counterfactual-summary-v1",
+  "subject": "Tradernet public desktop web hero preload",
+  "target_url": "https://tradernet.ru/?site_lang=ru",
+  "runtime_profile": "desktop_broadband",
+  "viewport": "1440x900",
+  "exact_lcp_resource": "https://tradernet.ru/images/2022/invest/hero.light.1x.webp",
+  "evidence": {
+    "workflow_run": 29662406306,
+    "exact_head": "4b7f2a1946987dcb62c8e8b4086a0728a3f38aac",
+    "artifact": "tradernet-desktop-hero-preload-counterfactual-29662406306",
+    "artifact_sha256": "2541c133fde90ef9722015ef85b769276016e9370d337a0a7837532f125fd142",
+    "baseline_runs": 3,
+    "treatment_runs": 3
+  },
+  "verdict": "NO_ADDITIONAL_EFFECT",
+  "confidence": "MEDIUM",
+  "observed_facts": {
+    "baseline_hero_initiator_type": "link",
+    "baseline_medians": {
+      "hero_request_start_ms": 683.1,
+      "hero_response_end_ms": 1168.8,
+      "largest_contentful_paint_ms": 2284.0,
+      "first_contentful_paint_ms": 2284.0,
+      "hero_load_to_lcp_gap_ms": 1239.2,
+      "long_task_total_ms": 90.0,
+      "script_transfer_bytes": 1278079,
+      "script_request_count": 55
+    },
+    "extra_preload_medians": {
+      "hero_request_start_ms": 772.0,
+      "hero_response_end_ms": 1227.2,
+      "largest_contentful_paint_ms": 2504.0,
+      "first_contentful_paint_ms": 2504.0,
+      "hero_load_to_lcp_gap_ms": 1296.8,
+      "long_task_total_ms": 96.0,
+      "script_transfer_bytes": 1278079,
+      "script_request_count": 55
+    }
+  },
+  "causal_reading": {
+    "supported": [
+      "The desktop baseline already schedules the exact LCP image through a link resource hint.",
+      "Adding another preload does not materially advance the request or improve LCP.",
+      "The mobile late-discovery cause does not reproduce under this desktop profile."
+    ],
+    "remaining_hypothesis": "The approximately 1.24 second gap between hero response completion and LCP is more consistent with render, style, visibility, or runtime timing than missing preload."
+  },
+  "boundary": "Public-page browser-local QA experiment only; no authentication, API calls, financial operations, fuzzing, load testing, or server-state changes."
+}
