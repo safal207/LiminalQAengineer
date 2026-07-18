@@ -116,7 +116,7 @@ jobs:
           test "${observed}" -eq "${expected}"
 
           jq -s -e '
-            all(.[ ];
+            all(.[];
               .authority.mode == "audit_only" and
               .authority.ownership == false and
               .authority.approval == false and
