@@ -25,15 +25,30 @@ function percentile(values, p) {
 }
 
 async function dismissCookieBanner(page) {
-  const clicked = await page.evaluate(() => {
-    const candidates = [...document.querySelectorAll('button')];
-    const button = candidates.find((el) => (el.textContent || '').trim().toLowerCase() === 'accept');
-    if (!button) return false;
-    button.click();
-    return true;
-  });
-  if (clicked) await sleep(1800);
-  return clicked;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const clicked = await page.evaluate(() => {
+      const candidates = [...document.querySelectorAll('button,[role="button"],input[type="button"],a')]
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          const s = getComputedStyle(el);
+          return r.width > 10 && r.height > 10 && s.display !== 'none' && s.visibility !== 'hidden';
+        });
+      const button = candidates.find((el) => {
+        const label = ((el.innerText || el.textContent || el.getAttribute('aria-label') || el.value || '') + '').trim().toLowerCase();
+        return label === 'accept' || label === 'accept all';
+      });
+      if (!button) return false;
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      if (typeof button.click === 'function') button.click();
+      return true;
+    });
+    if (clicked) {
+      await sleep(2200);
+      return true;
+    }
+    await sleep(750);
+  }
+  return false;
 }
 
 async function snapshot(page) {
@@ -189,7 +204,7 @@ async function main() {
   cdp.on('Network.webSocketFrameReceived', (x) => frames.push({ id: x.requestId, at: Date.now(), length: x.response.payloadData?.length || 0 }));
 
   const r = {
-    schemaVersion: 'liminalqa-takeprofit-chart-quote-probe-v4', startedAt: iso(),
+    schemaVersion: 'liminalqa-takeprofit-chart-quote-probe-v5', startedAt: iso(),
     target: { requestedUrl: cfg.targetUrl, finalUrl: null }, environment: { viewport: cfg.viewport, chrome: await browser.version() },
     stages: {}, console: {}, network: {}, transport: {}, boundaries: cfg.boundaries, evidence: {}
   };
@@ -198,7 +213,6 @@ async function main() {
     const t0 = Date.now();
     await page.goto(cfg.targetUrl, { waitUntil: 'domcontentloaded', timeout: cfg.navigationTimeoutMs });
     r.target.finalUrl = page.url();
-    await sleep(1200);
     r.evidence.cookieBannerDismissed = await dismissCookieBanner(page);
     await sleep(cfg.initialWaitMs);
     const initial = await snapshot(page);
