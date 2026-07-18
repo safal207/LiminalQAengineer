@@ -1,0 +1,104 @@
+name: Revolut Public Runtime Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/revolut-public-runtime-probe-v0-1
+    paths:
+      - .github/workflows/revolut-public-runtime-probe.yml
+      - scripts/revolut_public_runtime_probe.py
+      - tests/test_revolut_public_runtime_probe.py
+      - docs/audits/REVOLUT_PUBLIC_RUNTIME_PROBE.md
+  pull_request:
+    branches:
+      - agent/revolut-public-lotus-audit-v0-1
+      - main
+    paths:
+      - .github/workflows/revolut-public-runtime-probe.yml
+      - scripts/revolut_public_runtime_probe.py
+      - tests/test_revolut_public_runtime_probe.py
+      - docs/audits/REVOLUT_PUBLIC_RUNTIME_PROBE.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revolut-public-runtime-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe two public endpoints without authentication
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate probe sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m py_compile \
+            scripts/revolut_public_runtime_probe.py \
+            tests/test_revolut_public_runtime_probe.py
+
+      - name: Run deterministic contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_revolut_public_runtime_probe.py -v
+
+      - name: Perform bounded public runtime observation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/revolut-runtime
+          python3 scripts/revolut_public_runtime_probe.py \
+            --output reports/revolut-runtime/public-endpoints.json
+
+      - name: Validate safety and report invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == "liminalqa-revolut-public-runtime-probe-v0.1" and
+            .constraints.request_count == 2 and
+            .constraints.requests_per_endpoint == 1 and
+            .constraints.minimum_spacing_seconds >= 1 and
+            .constraints.auth_headers_sent == false and
+            .constraints.cookies_sent == false and
+            .constraints.request_body_sent == false and
+            .constraints.raw_response_body_persisted == false and
+            .constraints.account_access == false and
+            .constraints.trading_action == false and
+            (.endpoints | length) == 2 and
+            ([.endpoints[].classification] | all(
+              . == "PUBLIC_NO_AUTH_CONFIRMED" or
+              . == "AUTH_REQUIRED_AT_RUNTIME" or
+              . == "NETWORK_UNAVAILABLE" or
+              . == "RUNTIME_RESPONSE_MISMATCH"
+            )) and
+            ([.endpoints[] | select(.status != null) | .body_sha256] | all(type == "string" and length == 64))
+          ' reports/revolut-runtime/public-endpoints.json >/dev/null
+          sha256sum reports/revolut-runtime/public-endpoints.json \
+            > reports/revolut-runtime/SHA256SUMS.txt
+          {
+            echo '## Revolut public runtime observation'
+            echo
+            echo '```json'
+            jq '{observed_at, summary, endpoints: [.endpoints[] | {kind, status, classification, content_type, schema}]}' \
+              reports/revolut-runtime/public-endpoints.json
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revolut-public-runtime-${{ github.run_id }}
+          path: reports/revolut-runtime/
+          if-no-files-found: error
+          retention-days: 14
