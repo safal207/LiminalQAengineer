@@ -62,6 +62,70 @@ function compare(baseline, treatment, key) {
   };
 }
 
+function defaultMobileProfile() {
+  return {
+    id: "mobile_3g",
+    user_agent:
+      "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 " +
+      "(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+    viewport: {
+      width: 412,
+      height: 823,
+      deviceScaleFactor: 2.625,
+      isMobile: true,
+      hasTouch: true,
+    },
+    network: {
+      latency_ms: 150,
+      download_bytes_per_second: 210000,
+      upload_bytes_per_second: 95000,
+      connection_type: "cellular3g",
+    },
+    cpu_throttling_rate: 4,
+    observation_ms: 15000,
+  };
+}
+
+function resolveRuntimeProfile(experiment) {
+  const profile = experiment.runtime_profile || defaultMobileProfile();
+  const viewport = profile.viewport || {};
+  const network = profile.network || {};
+  const requiredNumbers = [
+    ["viewport.width", viewport.width],
+    ["viewport.height", viewport.height],
+    ["viewport.deviceScaleFactor", viewport.deviceScaleFactor],
+    ["network.latency_ms", network.latency_ms],
+    ["network.download_bytes_per_second", network.download_bytes_per_second],
+    ["network.upload_bytes_per_second", network.upload_bytes_per_second],
+    ["cpu_throttling_rate", profile.cpu_throttling_rate],
+    ["observation_ms", profile.observation_ms],
+  ];
+  for (const [label, value] of requiredNumbers) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Invalid runtime profile field ${label}: ${value}`);
+    }
+  }
+  if (!profile.id || !profile.user_agent || !network.connection_type) {
+    throw new Error("Runtime profile requires id, user_agent, and connection_type");
+  }
+  return {
+    ...profile,
+    viewport: {
+      width: viewport.width,
+      height: viewport.height,
+      deviceScaleFactor: viewport.deviceScaleFactor,
+      isMobile: Boolean(viewport.isMobile),
+      hasTouch: Boolean(viewport.hasTouch),
+    },
+    network: {
+      latency_ms: network.latency_ms,
+      download_bytes_per_second: network.download_bytes_per_second,
+      upload_bytes_per_second: network.upload_bytes_per_second,
+      connection_type: network.connection_type,
+    },
+  };
+}
+
 async function installPerformanceObservers(page) {
   await page.evaluateOnNewDocument(() => {
     window.__liminalqa = { largestContentfulPaint: null, longTasks: [] };
@@ -99,10 +163,11 @@ async function installPerformanceObservers(page) {
 
 async function enableResponseStagePreload(client, targetUrl, heroUrl) {
   const state = { fulfilled: 0, error: null };
+  const target = new URL(targetUrl);
   await client.send("Fetch.enable", {
     patterns: [
       {
-        urlPattern: "https://tradernet.ru/*",
+        urlPattern: `${target.origin}/*`,
         resourceType: "Document",
         requestStage: "Response",
       },
@@ -219,20 +284,12 @@ async function collectMetrics(page, heroUrl) {
   }, heroUrl);
 }
 
-async function runVariant(browser, experiment, variant, roundIndex, outputDir) {
+async function runVariant(browser, experiment, profile, variant, roundIndex, outputDir) {
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
-  const userAgent =
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
 
-  await page.setUserAgent(userAgent);
-  await page.setViewport({
-    width: 412,
-    height: 823,
-    deviceScaleFactor: 2.625,
-    isMobile: true,
-  });
+  await page.setUserAgent(profile.user_agent);
+  await page.setViewport(profile.viewport);
   await page.setCacheEnabled(false);
   await installPerformanceObservers(page);
 
@@ -241,12 +298,14 @@ async function runVariant(browser, experiment, variant, roundIndex, outputDir) {
   await client.send("Network.setCacheDisabled", { cacheDisabled: true });
   await client.send("Network.emulateNetworkConditions", {
     offline: false,
-    latency: 150,
-    downloadThroughput: 210_000,
-    uploadThroughput: 95_000,
-    connectionType: "cellular3g",
+    latency: profile.network.latency_ms,
+    downloadThroughput: profile.network.download_bytes_per_second,
+    uploadThroughput: profile.network.upload_bytes_per_second,
+    connectionType: profile.network.connection_type,
   });
-  await client.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await client.send("Emulation.setCPUThrottlingRate", {
+    rate: profile.cpu_throttling_rate,
+  });
 
   const injectionState =
     variant === "hero_preload"
@@ -256,21 +315,22 @@ async function runVariant(browser, experiment, variant, roundIndex, outputDir) {
   let navigationError = null;
   const startedAt = new Date().toISOString();
   try {
-    await page.goto(experiment.target_url, { waitUntil: "load", timeout: 90_000 });
-    await new Promise((resolve) => setTimeout(resolve, 15_000));
+    await page.goto(experiment.target_url, { waitUntil: "load", timeout: 90000 });
+    await new Promise((resolve) => setTimeout(resolve, profile.observation_ms));
   } catch (error) {
     navigationError = String(error?.stack || error);
   }
 
   const metrics = await collectMetrics(page, experiment.hero_url);
   const result = {
-    schema_version: "liminalqa-browser-run-v1",
+    schema_version: "liminalqa-browser-run-v2",
     variant,
     round: roundIndex,
     started_at: startedAt,
     completed_at: new Date().toISOString(),
     target_url: experiment.target_url,
     hero_url: experiment.hero_url,
+    runtime_profile: profile,
     navigation_error: navigationError,
     injection: {
       fulfilled_documents: injectionState.fulfilled,
@@ -309,8 +369,9 @@ function renderMarkdown(packet) {
     script_request_count: "Script requests",
   };
   const lines = [
-    "# LiminalQA · Tradernet hero preload counterfactual",
+    `# LiminalQA · ${packet.experiment.name}`,
     "",
+    `**Runtime profile:** ${packet.runtime_profile.id}  `,
     `**Verdict:** ${packet.verdict}  `,
     `**Confidence:** ${packet.confidence}  `,
     `**Runs:** ${packet.variants.baseline.run_count} + ${packet.variants.hero_preload.run_count}`,
@@ -347,6 +408,7 @@ async function main() {
   if (experiment.runs_per_variant !== 3) {
     throw new Error(`Expected exactly 3 runs per variant, got ${experiment.runs_per_variant}`);
   }
+  const profile = resolveRuntimeProfile(experiment);
 
   const browser = await puppeteer.launch({
     executablePath: args.chrome,
@@ -358,10 +420,17 @@ async function main() {
   try {
     for (let roundIndex = 1; roundIndex <= experiment.runs_per_variant; roundIndex += 1) {
       variants.baseline.push(
-        await runVariant(browser, experiment, "baseline", roundIndex, args["output-dir"])
+        await runVariant(browser, experiment, profile, "baseline", roundIndex, args["output-dir"])
       );
       variants.hero_preload.push(
-        await runVariant(browser, experiment, "hero_preload", roundIndex, args["output-dir"])
+        await runVariant(
+          browser,
+          experiment,
+          profile,
+          "hero_preload",
+          roundIndex,
+          args["output-dir"]
+        )
       );
     }
   } finally {
@@ -416,8 +485,9 @@ async function main() {
   }
 
   const packet = {
-    schema_version: "liminalqa-browser-counterfactual-result-v1",
+    schema_version: "liminalqa-browser-counterfactual-result-v2",
     experiment,
+    runtime_profile: profile,
     verdict,
     confidence: "MEDIUM",
     variants: {
@@ -445,7 +515,7 @@ async function main() {
     renderMarkdown(packet),
     "utf8"
   );
-  console.log(JSON.stringify({ verdict, baseline, preload, effects }, null, 2));
+  console.log(JSON.stringify({ verdict, profile: profile.id, baseline, preload, effects }, null, 2));
 }
 
 main().catch((error) => {
