@@ -1,0 +1,127 @@
+name: Lotus LiminalDB Memory Replay
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/lotus-liminaldb-memory-v0-1
+    paths:
+      - .github/workflows/lotus-liminaldb-memory.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - standards/lotus-qa/liminaldb-lotus-memory-event-v0.1.schema.json
+      - audits/lotus/lotus-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_lotus_qa_decision_packet.py
+      - tests/test_lotus_liminaldb_memory.py
+      - docs/audits/LOTUS_LIMINALDB_MEMORY_REPLAY.md
+  pull_request:
+    branches:
+      - agent/lotus-qa-decision-packet-v0-1
+      - main
+    paths:
+      - .github/workflows/lotus-liminaldb-memory.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - standards/lotus-qa/liminaldb-lotus-memory-event-v0.1.schema.json
+      - audits/lotus/lotus-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_lotus_qa_decision_packet.py
+      - tests/test_lotus_liminaldb_memory.py
+      - docs/audits/LOTUS_LIMINALDB_MEMORY_REPLAY.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lotus-liminaldb-memory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify deterministic memory and replay artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate adapter sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m json.tool standards/lotus-qa/liminaldb-lotus-memory-event-v0.1.schema.json >/dev/null
+          python3 -m py_compile \
+            scripts/lotus_qa_decision_packet.py \
+            scripts/lotus_liminaldb_memory.py \
+            tests/test_lotus_qa_decision_packet.py \
+            tests/test_lotus_liminaldb_memory.py
+
+      - name: Run Lotus and LiminalDB adapter regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_lotus_qa_decision_packet.py -v
+          python3 -m unittest tests/test_lotus_liminaldb_memory.py -v
+
+      - name: Generate exact Lotus packet and LiminalDB events
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/lotus
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings audits/lotus/lotus-findings-v0.1.json \
+            --output-dir reports/lotus
+          python3 scripts/lotus_liminaldb_memory.py export \
+            --packet reports/lotus/lotus-decision-packet.json \
+            --observed-at "$(git show -s --format=%cI HEAD)" \
+            --source-commit "$(git rev-parse HEAD)" \
+            --output reports/lotus/liminaldb-events.jsonl
+          python3 scripts/lotus_liminaldb_memory.py compare \
+            --events reports/lotus/liminaldb-events.jsonl \
+            --output reports/lotus/liminaldb-transitions.json
+
+      - name: Validate memory, authority, and pin invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -s -e '
+            length == 7 and
+            ([.[].id] | unique | length) == 7 and
+            ([.[].kind] | all(. == "audit")) and
+            ([.[].action] | all(. == "lotus.finding.observed")) and
+            ([.[].details.schema_version] | all(. == "liminaldb-lotus-memory-event-v0.1")) and
+            ([.[].details.adapter.repository] | all(. == "safal207/LiminalDB")) and
+            ([.[].details.adapter.commit] | all(. == "75ef9f7f403a34c60aa2ceba4cb3c97870d73e77")) and
+            ([.[].details.adapter.contract_blob_sha] | all(. == "fd733971aaae089df770062bcf7f2c2d6d19ca1d")) and
+            ([.[].details.adapter.write_mode] | all(. == "artifact_only")) and
+            ([.[].details.authority.mode] | all(. == "audit_only")) and
+            ([.[].details.authority.ownership] | all(. == false)) and
+            ([.[].details.authority.approval] | all(. == false)) and
+            ([.[].details.authority.execution] | all(. == false)) and
+            ([.[].details.authority.delivery] | all(. == false)) and
+            ([.[].details.authority.deployment] | all(. == false)) and
+            ([.[].details.authority.merge] | all(. == false)) and
+            ([.[].details.finding.durable_memory] | all(. == false))
+          ' reports/lotus/liminaldb-events.jsonl >/dev/null
+          jq -e '
+            .schema_version == "liminaldb-lotus-compare-v0.1" and
+            .event_count == 7 and
+            .canonical_finding_count == 7 and
+            .transition_count == 0
+          ' reports/lotus/liminaldb-transitions.json >/dev/null
+          sha256sum \
+            reports/lotus/lotus-decision-packet.json \
+            reports/lotus/liminaldb-events.jsonl \
+            reports/lotus/liminaldb-transitions.json \
+            > reports/lotus/LIMINALDB_SHA256SUMS.txt
+
+      - name: Upload exact replay artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lotus-liminaldb-memory-${{ github.run_id }}
+          path: reports/lotus/
+          if-no-files-found: error
+          retention-days: 14
