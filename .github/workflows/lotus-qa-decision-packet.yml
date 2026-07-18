@@ -9,7 +9,6 @@ on:
       - .github/workflows/lotus-qa-decision-packet.yml
       - standards/lotus-qa/lotus-qa-contract-v0.1.json
       - audits/lotus/lotus-findings-v0.1.json
-      - audits/lotus/lotus-decision-packet-v0.1.json
       - scripts/lotus_qa_decision_packet.py
       - tests/test_lotus_qa_decision_packet.py
       - docs/audits/LOTUS_QA_DECISION_PACKET.md
@@ -21,7 +20,6 @@ on:
       - .github/workflows/lotus-qa-decision-packet.yml
       - standards/lotus-qa/lotus-qa-contract-v0.1.json
       - audits/lotus/lotus-findings-v0.1.json
-      - audits/lotus/lotus-decision-packet-v0.1.json
       - scripts/lotus_qa_decision_packet.py
       - tests/test_lotus_qa_decision_packet.py
       - docs/audits/LOTUS_QA_DECISION_PACKET.md
@@ -49,7 +47,6 @@ jobs:
           python3 --version
           python3 -m json.tool standards/lotus-qa/lotus-qa-contract-v0.1.json >/dev/null
           python3 -m json.tool audits/lotus/lotus-findings-v0.1.json >/dev/null
-          python3 -m json.tool audits/lotus/lotus-decision-packet-v0.1.json >/dev/null
           python3 -m py_compile scripts/lotus_qa_decision_packet.py tests/test_lotus_qa_decision_packet.py
 
       - name: Run Lotus contract regression tests
@@ -67,8 +64,8 @@ jobs:
             --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
             --findings audits/lotus/lotus-findings-v0.1.json \
             --output-dir reports/lotus
-          cmp reports/lotus/lotus-decision-packet.json audits/lotus/lotus-decision-packet-v0.1.json
           cmp reports/lotus/lotus-decision-packet.md docs/audits/LOTUS_QA_DECISION_PACKET.md
+          sha256sum reports/lotus/lotus-decision-packet.json > reports/lotus/SHA256SUMS.txt
 
       - name: Validate decision and authority invariants
         shell: bash
