@@ -297,8 +297,8 @@ fn sort_selected_tests(tests: &mut [SelectedTest]) {
 
 fn normalize_path(path: &str) -> String {
     path.trim()
-        .trim_start_matches("./")
         .replace('\\', "/")
+        .trim_start_matches("./")
         .to_ascii_lowercase()
 }
 
