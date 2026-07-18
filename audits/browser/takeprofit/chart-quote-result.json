@@ -1,0 +1,108 @@
+{
+  "schema_version": "liminalqa-takeprofit-chart-quote-result-v1",
+  "run": {
+    "workflow_run_id": 29662910618,
+    "exact_head_sha": "27bf4fe23d8c63dcf6691ae7cf3b5f34b672e89c",
+    "artifact_digest": "sha256:2158374d653f5fd4e56bf96fa3489868a64b69c590fc0950dda1ac84c05f1105",
+    "result_sha256": "f8eccc551a033af8fbe1417803240c7c9d63988f4bccb47d4aa8bc3f285e7a89",
+    "started_at": "2026-07-18T22:09:14.004Z",
+    "completed_at": "2026-07-18T22:11:51.912Z"
+  },
+  "target": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "symbol": {
+    "display": "BTC/USDT",
+    "exchange_code_observed_in_request": "CXBPOT",
+    "timeframe_display": "1h"
+  },
+  "verdict": "WARN",
+  "checks": {
+    "chart_boot": "WARN",
+    "quote_bootstrap": "PASS",
+    "live_quote_activity": "PASS",
+    "reload_recovery": "PASS",
+    "reconnect_recovery": "PASS",
+    "stale_state_clarity": "WARN",
+    "historical_regression": "WARN",
+    "history_backfill": "UNVERIFIED",
+    "pan_layer_integrity": "UNVERIFIED"
+  },
+  "observations": {
+    "chart_surfaces_after_boot": 2,
+    "expected_symbol_visible": true,
+    "list_bars_requests": 3,
+    "list_quotes_requests": 5,
+    "distinct_quote_response_bodies": 4,
+    "market_data_chunks": 20,
+    "market_data_bytes": 74196,
+    "websocket_connections": 0,
+    "websocket_frames": 0,
+    "market_events_after_network_restore": 2,
+    "explicit_offline_or_stale_ui_state": false,
+    "chart_restored_after_reload": true,
+    "page_errors": 0,
+    "application_http_errors": [
+      {
+        "url": "https://takeprofit.com/api/subs-platform/plans",
+        "status": 403,
+        "occurrences": 2,
+        "classification": "secondary_subscription_metadata"
+      }
+    ]
+  },
+  "quote_timing": {
+    "transport": "HTTP gRPC-web polling",
+    "first_three_request_gaps_ms": [42036, 59667],
+    "interpretation": "The public indicator card refreshes quotes periodically rather than maintaining an observed WebSocket stream."
+  },
+  "confirmed_regression": {
+    "family": "incomplete ChartStore settings initialization",
+    "verdict": "STILL_PRESENT_IN_CHANGED_FORM",
+    "observed_on_initial_load": true,
+    "observed_after_reload": true,
+    "signature": "[ChartStore] settings.chart.timeToCloseLabel is a required field; settings.chart.style.lineSource is a required field; settings.chart.style.tpo is a required field"
+  },
+  "risk_findings": [
+    {
+      "id": "TP-CHART-STATE-01",
+      "severity": "HIGH",
+      "status": "CONFIRMED",
+      "title": "ChartStore initializes with missing required fields",
+      "causal_chain": "page bootstrap -> partial persisted/default chart settings -> schema validation failure -> chart continues in degraded state",
+      "evidence": "The same error appears once during first initialization and once immediately after reload."
+    },
+    {
+      "id": "TP-QUOTE-STATE-02",
+      "severity": "MEDIUM",
+      "status": "CONFIRMED",
+      "title": "No explicit stale/offline state during quote interruption",
+      "causal_chain": "network interruption -> last chart remains visible -> no stale/offline label observed -> user may treat an old quote as current",
+      "evidence": "The public chart preserved the visible BTC series during a five-second offline interval without an observed disconnected, stale, delayed, or offline marker."
+    },
+    {
+      "id": "TP-QUOTE-TRANSPORT-03",
+      "severity": "INFO",
+      "status": "CONFIRMED",
+      "title": "Public quote updates use periodic ListQuotes polling",
+      "causal_chain": "timer -> ListQuotes -> changed binary quote body -> chart state",
+      "evidence": "Five quote calls and four distinct quote bodies were observed; no WebSocket connection was observed."
+    },
+    {
+      "id": "TP-HISTORY-04",
+      "severity": "MEDIUM",
+      "status": "UNVERIFIED",
+      "title": "Historical backfill and candle-layer integrity require an unobstructed interactive run",
+      "causal_chain": "horizontal pan -> older range request -> ordered bar merge -> stable candle and indicator layers",
+      "evidence": "The cookie-consent surface contaminated interaction evidence; no fix or defect claim is made."
+    }
+  ],
+  "boundaries": {
+    "public_page_only": true,
+    "passive_application_traffic_observation": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  }
+}
