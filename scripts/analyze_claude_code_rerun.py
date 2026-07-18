@@ -149,7 +149,7 @@ def build_result(paths: list[Path]) -> dict[str, Any]:
         },
         "provenance": {
             "repository": os.environ.get("GITHUB_REPOSITORY", "unknown"),
-            "exact_head_sha": os.environ.get("GITHUB_SHA", "unknown"),
+            "exact_head_sha": os.environ.get("EXACT_HEAD_SHA") or os.environ.get("GITHUB_SHA", "unknown"),
             "workflow_run_id": os.environ.get("GITHUB_RUN_ID", "unknown"),
         },
         "prior_evidence": {
