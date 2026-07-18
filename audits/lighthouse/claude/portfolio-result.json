@@ -1,0 +1,128 @@
+{
+  "schema_version": "liminalqa-claude-public-web-result-v1",
+  "run_id": 29665084768,
+  "exact_head_sha": "df79bc0f6330b6430fcb3c29962c293697158037",
+  "workflow_conclusion": "success",
+  "portfolio_artifact": {
+    "name": "claude-public-web-portfolio-29665084768",
+    "sha256": "bc084810a9a1a5ef48cfe4d3eb6186dcc176e728761f376165cd2b07eda8a117",
+    "expires_at": "2026-08-01T23:25:27Z"
+  },
+  "portfolio_verdict": "WARN_WITH_INCONCLUSIVE_TARGET",
+  "target_count": 7,
+  "confirmed_measurement_count": 6,
+  "inconclusive_measurement_count": 1,
+  "confirmed_metrics": {
+    "average_performance_score": 39.0,
+    "fastest_lcp_ms": 9920.163499999999,
+    "slowest_lcp_ms": 41430.354250000004
+  },
+  "confirmed_targets": [
+    {
+      "requested_url": "https://claude.ai/",
+      "final_url": "https://claude.ai/login",
+      "performance": 25,
+      "accessibility": 97,
+      "best_practices": 57,
+      "seo": 92,
+      "lcp_ms": 33918.24250000001,
+      "tbt_ms": 3990.8215,
+      "evidence_sha256": "075b9f99f07967ccdee9124e6c632b42b58586f6f2bad2790429155384bd165f"
+    },
+    {
+      "requested_url": "https://claude.com/product/overview",
+      "final_url": "https://claude.com/product/overview",
+      "performance": 29,
+      "accessibility": 73,
+      "best_practices": 100,
+      "seo": 92,
+      "lcp_ms": 41430.354250000004,
+      "tbt_ms": 1515.0,
+      "evidence_sha256": "04eec4c611d7439c29ea4eca9e445d6c4838996d55992882c5d186be5a70681c"
+    },
+    {
+      "requested_url": "https://platform.claude.com/docs/en/api/overview",
+      "final_url": "https://platform.claude.com/docs/en/api/overview",
+      "performance": 33,
+      "accessibility": 86,
+      "best_practices": 100,
+      "seo": 100,
+      "lcp_ms": 12566.560000000007,
+      "tbt_ms": 4931.8319999999985,
+      "evidence_sha256": "3533b2e6bc1d3f2213bbecc91fd9b47498b89f4f023dbd43701fd283cbf0c807"
+    },
+    {
+      "requested_url": "https://platform.claude.com/docs/en/home",
+      "final_url": "https://platform.claude.com/docs/en/home",
+      "performance": 38,
+      "accessibility": 87,
+      "best_practices": 100,
+      "seo": 100,
+      "lcp_ms": 15488.659999999998,
+      "tbt_ms": 6822.999999999996,
+      "evidence_sha256": "d8afe126dbc5591829c144795533da6c6655ec05ab61fa685c866957d96844db"
+    },
+    {
+      "requested_url": "https://status.claude.com/",
+      "final_url": "https://status.claude.com/",
+      "performance": 47,
+      "accessibility": 83,
+      "best_practices": 79,
+      "seo": 100,
+      "lcp_ms": 9920.163499999999,
+      "tbt_ms": 402.0,
+      "evidence_sha256": "54ca2642259f45d50ee08a041b901ae6b804bd0678f90a86234e7cc3fa5b69cc"
+    },
+    {
+      "requested_url": "https://support.claude.com/en/",
+      "final_url": "https://support.claude.com/en/",
+      "performance": 62,
+      "accessibility": 95,
+      "best_practices": 96,
+      "seo": 100,
+      "lcp_ms": 9944.664,
+      "tbt_ms": 404.5,
+      "evidence_sha256": "6275d01e294772af508d39d8bc2e3b8aa480d06eab8a17de94071e5f714aa680"
+    }
+  ],
+  "inconclusive_targets": [
+    {
+      "requested_url": "https://claude.com/product/claude-code",
+      "final_url": "https://claude.com/product/claude-code",
+      "reason": "Lighthouse returned NO_LCP for largest-contentful-paint and total-blocking-time; the generic packet mapped the category to 0, but this is an evidence-collection failure rather than a confirmed performance score.",
+      "observed_fcp_ms": 2219.965,
+      "observed_speed_index_ms": 3502.6200482105637,
+      "evidence_sha256": "b275a7c310867607546657a89b4c75d537c896277199d8e4abe70bc210857db3",
+      "next_action": "Repeat the exact page at least twice and capture why no LCP candidate is emitted before assigning a product-performance verdict."
+    }
+  ],
+  "recurring_signals": [
+    {
+      "audit_id": "unused-javascript",
+      "target_count": 6,
+      "interpretation": "Recurring contributor across multiple runtimes; not proof of one shared root cause."
+    },
+    {
+      "audit_id": "bootup-time",
+      "target_count": 5,
+      "interpretation": "Repeated client execution cost."
+    },
+    {
+      "audit_id": "bf-cache",
+      "target_count": 5,
+      "interpretation": "Repeated return-navigation limitation."
+    },
+    {
+      "audit_id": "color-contrast",
+      "target_count": 4,
+      "interpretation": "Repeated accessibility signal requiring surface-specific review."
+    }
+  ],
+  "authority": {
+    "mode": "audit_only",
+    "vulnerability_claim": false,
+    "security_testing": false,
+    "authenticated_testing": false,
+    "model_or_api_testing": false
+  }
+}
