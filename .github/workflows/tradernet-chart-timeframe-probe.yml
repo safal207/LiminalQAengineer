@@ -8,14 +8,14 @@ on:
     paths:
       - .github/workflows/tradernet-chart-timeframe-probe.yml
       - audits/tradernet/chart-quote-public.json
-      - scripts/tradernet_chart_timeframe_probe.mjs
+      - scripts/tradernet_chart_timeframe_real_click.mjs
   pull_request:
     branches:
       - agent/tradernet-lighthouse-audit
     paths:
       - .github/workflows/tradernet-chart-timeframe-probe.yml
       - audits/tradernet/chart-quote-public.json
-      - scripts/tradernet_chart_timeframe_probe.mjs
+      - scripts/tradernet_chart_timeframe_real_click.mjs
 
 permissions:
   contents: read
@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   probe:
-    name: Exact D1 to H1 public chart transition
+    name: Trusted-click D1 to H1 public chart transition
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -51,21 +51,21 @@ jobs:
           ' audits/tradernet/chart-quote-public.json >/dev/null
       - name: Install pinned browser driver
         run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
-      - name: Locate Chrome and validate script
+      - name: Locate Chrome and validate trusted-click script
         id: runtime
         shell: bash
         run: |
           set -euo pipefail
-          node --check scripts/tradernet_chart_timeframe_probe.mjs
+          node --check scripts/tradernet_chart_timeframe_real_click.mjs
           chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "${chrome}"
           echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
-      - name: Probe exact D1 to H1 transition
+      - name: Probe trusted-click D1 to H1 transition
         shell: bash
         run: |
           set -euo pipefail
           rm -rf reports/tradernet-chart-timeframe
-          node scripts/tradernet_chart_timeframe_probe.mjs \
+          node scripts/tradernet_chart_timeframe_real_click.mjs \
             --config audits/tradernet/chart-quote-public.json \
             --chrome "${{ steps.runtime.outputs.chrome }}" \
             --output-dir reports/tradernet-chart-timeframe
