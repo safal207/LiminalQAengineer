@@ -1,0 +1,365 @@
+{
+  "schema_version": "liminalqa-lotus-findings-v0.1",
+  "packet_id": "lotus-qa-cross-domain-2026-07-19-v0.1",
+  "repository": "safal207/LiminalQAengineer",
+  "source_branch": "agent/openai-homepage-lcp-counterfactual",
+  "scope": "public read-only QA evidence from Tradernet, TakeProfit, and OpenAI surfaces",
+  "findings": [
+    {
+      "id": "TRADERNET-HERO-DISCOVERY-001",
+      "title": "Late hero discovery materially contributes to mobile LCP",
+      "domain": "tradernet",
+      "surface": "https://tradernet.ru/?site_lang=ru",
+      "claim_kind": "causal",
+      "claim": "Late discovery of the exact hero resource is a material contributor to the measured mobile LCP.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "counterfactual_supported",
+        "exact_head_sha": "74590ddc0839227f28ff69678c82f76b84d6d86a",
+        "artifact_sha256": "1b13ec0135eacbf2ac622963e616f06b0cd608a4723fe5788bdb56bb1bc327ec",
+        "source_path": "audits/lighthouse/tradernet/hero-preload-counterfactual-result.json",
+        "counterfactual": {
+          "status": "SUPPORTED",
+          "baseline_lcp_ms": 11360.0,
+          "treatment_lcp_ms": 7596.0,
+          "improvement_percent": 33.13
+        }
+      },
+      "causal_memory": {
+        "canonical_id": "tradernet.public-home.mobile.hero-discovery",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "tradernet public homepage mobile profile",
+        "state_scope": "exact hero URL and throttled Chrome profile",
+        "time_scope": "workflow run 29661704633",
+        "recurrence": "single",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "degraded",
+        "timeliness": "degraded",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "The main visual signal arrives late and the page does not explain the delay."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Expose the correct responsive LCP image in initial HTML and mark the exact resource high priority.",
+      "regression_test": "Repeat three paired baseline/treatment mobile runs and assert the exact hero starts before 1 second without increasing script bytes or long-task time.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_SINGLE",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "TRADERNET-REDIRECT-DOMINANT-001",
+      "title": "The language redirect is not the dominant LCP cause",
+      "domain": "tradernet",
+      "surface": "https://tradernet.ru/",
+      "claim_kind": "causal",
+      "claim": "The language redirect is the dominant cause of the approximately 12-second LCP.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "contradicted",
+        "exact_head_sha": "8a9018972c23dbef0c3c5bf4df029b4bb9ee1ee5",
+        "artifact_sha256": "a2a4d06525957015e7d84d5cbf9a7176970dc7110768a8d012b8bae67b2b825f",
+        "source_path": "audits/lighthouse/tradernet/redirect-counterfactual-result.json",
+        "counterfactual": {
+          "status": "NOT_SUPPORTED",
+          "redirect_removed_ms": 505.0,
+          "lcp_delta_ms": 25.898,
+          "performance_score_delta": 0
+        }
+      },
+      "causal_memory": {
+        "canonical_id": "tradernet.public-home.language-redirect-dominant-hypothesis",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "tradernet root and direct Russian URL",
+        "state_scope": "same-runner three-pair Lighthouse counterfactual",
+        "time_scope": "workflow run 29661477160",
+        "recurrence": "single",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "observed",
+        "state_visibility": "clear",
+        "timeliness": "clear",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "clear",
+        "live_historical_clarity": "n_a",
+        "user_effect": "No additional user-control loss is assigned to the rejected dominant-cause claim."
+      },
+      "severity_candidate": "P3",
+      "minimal_fix": "Keep redirect removal as lower-priority cleanup and do not present it as the LCP root cause.",
+      "regression_test": "Preserve the paired direct-versus-redirect experiment as negative causal memory.",
+      "expected": {
+        "pythia": "BLOCK",
+        "cml": "NEGATIVE_CAUSAL_MEMORY",
+        "ls": "NONE",
+        "unified": "BLOCKED"
+      }
+    },
+    {
+      "id": "TAKEPROFIT-CHARTSTORE-REGRESSION-001",
+      "title": "ChartStore required-field validation recurs in changed form",
+      "domain": "takeprofit",
+      "surface": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+      "claim_kind": "regression",
+      "claim": "The historical ChartStore initialization defect family remains present with different missing required fields.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "a8890c785bcc8754d27aac5d9f5fd390e0f7b7b7",
+        "artifact_sha256": "87083147b2868566f406ffd99b965531f636a422ddbce0010676b1cc9e4dc1fe",
+        "source_path": "audits/lighthouse/takeprofit/portfolio-result.json",
+        "observed_errors": [
+          "[ChartStore] settings.chart.timeToCloseLabel is a required field",
+          "settings.chart.style.lineSource is a required field",
+          "settings.chart.style.tpo is a required field"
+        ]
+      },
+      "causal_memory": {
+        "canonical_id": "takeprofit.published-indicator.chartstore-required-fields",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "TakeProfit published indicator initialization",
+        "state_scope": "public indicator page and prior manual audit family",
+        "time_scope": "January 2026 manual audit to workflow run 29661982911",
+        "recurrence": "changed_form",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "unknown",
+        "state_visibility": "unknown",
+        "timeliness": "unknown",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "unknown",
+        "error_explainability": "absent",
+        "live_historical_clarity": "unknown",
+        "user_effect": "The console regression is confirmed; visible chart corruption or decision impact was not established in this public run."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Provide schema-complete ChartStore defaults and fail initialization with one bounded, visible error state.",
+      "regression_test": "Open the published indicator and assert no required-field errors plus a visible initialized chart state.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_RECURRING",
+        "ls": "UNKNOWN",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "OPENAI-HOMEPAGE-LCP-OBSERVATION-001",
+      "title": "OpenAI homepage is a repeated lab LCP outlier",
+      "domain": "openai",
+      "surface": "https://openai.com/",
+      "claim_kind": "observation",
+      "claim": "Under the bounded mobile laboratory profile, the OpenAI homepage repeatedly paints its LCP at approximately 63 to 65 seconds.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "e88177a324d08fb9f258e9ef7442a7715975b9f4",
+        "artifact_sha256": "bde5babc5e4325cfd288e0115797a6198cd93fd9b880cb9ff85d4b037fc8f7fc",
+        "source_path": "audits/lighthouse/openai/portfolio-result.json",
+        "observed_lcp_ms": [63002.5945, 64908.0]
+      },
+      "causal_memory": {
+        "canonical_id": "openai.homepage.mobile-lab-lcp-outlier",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "OpenAI public homepage",
+        "state_scope": "bounded mobile lab profiles; not field performance",
+        "time_scope": "workflow runs 29662883190 and 29663459082",
+        "recurrence": "repeated",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "degraded",
+        "timeliness": "degraded",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "A visitor waits for the principal visual state without a clear explanation of whether content is still loading."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Treat the homepage LCP path as a dedicated performance budget with exact responsive-resource evidence.",
+      "regression_test": "Run the bounded mobile profile three times and fail when median LCP exceeds the agreed public-page budget.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_RECURRING",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "OPENAI-HOMEPAGE-W750-CAUSE-001",
+      "title": "The historical w=750 asset cannot yet be published as the current exact LCP cause",
+      "domain": "openai",
+      "surface": "https://openai.com/",
+      "claim_kind": "causal",
+      "claim": "The exact w=750 image remains the current mobile LCP resource and optimizing or preloading it explains the measured improvement.",
+      "evidence": {
+        "state": "conflicting",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "unknown",
+        "exact_head_sha": "0d615a45a10023ca489d073556fba95dc88fde93",
+        "artifact_sha256": "4d24b2ef5ae0bbde0db57cccc0273781d442eb77d63630199c6575e279c4d776",
+        "source_path": "workflow artifact openai-homepage-lcp-counterfactual-29663459082",
+        "counterfactual": {
+          "status": "INCONCLUSIVE",
+          "historical_asset": "w=750&q=70&fm=webp",
+          "observed_baseline_asset": "w=640&q=70&fm=webp",
+          "baseline_exact_asset_matches": 0,
+          "runs": 3
+        }
+      },
+      "causal_memory": {
+        "canonical_id": "openai.homepage.mobile-lcp-responsive-asset-identity",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "OpenAI public homepage",
+        "state_scope": "390x844 DPR 1 profile versus prior Lighthouse profile",
+        "time_scope": "workflow runs 29662883190 and 29663459082",
+        "recurrence": "conflict",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "unknown",
+        "state_visibility": "unknown",
+        "timeliness": "unknown",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "unknown",
+        "live_historical_clarity": "unknown",
+        "user_effect": "Publishing the wrong exact resource as root cause could direct engineering effort away from the resource actually selected by the browser."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Repin the experiment to the currently selected w=640 resource and rerun paired baseline/preload and baseline/optimized-asset treatments.",
+      "regression_test": "Require at least two of three baseline LCP entries to match the pinned exact resource before a causal verdict can leave ESCALATE.",
+      "expected": {
+        "pythia": "ESCALATE",
+        "cml": "CONFLICT",
+        "ls": "UNKNOWN",
+        "unified": "NEEDS_EVIDENCE"
+      }
+    },
+    {
+      "id": "OPENAI-SHARED-JS-CONTRIBUTOR-001",
+      "title": "Client-side JavaScript cost recurs across OpenAI public surfaces",
+      "domain": "openai",
+      "surface": "OpenAI public portfolio",
+      "claim_kind": "cross_surface_contributor",
+      "claim": "Unused JavaScript and boot-time work are recurring contributors across the audited OpenAI public surfaces, without proving one shared root cause for every surface.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "e88177a324d08fb9f258e9ef7442a7715975b9f4",
+        "artifact_sha256": "bde5babc5e4325cfd288e0115797a6198cd93fd9b880cb9ff85d4b037fc8f7fc",
+        "source_path": "audits/lighthouse/openai/portfolio-result.json",
+        "recurring_signals": {
+          "unused-javascript": 6,
+          "bootup-time": 6,
+          "target_count": 7
+        }
+      },
+      "causal_memory": {
+        "canonical_id": "openai.public-portfolio.client-js-cost",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "seven allowlisted OpenAI public surfaces",
+        "state_scope": "one passive Lighthouse navigation per exact target",
+        "time_scope": "workflow run 29662883190",
+        "recurrence": "cross_surface",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "degraded",
+        "timeliness": "degraded",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "clear",
+        "live_historical_clarity": "n_a",
+        "user_effect": "Long main-thread or boot work can delay when public information becomes inspectable or interactive."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Route-split, defer, or remove JavaScript only after preserving surface-specific evidence and budgets.",
+      "regression_test": "Track per-surface script bytes, unused bytes, boot time, TBT, and LCP without collapsing different runtimes into one score.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_RECURRING",
+        "ls": "LOW",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "OPENAI-STATUS-ACCESSIBILITY-001",
+      "title": "Status-page semantics can reduce access to service-state information",
+      "domain": "openai",
+      "surface": "https://status.openai.com/",
+      "claim_kind": "user_control",
+      "claim": "The audited status page contains accessibility and semantic findings that can make current service-state information harder to inspect for some users.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "e88177a324d08fb9f258e9ef7442a7715975b9f4",
+        "artifact_sha256": "bde5babc5e4325cfd288e0115797a6198cd93fd9b880cb9ff85d4b037fc8f7fc",
+        "source_path": "audits/lighthouse/openai/portfolio-result.json",
+        "scores": {
+          "accessibility": 80,
+          "seo": 91
+        },
+        "observed_findings": [
+          "incompatible ARIA attributes",
+          "insufficient contrast",
+          "unnamed link",
+          "list item without a list parent",
+          "missing meta description"
+        ]
+      },
+      "causal_memory": {
+        "canonical_id": "openai.status.public-accessibility-semantics",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "OpenAI public status page",
+        "state_scope": "passive Lighthouse accessibility and SEO audit",
+        "time_scope": "workflow run 29662883190",
+        "recurrence": "single",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "observed",
+        "state_visibility": "degraded",
+        "timeliness": "clear",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "unclear",
+        "live_historical_clarity": "unclear",
+        "user_effect": "Users relying on assistive technology or low-contrast presentation may have less reliable access to the current service state."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Correct semantic roles, accessible names, list structure, contrast, and page metadata while preserving incident content.",
+      "regression_test": "Run automated accessibility checks and keyboard/screen-reader smoke tests against the exact status-page state.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_SINGLE",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    }
+  ]
+}
