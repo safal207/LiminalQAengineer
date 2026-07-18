@@ -1,0 +1,163 @@
+{
+  "schema_version": "liminalqa-tradernet-chart-quote-causality-v1",
+  "target": {
+    "url": "https://tradernet.ru/charts/MICEXINDEXCF",
+    "ticker": "MICEXINDEXCF",
+    "scope": "public chart page only"
+  },
+  "overall_verdict": "CONFIRMED_MOBILE_ROUTE_DEFECT_WITH_HEALTHY_TESTED_DESKTOP_HISTORY",
+  "confirmed_findings": [
+    {
+      "id": "TN-CHART-001",
+      "title": "Public chart route returns 404 for mobile user-agents",
+      "severity": "high_product_impact",
+      "status": "CONFIRMED",
+      "causal_verdict": "USER_AGENT_ROUTING_CONFIRMED",
+      "evidence": {
+        "workflow_run": 29662815487,
+        "exact_head": "0a4e364bc311b548c551a33b30adf9302872ab2b",
+        "artifact": "tradernet-chart-route-matrix-29662815487",
+        "artifact_sha256": "223d10431960d0ca5fe181fbf22fe238e408ff72188ddb8daaca2d7e67d71395"
+      },
+      "matrix": [
+        {
+          "user_agent": "desktop",
+          "viewport": "desktop",
+          "http_status": 200,
+          "chart_visible": true
+        },
+        {
+          "user_agent": "desktop",
+          "viewport": "mobile",
+          "http_status": 200,
+          "chart_visible": true
+        },
+        {
+          "user_agent": "mobile",
+          "viewport": "desktop",
+          "http_status": 404,
+          "chart_visible": false
+        },
+        {
+          "user_agent": "mobile",
+          "viewport": "mobile",
+          "http_status": 404,
+          "chart_visible": false
+        }
+      ],
+      "interpretation": "The route failure follows the mobile user-agent independently of viewport width, isolating user-agent routing rather than responsive layout as the dominant cause."
+    }
+  ],
+  "passed_checks": [
+    {
+      "id": "TN-CHART-PASS-001",
+      "title": "Daily historical candle integrity",
+      "workflow_run": 29662815487,
+      "exact_head": "0a4e364bc311b548c551a33b30adf9302872ab2b",
+      "artifact": "tradernet-hloc-integrity-29662815487",
+      "artifact_sha256": "591f9c5f286478eec7d037e59f1c9d58e17187193520796287c2a474d47359a4",
+      "request": {
+        "timeframe": 1440,
+        "interval": "D1",
+        "date_from": "31.12.2025 00:00",
+        "date_to": "19.07.2026 00:00"
+      },
+      "candles": 137,
+      "timestamps": 137,
+      "volumes": 137,
+      "violations": 0
+    },
+    {
+      "id": "TN-CHART-PASS-002",
+      "title": "Trusted UI transition from daily to hourly candles",
+      "workflow_run": 29663112769,
+      "exact_head": "b8e228aa2273a9e8f01b4d4c4c105c0781d8e63b",
+      "artifact": "tradernet-chart-timeframe-29663112769",
+      "artifact_sha256": "ae749e087bbeac5d98ae63c7452835692bb2ee8f91a0862f3abfa04723fdb92f",
+      "ui_transition": "D1 -> H1",
+      "request_transition": {
+        "from": {
+          "timeframe": 1440,
+          "interval": "D1",
+          "candles": 137,
+          "violations": 0
+        },
+        "to": {
+          "timeframe": 60,
+          "interval": "H1",
+          "candles": 698,
+          "violations": 0
+        }
+      }
+    }
+  ],
+  "signals_requiring_follow_up": [
+    {
+      "id": "TN-CHART-SIGNAL-001",
+      "title": "Desktop chart first became visibly renderable after approximately 7.48 seconds",
+      "status": "SINGLE_RUN_LATENCY_SIGNAL",
+      "workflow_run": 29662674360,
+      "value_ms": 7476.123,
+      "next_experiment": "Repeat three cold runs and separate document/runtime/history-response/canvas-render timing."
+    },
+    {
+      "id": "TN-CHART-SIGNAL-002",
+      "title": "Console emitted 'ERROR: No context for render' while the chart remained visible",
+      "status": "IMPACT_NOT_PROVEN",
+      "workflow_run": 29662674360,
+      "next_experiment": "Correlate the message with specific canvas layers, resize events, multi-chart layout and timeframe transitions."
+    },
+    {
+      "id": "TN-CHART-SIGNAL-003",
+      "title": "Narrow viewport with desktop user-agent exposes toolbar and axis crowding",
+      "status": "LATENT_RESPONSIVE_VISUAL_CANDIDATE",
+      "workflow_run": 29662815487,
+      "next_experiment": "After mobile routing is fixed, test actual mobile route for toolbar overlap, clipped price-axis labels and usable plot width."
+    },
+    {
+      "id": "TN-CHART-SIGNAL-004",
+      "title": "Minute interval labels contain malformed text in the rendered dropdown DOM",
+      "status": "VISUAL_CONFIRMATION_REQUIRED",
+      "workflow_run": 29662973725,
+      "observed_labels": [
+        "минутный > Д",
+        "5 минутный > 3Д",
+        "15 минутный > Н"
+      ],
+      "next_experiment": "Open the dropdown with a trusted click, capture a screenshot and verify the text visible to a user."
+    }
+  ],
+  "not_assessed": [
+    {
+      "area": "live quote liveness and update cadence",
+      "reason": "The evidence run occurred during a UTC weekend; absence of live frames was deliberately not classified as a defect."
+    },
+    {
+      "area": "market depth",
+      "reason": "No direct or authenticated subscription was allowed in this public passive scope."
+    },
+    {
+      "area": "order, portfolio and execution consistency",
+      "reason": "Requires explicit written authorization, isolated accounts and a separate scope."
+    }
+  ],
+  "rejected_false_positives": [
+    {
+      "title": "Generic observer labeled an aborted Google Analytics request as market-data failure",
+      "reason": "The failed URL was analytics.google.com, not a quote or candle dependency."
+    },
+    {
+      "title": "First timeframe probe reported no new HLOC after a synthetic DOM click",
+      "reason": "The broad selector and untrusted event were invalid. A later visible trusted mouse click produced a clean D1-to-H1 transition."
+    }
+  ],
+  "next_authorized_experiments": [
+    "During an open market session, measure page-ready to first quote, update cadence, stale timeout and market-closed behavior.",
+    "Interrupt and restore network locally, then verify reconnect without duplicate, regressing or out-of-order quote timestamps.",
+    "Switch symbols A-to-B and verify that a late A response cannot overwrite the selected B chart or quote.",
+    "Switch intervals rapidly within a bounded public scenario and verify late D1/H1 responses cannot overwrite the current selection.",
+    "Compare chart last value, quote tile and latest completed candle only when their timestamps and session semantics are aligned.",
+    "Validate timezone, holidays, session boundaries and absence of phantom weekend candles across several instrument classes.",
+    "With written authorization, test bid <= ask, last within daily high/low, percentage change versus previous close and order-book monotonicity."
+  ]
+}
