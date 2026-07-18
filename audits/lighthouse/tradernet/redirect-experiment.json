@@ -1,0 +1,42 @@
+{
+  "schema_version": "liminalqa-counterfactual-experiment-v1",
+  "name": "Tradernet language redirect counterfactual",
+  "hypothesis": "Navigating directly to the exact Russian-language URL removes one redirect and improves mobile loading milestones compared with the public root URL.",
+  "variants": [
+    {
+      "id": "redirect_root",
+      "url": "https://tradernet.ru/",
+      "treatment": "Public root URL; server may redirect to a language-specific URL."
+    },
+    {
+      "id": "direct_ru",
+      "url": "https://tradernet.ru/?site_lang=ru",
+      "treatment": "Exact public Russian-language URL; expected to avoid the initial language redirect."
+    }
+  ],
+  "runs_per_variant": 3,
+  "primary_metric": "largest-contentful-paint",
+  "secondary_metrics": [
+    "first-contentful-paint",
+    "speed-index",
+    "total-blocking-time",
+    "cumulative-layout-shift",
+    "redirect-duration"
+  ],
+  "boundaries": {
+    "public_page_only": true,
+    "passive_navigation_only": true,
+    "authenticated_testing": false,
+    "active_security_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "same_runner_required": true
+  },
+  "limitations": [
+    "Three laboratory runs per variant provide directional evidence, not production field performance.",
+    "The two variants run sequentially on one GitHub-hosted runner, so order and transient network effects remain possible.",
+    "A lower metric after bypassing the redirect supports a causal contribution but does not prove that the redirect is the only bottleneck."
+  ]
+}
