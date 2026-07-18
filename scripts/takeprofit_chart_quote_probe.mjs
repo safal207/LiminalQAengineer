@@ -95,14 +95,16 @@ function classify(r, cfg) {
   const initialSymbol = `${initial.textSample} ${initial.tickerHints.join(' ')}`.toUpperCase().includes(expected);
   const reloadSymbol = `${reload.textSample} ${reload.tickerHints.join(' ')}`.toUpperCase().includes(expected);
   const bootstrap = r.transport.listBarsCount > 0 && r.transport.listQuotesCount > 0;
-  const streamActivity = r.transport.streamingChunkCount > 1 || r.stages.live.chartPixelsChanged;
+  const liveActivity = r.transport.distinctQuoteBodyCount > 1 || r.stages.live.chartPixelsChanged;
   const reconnectActivity = r.stages.reconnect.marketEventsAfterOnline > 0;
   const historicalErrors = r.console.signatures.length > 0;
+  const panIntegrityWarn = r.stages.pan.visualComplexityMinRatio !== null && r.stages.pan.visualComplexityMinRatio < 0.65;
   const checks = {
     chartBoot: initial.chartSurfaceCount > 0 && initialSymbol ? (historicalErrors ? 'WARN' : 'PASS') : 'FAIL',
     quoteBootstrap: bootstrap ? 'PASS' : 'FAIL',
-    liveQuoteActivity: streamActivity ? 'PASS' : 'WARN',
-    historyLoading: r.stages.historyScroll.newListBarsRequests > 0 ? 'PASS' : 'UNVERIFIED',
+    liveQuoteActivity: liveActivity ? 'PASS' : 'WARN',
+    panLayerIntegrity: panIntegrityWarn ? 'WARN' : 'PASS',
+    historyLoading: r.stages.pan.newListBarsRequests > 0 ? 'PASS' : 'UNVERIFIED',
     reconnectRecovery: reconnectActivity ? 'PASS' : 'WARN',
     reloadRecovery: reload.chartSurfaceCount > 0 && reloadSymbol ? 'PASS' : 'FAIL',
     staleStateClarity: r.stages.reconnect.offlineSnapshot.states.length > 0 ? 'PASS' : 'WARN',
@@ -116,7 +118,7 @@ function markdown(r, resultHash) {
   const rows = Object.entries(r.classification.checks).map(([k, v]) => `| ${k} | ${v} |`).join('\n');
   const sigs = r.console.signatures.length ? r.console.signatures.map((x) => `- \`${x}\``).join('\n') : '- None of the tracked historical signatures appeared.';
   const calls = r.network.marketRequests.slice(0, 20).map((x) => `- \`${x.method} ${x.status ?? 'n/a'} ${x.url}\``).join('\n') || '- No market-data calls captured.';
-  return `# LiminalQA · TakeProfit public chart and quote causality\n\n**Target:** \`${r.target.finalUrl}\`  \n**Verdict:** **${r.classification.verdict}**  \n**Evidence SHA-256:** \`${resultHash}\`\n\n## Decision matrix\n\n| Check | Verdict |\n|---|---|\n${rows}\n\n## Observed data path\n\n- Chart surfaces after boot: **${r.stages.initial.snapshot.chartSurfaceCount}**\n- Expected symbol visible: **${r.stages.initial.expectedSymbolDetected}**\n- 'ListBars' requests: **${r.transport.listBarsCount}**\n- 'ListQuotes' requests: **${r.transport.listQuotesCount}**\n- Market-data chunks: **${r.transport.streamingChunkCount}**\n- Market-data bytes observed: **${r.transport.streamingBytes}**\n- WebSocket frames: **${r.transport.websocketFramesReceived}**\n- Chart pixels changed during live window: **${r.stages.live.chartPixelsChanged}**\n- Additional 'ListBars' after history scroll: **${r.stages.historyScroll.newListBarsRequests}**\n- Market events after reconnect: **${r.stages.reconnect.marketEventsAfterOnline}**\n- Explicit offline/stale UI state: **${r.stages.reconnect.offlineSnapshot.states.join(', ') || 'not observed'}**\n- Chart restored after reload: **${r.stages.reload.expectedSymbolDetected && r.stages.reload.snapshot.chartSurfaceCount > 0}**\n\n## Historical signatures\n\n${sigs}\n\n## Market request sample\n\n${calls}\n\n## Causal reading\n\n'reference/security → time → ListQuotes + ListBars → chart state → rendered BTC series'\n\nSensitive failure modes tested:\n\n1. **Bootstrap ordering:** quote/security metadata arrives after chart initialization and leaves required fields undefined.\n2. **Split-brain symbol state:** header, candles, indicator calculations, and last-price label refer to different securities after a transition.\n3. **Stale-but-plausible chart:** network drops while the last candle remains visible without a delayed/offline marker.\n4. **Duplicate subscription:** reconnect creates parallel streams, repeated calculations, or excessive store updates.\n5. **History merge:** older bars are duplicated, reordered, or shift the viewport during backfill.\n6. **Reload race:** persisted chart settings restore before security/time-series data and produce validation errors.\n\n> Passive observation of requests made by the public page itself. No direct endpoint calls, authentication, orders, fuzzing, load testing, or vulnerability claim.\n`;
+  return `# LiminalQA · TakeProfit public chart and quote causality\n\n**Target:** \`${r.target.finalUrl}\`  \n**Verdict:** **${r.classification.verdict}**  \n**Evidence SHA-256:** \`${resultHash}\`\n\n## Decision matrix\n\n| Check | Verdict |\n|---|---|\n${rows}\n\n## Observed data path\n\n- Chart surfaces after boot: **${r.stages.initial.snapshot.chartSurfaceCount}**\n- Expected symbol visible: **${r.stages.initial.expectedSymbolDetected}**\n- 'ListBars' requests: **${r.transport.listBarsCount}**\n- 'ListQuotes' requests: **${r.transport.listQuotesCount}**\n- Market-data chunks: **${r.transport.streamingChunkCount}**\n- Distinct quote response bodies: **${r.transport.distinctQuoteBodyCount}**\n- Market-data bytes observed: **${r.transport.streamingBytes}**\n- WebSocket frames: **${r.transport.websocketFramesReceived}**\n- Chart pixels changed during live window: **${r.stages.live.chartPixelsChanged}**\n- Controlled pan complexity ratio: **${r.stages.pan.visualComplexityMinRatio ?? 'n/a'}**\n- Additional 'ListBars' after controlled pan: **${r.stages.pan.newListBarsRequests}**\n- Market events after reconnect: **${r.stages.reconnect.marketEventsAfterOnline}**\n- Explicit offline/stale UI state: **${r.stages.reconnect.offlineSnapshot.states.join(', ') || 'not observed'}**\n- Chart restored after reload: **${r.stages.reload.expectedSymbolDetected && r.stages.reload.snapshot.chartSurfaceCount > 0}**\n\n## Historical signatures\n\n${sigs}\n\n## Market request sample\n\n${calls}\n\n## Causal reading\n\n\`reference/security → time → ListQuotes + ListBars → chart state → rendered BTC series\`\n\nSensitive failure modes tested:\n\n1. **Bootstrap ordering:** quote/security metadata arrives after chart initialization and leaves required fields undefined.\n2. **Split-brain symbol state:** header, candles, indicator calculations, and last-price label refer to different securities after a transition.\n3. **Stale-but-plausible chart:** network drops while the last candle remains visible without a delayed/offline marker.\n4. **Duplicate subscription:** reconnect creates parallel streams, repeated calculations, or excessive store updates.\n5. **History merge:** older bars are duplicated, reordered, or shift the viewport during backfill.\n6. **Reload race:** persisted chart settings restore before security/time-series data and produce validation errors.\n\n> Passive observation of requests made by the public page itself. No direct endpoint calls, authentication, orders, fuzzing, load testing, or vulnerability claim.\n`;
 }
 
 async function main() {
@@ -138,7 +140,9 @@ async function main() {
   const consoleMessages = [], pageErrors = [], failed = [], responses = [], requests = [], websockets = [], frames = [];
   const cdpMarket = new Map();
   const responseBodies = [];
+  const rawBodies = [];
   const bodyPromises = [];
+  const rawBodyPromises = [];
   page.on('console', (x) => consoleMessages.push({ type: x.type(), text: x.text(), at: iso() }));
   page.on('pageerror', (x) => pageErrors.push({ message: x.message, stack: x.stack, at: iso() }));
   page.on('request', (x) => {
@@ -157,13 +161,23 @@ async function main() {
   });
   cdp.on('Network.responseReceived', (x) => { const s = cdpMarket.get(x.requestId); if (s) { s.status = x.response.status; s.mimeType = x.response.mimeType; } });
   cdp.on('Network.dataReceived', (x) => { const s = cdpMarket.get(x.requestId); if (s) { s.chunks += 1; s.bytes += x.dataLength || 0; s.lastAt = Date.now(); } });
-  cdp.on('Network.loadingFinished', (x) => { const s = cdpMarket.get(x.requestId); if (s) { s.finished = true; s.endAt = Date.now(); } });
+  cdp.on('Network.loadingFinished', (x) => {
+    const state = cdpMarket.get(x.requestId);
+    if (!state) return;
+    state.finished = true;
+    state.endAt = Date.now();
+    if (barRe.test(state.url) || quoteRe.test(state.url) || /TimeApi/i.test(state.url)) {
+      rawBodyPromises.push(cdp.send('Network.getResponseBody', { requestId: x.requestId })
+        .then((body) => rawBodies.push({ url: state.url, at: Date.now(), base64Encoded: body.base64Encoded, body: body.body }))
+        .catch(() => {}));
+    }
+  });
   cdp.on('Network.loadingFailed', (x) => { const s = cdpMarket.get(x.requestId); if (s) { s.failed = x.errorText; s.endAt = Date.now(); } });
   cdp.on('Network.webSocketCreated', (x) => websockets.push({ id: x.requestId, url: x.url, at: Date.now() }));
   cdp.on('Network.webSocketFrameReceived', (x) => frames.push({ id: x.requestId, at: Date.now(), length: x.response.payloadData?.length || 0 }));
 
   const r = {
-    schemaVersion: 'liminalqa-takeprofit-chart-quote-probe-v2', startedAt: iso(),
+    schemaVersion: 'liminalqa-takeprofit-chart-quote-probe-v3', startedAt: iso(),
     target: { requestedUrl: cfg.targetUrl, finalUrl: null }, environment: { viewport: cfg.viewport, chrome: await browser.version() },
     stages: {}, console: {}, network: {}, transport: {}, boundaries: cfg.boundaries, evidence: {}
   };
@@ -185,13 +199,29 @@ async function main() {
 
     const beforeBars = requests.filter((x) => barRe.test(x.url)).length;
     const rect = await chartRect(page);
+    const panShots = [];
     if (rect) {
-      await page.mouse.move(rect.centerX, rect.centerY);
-      for (let i = 0; i < 8; i += 1) { await page.mouse.wheel({ deltaX: -1100, deltaY: 0 }); await sleep(350); }
+      for (let i = 1; i <= cfg.panSteps; i += 1) {
+        const startX = Math.min(rect.x + rect.width - 30, rect.centerX + cfg.panPixelsPerStep / 2);
+        const endX = Math.max(rect.x + 30, startX - cfg.panPixelsPerStep);
+        await page.mouse.move(startX, rect.centerY);
+        await page.mouse.down();
+        await page.mouse.move(endX, rect.centerY, { steps: 12 });
+        await page.mouse.up();
+        await sleep(1800);
+        panShots.push(await chartShot(page, path.join(a.output, `04-pan-${i}.png`)));
+      }
     }
-    await sleep(9000);
-    r.stages.historyScroll = { newListBarsRequests: Math.max(0, requests.filter((x) => barRe.test(x.url)).length - beforeBars), snapshot: await snapshot(page) };
-    await page.screenshot({ path: path.join(a.output, '04-history-scroll.png') });
+    await sleep(6000);
+    const validPanBytes = panShots.filter(Boolean).map((x) => x.bytes);
+    const baselineBytes = liveB?.bytes || liveA?.bytes || null;
+    r.stages.pan = {
+      shots: panShots,
+      visualComplexityMinRatio: baselineBytes && validPanBytes.length ? Math.round((Math.min(...validPanBytes) / baselineBytes) * 1000) / 1000 : null,
+      newListBarsRequests: Math.max(0, requests.filter((x) => barRe.test(x.url)).length - beforeBars),
+      snapshot: await snapshot(page)
+    };
+    await page.screenshot({ path: path.join(a.output, '04-pan-final-full.png') });
 
     await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0, connectionType: 'none' });
     await sleep(cfg.offlineMs);
@@ -211,15 +241,17 @@ async function main() {
     await page.screenshot({ path: path.join(a.output, '06-reload.png') });
   } finally {
     await Promise.allSettled(bodyPromises);
+    await Promise.allSettled(rawBodyPromises);
     const patterns = [/IndicatorManager/i, /ChartStore/i, /is a required field/i, /Cannot read properties of undefined/i, /Time scale or logical range is not defined/i, /fetched too much times per second/i, /failed to establish stream connection/i, /ZOrder to removed drawing/i, /failed to find logs for alert/i];
     r.console = { messages: consoleMessages, pageErrors, signatures: uniq([...consoleMessages.map((x) => x.text), ...pageErrors.map((x) => x.message)].filter((x) => patterns.some((p) => p.test(x)))) };
     const marketRequests = responses.filter((x) => marketRe.test(x.url));
     const streams = [...cdpMarket.entries()].map(([requestId, x]) => ({ requestId, ...x }));
     const gaps = frames.slice(1).map((x, i) => x.at - frames[i].at).filter((x) => x >= 0);
-    r.network = { marketRequests, requestPayloads: requests, responseBodies, failedRequests: failed, httpErrors: responses.filter((x) => x.status >= 400) };
+    r.network = { marketRequests, requestPayloads: requests, responseBodies, rawBodies, failedRequests: failed, httpErrors: responses.filter((x) => x.status >= 400) };
     r.transport = {
       listBarsCount: requests.filter((x) => barRe.test(x.url)).length,
       listQuotesCount: requests.filter((x) => quoteRe.test(x.url)).length,
+      distinctQuoteBodyCount: new Set(rawBodies.filter((x) => quoteRe.test(x.url)).map((x) => sha(Buffer.from(x.body, x.base64Encoded ? 'base64' : 'utf8')))).size,
       marketStreams: streams,
       streamingChunkCount: streams.reduce((n, x) => n + x.chunks, 0),
       streamingBytes: streams.reduce((n, x) => n + x.bytes, 0),
