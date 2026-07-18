@@ -18,6 +18,7 @@ on:
     paths:
       - .github/workflows/tradernet-lighthouse.yml
       - audits/lighthouse/tradernet/**
+      - docs/audits/TRADERNET_*.md
       - scripts/lighthouse_to_liminalqa.py
       - scripts/lighthouse_causality_graph.py
   pull_request:
@@ -26,6 +27,7 @@ on:
     paths:
       - .github/workflows/tradernet-lighthouse.yml
       - audits/lighthouse/tradernet/**
+      - docs/audits/TRADERNET_*.md
       - scripts/lighthouse_to_liminalqa.py
       - scripts/lighthouse_causality_graph.py
 
