@@ -19,6 +19,13 @@ on:
       - .github/workflows/tradernet-lighthouse.yml
       - audits/lighthouse/tradernet/**
       - scripts/lighthouse_to_liminalqa.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-lighthouse.yml
+      - audits/lighthouse/tradernet/**
+      - scripts/lighthouse_to_liminalqa.py
 
 permissions:
   contents: read
