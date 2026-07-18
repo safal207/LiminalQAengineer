@@ -1,0 +1,304 @@
+name: OpenAI Homepage LCP Counterfactual
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/openai-homepage-lcp-counterfactual
+    paths:
+      - .github/workflows/openai-homepage-lcp-counterfactual.yml
+      - audits/browser/openai/homepage-lcp-counterfactual.json
+      - scripts/openai_asset_optimization_counterfactual.mjs
+      - scripts/tradernet_hero_preload_experiment_cdp.mjs
+  pull_request:
+    branches:
+      - agent/openai-public-web-benchmark
+      - main
+    paths:
+      - .github/workflows/openai-homepage-lcp-counterfactual.yml
+      - audits/browser/openai/homepage-lcp-counterfactual.json
+      - scripts/openai_asset_optimization_counterfactual.mjs
+      - scripts/tradernet_hero_preload_experiment_cdp.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openai-homepage-lcp-counterfactual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    name: Same-runner discovery and asset counterfactuals
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate exact experiment boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          experiment="audits/browser/openai/homepage-lcp-counterfactual.json"
+          python3 -m json.tool "${experiment}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-openai-homepage-lcp-counterfactual-v1" and
+            .target_url == "https://openai.com/" and
+            .hero_url == "https://cdn.openai.com/ctf-cdn/gpt-5-6/5.6%20Blog%20Art%20Card%20-%20Motion%20-%204_5%20(1).png?w=750&q=70&fm=webp" and
+            .runs_per_variant == 3 and
+            .runtime_profile.viewport.width == 390 and
+            .runtime_profile.viewport.height == 844 and
+            .runtime_profile.viewport.deviceScaleFactor == 1 and
+            .runtime_profile.observation_ms == 70000 and
+            .boundaries.public_page_only == true and
+            .boundaries.browser_local_modification_only == true and
+            .boundaries.sequential_runs_only == true and
+            .boundaries.exact_asset_only == true and
+            .boundaries.one_exact_public_asset_preparation_fetch == true and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.prompt_submission == false and
+            .boundaries.api_testing == false and
+            .boundaries.agent_or_tool_execution == false and
+            .boundaries.account_or_billing_actions == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.vulnerability_claim == false
+          ' "${experiment}" >/dev/null
+
+      - name: Install pinned browser and image dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false \
+            puppeteer-core@24.16.0 \
+            sharp@0.34.3
+
+      - name: Validate runtime and adapt the shared preload probe
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          node --check scripts/openai_asset_optimization_counterfactual.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [[ -z "${chrome}" ]]; then
+            echo "Chrome executable was not found" >&2
+            exit 1
+          fi
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+          mkdir -p reports/openai-homepage-lcp/runtime
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("scripts/tradernet_hero_preload_experiment_cdp.mjs")
+          target_path = Path("reports/openai-homepage-lcp/runtime/openai_preload_experiment.mjs")
+          source = source_path.read_text(encoding="utf-8")
+          replacements = {
+              'urlPattern: "https://tradernet.ru/*"': 'urlPattern: "https://openai.com/*"',
+              'width: 412,': 'width: 390,',
+              'height: 823,': 'height: 844,',
+              'deviceScaleFactor: 2.625,': 'deviceScaleFactor: 1,',
+              'waitUntil: "load"': 'waitUntil: "domcontentloaded"',
+              'setTimeout(resolve, 15_000)': 'setTimeout(resolve, 70_000)',
+              '# LiminalQA · Tradernet hero preload counterfactual': '# LiminalQA · OpenAI homepage early-discovery counterfactual',
+              'Browser-local response-stage injection only. Tradernet servers and persistent state are unchanged.': 'Browser-local response-stage injection only. OpenAI servers and persistent state are unchanged.',
+              'if (invalid.length > 0) throw new Error(`${variant} produced ${invalid.length} invalid runs`);': 'if (invalid.length > 0) console.warn(`${variant} produced ${invalid.length} incomplete exact-asset runs`);',
+          }
+          for old, new in replacements.items():
+              if old not in source:
+                  raise SystemExit(f"Expected shared-probe fragment not found: {old}")
+              source = source.replace(old, new)
+
+          old_verdict = "\n".join([
+              "  let verdict;",
+              "  let interpretation;",
+              "  if (heroStartGain >= 500 && lcpGain >= 500) {",
+          ])
+          new_verdict = "\n".join([
+              "  const baselineAssetObserved = variants.baseline.filter(",
+              "    (run) => Number.isFinite(run.metrics.hero_request_start_ms)",
+              "  ).length;",
+              "  const baselineLcpMatches = variants.baseline.filter(",
+              "    (run) => run.metrics.lcp_entry?.url === experiment.hero_url",
+              "  ).length;",
+              "",
+              "  let verdict;",
+              "  let interpretation;",
+              "  if (baselineAssetObserved < 2 || baselineLcpMatches < 2) {",
+              '    verdict = "INCONCLUSIVE";',
+              "    interpretation =",
+              '      "The pinned historical asset was not a stable baseline LCP in at least two rounds; the experiment does not silently retarget.";',
+              "  } else if (heroStartGain >= 500 && lcpGain >= 500) {",
+          ])
+          if old_verdict not in source:
+              raise SystemExit("Expected verdict block was not found in shared preload probe")
+          source = source.replace(old_verdict, new_verdict)
+
+          old_packet = "\n".join([
+              '    confidence: "MEDIUM",',
+              "    variants: {",
+          ])
+          new_packet = "\n".join([
+              '    confidence: verdict === "INCONCLUSIVE" ? "LOW" : "MEDIUM",',
+              "    baseline_asset_observed_count: baselineAssetObserved,",
+              "    baseline_lcp_match_count: baselineLcpMatches,",
+              "    variants: {",
+          ])
+          if old_packet not in source:
+              raise SystemExit("Expected packet block was not found in shared preload probe")
+          source = source.replace(old_packet, new_packet)
+
+          target_path.write_text(source, encoding="utf-8")
+          PY
+          node --check reports/openai-homepage-lcp/runtime/openai_preload_experiment.mjs
+
+      - name: Run exact early-discovery preload pairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node reports/openai-homepage-lcp/runtime/openai_preload_experiment.mjs \
+            --experiment audits/browser/openai/homepage-lcp-counterfactual.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/openai-homepage-lcp/preload
+
+      - name: Run exact local asset-optimization pairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/openai_asset_optimization_counterfactual.mjs \
+            --experiment audits/browser/openai/homepage-lcp-counterfactual.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/openai-homepage-lcp/asset
+
+      - name: Build combined evidence packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path("reports/openai-homepage-lcp")
+          experiment = json.loads(Path("audits/browser/openai/homepage-lcp-counterfactual.json").read_text())
+          preload = json.loads((root / "preload/result/hero-preload-result.json").read_text())
+          asset = json.loads((root / "asset/asset-result/asset-optimization-result.json").read_text())
+
+          if preload["experiment"]["target_url"] != experiment["target_url"]:
+              raise SystemExit("Preload target differs from exact experiment target")
+          if preload["experiment"]["hero_url"] != experiment["hero_url"]:
+              raise SystemExit("Preload asset differs from exact experiment asset")
+          if asset["experiment"]["hero_url"] != experiment["hero_url"]:
+              raise SystemExit("Optimized asset differs from exact experiment asset")
+          if preload["variants"]["baseline"]["run_count"] != 3 or preload["variants"]["hero_preload"]["run_count"] != 3:
+              raise SystemExit("Preload experiment did not produce 3 + 3 runs")
+          if asset["variants"]["baseline"]["run_count"] != 3 or asset["variants"]["optimized_asset"]["run_count"] != 3:
+              raise SystemExit("Asset experiment did not produce 3 + 3 runs")
+
+          preload_supported = preload["verdict"] == "SUPPORTED"
+          asset_supported = asset["verdict"] == "SUPPORTED"
+          if preload_supported and asset_supported:
+              verdict = "BOTH_SUPPORTED"
+          elif preload_supported:
+              verdict = "EARLY_DISCOVERY_SUPPORTED"
+          elif asset_supported:
+              verdict = "ASSET_OPTIMIZATION_SUPPORTED"
+          elif "INCONCLUSIVE" in {preload["verdict"], asset["verdict"]}:
+              verdict = "PARTIAL_INCONCLUSIVE"
+          else:
+              verdict = "NOT_SUPPORTED"
+
+          packet = {
+              "schema_version": "liminalqa-openai-homepage-lcp-combined-v1",
+              "verdict": verdict,
+              "target_url": experiment["target_url"],
+              "exact_asset_url": experiment["hero_url"],
+              "preload_counterfactual": preload,
+              "asset_optimization_counterfactual": asset,
+              "boundaries": experiment["boundaries"],
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+          }
+          result_dir = root / "result"
+          result_dir.mkdir(parents=True, exist_ok=True)
+          (result_dir / "counterfactual-result.json").write_text(
+              json.dumps(packet, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          pb = preload["variants"]["baseline"]["medians"]
+          pt = preload["variants"]["hero_preload"]["medians"]
+          ab = asset["variants"]["baseline"]["medians"]
+          at = asset["variants"]["optimized_asset"]["medians"]
+          prep = asset["prepared_asset"]
+          lines = [
+              "# LiminalQA · OpenAI homepage LCP counterfactual",
+              "",
+              f"**Combined verdict:** {verdict}  ",
+              f"**Early discovery verdict:** {preload['verdict']}  ",
+              f"**Asset optimization verdict:** {asset['verdict']}  ",
+              "",
+              "## Same-runner median effects",
+              "",
+              "| Experiment | Baseline LCP | Treatment LCP | Delta | Improvement |",
+              "|---|---:|---:|---:|---:|",
+              f"| Exact preload | {pb['largest_contentful_paint_ms']} ms | {pt['largest_contentful_paint_ms']} ms | {preload['effects']['largest_contentful_paint_ms']['treatment_minus_baseline']} ms | {preload['effects']['largest_contentful_paint_ms']['improvement_percent']}% |",
+              f"| Optimized exact asset | {ab['lcp_ms']} ms | {at['lcp_ms']} ms | {asset['effects']['lcp_ms']['delta']} ms | {asset['effects']['lcp_ms']['improvement_percent']}% |",
+              "",
+              f"Prepared image: {prep['original_bytes']} → {prep['optimized_bytes']} bytes ({prep['byte_reduction_percent']}% reduction).",
+              "",
+              "## Exact-target validity",
+              "",
+              f"- Preload baseline asset observed: {preload.get('baseline_asset_observed_count', 'n/a')}/3",
+              f"- Preload baseline LCP match: {preload.get('baseline_lcp_match_count', 'n/a')}/3",
+              f"- Asset baseline observed: {asset.get('baseline_asset_observed_count', 'n/a')}/3",
+              f"- Asset baseline LCP match: {asset.get('baseline_lcp_match_count', 'n/a')}/3",
+              f"- Optimized request fulfilled: {asset.get('optimized_fulfilled_count', 'n/a')}/3",
+              "",
+              "## Interpretation boundary",
+              "",
+              "The two treatments use separate paired baselines on the same runner profile. Their absolute medians are not treated as one shared baseline.",
+              "",
+              "> Browser-local modifications only. No OpenAI server state, authentication, prompts, API/model calls, agents, files, fuzzing, load testing, exploitation, or vulnerability claims.",
+              "",
+          ]
+          (result_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
+          print("\n".join(lines))
+          PY
+          cat reports/openai-homepage-lcp/result/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate complete experiment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == "liminalqa-openai-homepage-lcp-combined-v1" and
+            .preload_counterfactual.variants.baseline.run_count == 3 and
+            .preload_counterfactual.variants.hero_preload.run_count == 3 and
+            .asset_optimization_counterfactual.variants.baseline.run_count == 3 and
+            .asset_optimization_counterfactual.variants.optimized_asset.run_count == 3 and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.api_testing == false and
+            .boundaries.load_testing == false
+          ' reports/openai-homepage-lcp/result/counterfactual-result.json >/dev/null
+          test "$(find reports/openai-homepage-lcp/preload -maxdepth 1 -type f -name '*-round-*.json' | wc -l)" -eq 6
+          test "$(find reports/openai-homepage-lcp/asset/asset-runs -type f -name '*.json' | wc -l)" -eq 6
+
+      - name: Upload exact counterfactual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openai-homepage-lcp-counterfactual-${{ github.run_id }}
+          path: reports/openai-homepage-lcp/
+          if-no-files-found: error
+          retention-days: 14
