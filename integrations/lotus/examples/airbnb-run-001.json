@@ -1,0 +1,139 @@
+{
+  "schema_version": "lqa-lotus-run/0.1",
+  "run_id": "ABNB-RUN-001",
+  "status": "planned",
+  "target": {
+    "name": "Airbnb",
+    "surface": "public web booking flow",
+    "scope": "currency atomicity from listing to checkout; stop before payment submission"
+  },
+  "source_base": {
+    "repository": "safal207/LiminalQAengineer",
+    "head_sha": "281742c304601503799da07bb6455f4324b020c4"
+  },
+  "protocol_pins": [
+    {
+      "name": "T-Trace",
+      "repository": "safal207/T-Trace",
+      "commit_sha": "6a0755dbe8a89decd325298ec4563b9bb16adc62",
+      "role": "acknowledged transition trace"
+    },
+    {
+      "name": "DRP",
+      "repository": "safal207/DRP",
+      "commit_sha": "92e63d7d4eeb55f8eb61956da002dc8951bab1c6",
+      "role": "immutable judgment and supersession"
+    },
+    {
+      "name": "ProofPath",
+      "repository": "safal207/ProofPath",
+      "commit_sha": "b94452f6ad4c5fa5d9efe80334d358d623b97e07",
+      "role": "evidence manifest and integrity boundary"
+    },
+    {
+      "name": "LiminalDB",
+      "repository": "safal207/LiminalDB",
+      "commit_sha": "75ef9f7f403a34c60aa2ceba4cb3c97870d73e77",
+      "role": "append-only event storage projection"
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "R-001",
+      "kind": "fact",
+      "text": "The audit contract expects selected currency and displayed booking price to update as one coherent state.",
+      "evidence_grade": "F1",
+      "source_ref": "existing Airbnb audit rule register"
+    },
+    {
+      "claim_id": "S-002",
+      "kind": "hypothesis",
+      "text": "Back/forward navigation, duplicated tabs, or delayed requests may preserve an old numeric total beside a newly selected currency.",
+      "evidence_grade": "F0"
+    },
+    {
+      "claim_id": "O-001",
+      "kind": "observation",
+      "text": "No browser execution evidence has been captured for this repository example.",
+      "evidence_grade": "F0"
+    }
+  ],
+  "planned_transitions": [
+    "open listing in a clean browser profile",
+    "record listing total and breakdown in TRY",
+    "switch selected currency to EUR",
+    "navigate Back then Forward",
+    "duplicate the tab and change the second tab to USD",
+    "repeat under throttled network",
+    "stop before payment submission"
+  ],
+  "lotus": {
+    "pythia": {
+      "verdict": "ESCALATE",
+      "confirmed_defect": false,
+      "reasons": [
+        "The expected rule is recorded, but no browser reproduction exists.",
+        "No visible total, network payload, screenshot, or HAR has been attached.",
+        "A hypothesis must not be promoted to a defect before repeatable evidence."
+      ]
+    },
+    "cml": {
+      "nodes": [
+        "selected_currency",
+        "listing_total",
+        "checkout_breakdown",
+        "browser_history_state",
+        "payment_currency"
+      ],
+      "candidate_edges": [
+        {
+          "from": "selected_currency",
+          "to": "listing_total",
+          "relation": "must_update_atomically"
+        },
+        {
+          "from": "browser_history_state",
+          "to": "checkout_breakdown",
+          "relation": "may_restore_stale_snapshot"
+        },
+        {
+          "from": "checkout_breakdown",
+          "to": "payment_currency",
+          "relation": "must_remain_consistent"
+        }
+      ]
+    },
+    "ls": {
+      "user_control_questions": [
+        "Can the user see the authoritative currency before commitment?",
+        "Can the user detect that a restored price is stale?",
+        "Can the user safely leave without creating a payment or reservation?"
+      ],
+      "current_assessment": "No loss of control demonstrated; investigation remains planned."
+    }
+  },
+  "drp_decision": {
+    "record_id": "DRP-ABNB-RUN-001-DEC-001",
+    "timestamp": "2026-07-19T07:00:02Z",
+    "context": "A currency atomicity hypothesis exists, but the example contains no executed browser evidence.",
+    "decision": "Keep S-002 in ESCALATE and do not report it as a confirmed Airbnb defect.",
+    "options": [
+      "Report immediately",
+      "Discard the hypothesis",
+      "Run the evidence protocol and reassess"
+    ],
+    "status": "complete",
+    "supersedes_record_id": null,
+    "run_id": "ABNB-RUN-001"
+  },
+  "liminaldb_projection": {
+    "event_kind": "qa.audit.run",
+    "entity_id": "ABNB-RUN-001",
+    "valid_time": null,
+    "transaction_time": null,
+    "append_only": true,
+    "payload_ref": "integrations/lotus/examples/airbnb-run-001.json",
+    "note": "Populate valid_time when the target state is observed and transaction_time when the event is ingested."
+  },
+  "evidence_manifest": "integrations/lotus/examples/airbnb-run-001.evidence-manifest.json"
+}
