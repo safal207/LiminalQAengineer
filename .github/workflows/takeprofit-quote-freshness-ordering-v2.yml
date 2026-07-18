@@ -1,0 +1,108 @@
+name: TakeProfit Quote Freshness Outage v2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-quote-freshness-ordering-v0-2
+    paths:
+      - .github/workflows/takeprofit-quote-freshness-ordering-v2.yml
+      - audits/browser/takeprofit/quote-freshness-ordering-v2.json
+      - scripts/takeprofit_quote_freshness_ordering_v2.mjs
+  pull_request:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-quote-freshness-ordering-v2.yml
+      - audits/browser/takeprofit/quote-freshness-ordering-v2.json
+      - scripts/takeprofit_quote_freshness_ordering_v2.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-quote-freshness-outage-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Three cadence-aware network outage rounds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/takeprofit/quote-freshness-ordering-v2.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-takeprofit-quote-freshness-outage-v2" and
+            .target_url == "https://takeprofit.com/indicator/atr-super-trend-multi-source-57" and
+            .expected_symbol == "BTC/USDT" and
+            .quote_url_fragment == "QuoteApi/ListQuotes" and
+            .outage_durations_ms == [90000, 105000, 120000] and
+            .boundaries.public_page_only == true and
+            .boundaries.browser_level_offline_mode_only == true and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.exploitation == false and
+            .boundaries.vulnerability_claim == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --check scripts/takeprofit_quote_freshness_ordering_v2.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run three-round outage experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/takeprofit-quote-freshness-outage-v2
+          node scripts/takeprofit_quote_freshness_ordering_v2.mjs \
+            --config audits/browser/takeprofit/quote-freshness-ordering-v2.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/takeprofit-quote-freshness-outage-v2
+          python3 -m json.tool reports/takeprofit-quote-freshness-outage-v2/quote-freshness-outage-result.json >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-takeprofit-quote-freshness-outage-result-v2" and
+            (.rounds | length) == 3 and
+            .authority.mode == "evidence_only" and
+            .authority.grants.ownership == false and
+            .authority.grants.approval == false and
+            .authority.grants.execution == false and
+            .authority.grants.delivery == false and
+            .authority.grants.deployment == false and
+            .authority.grants.merge == false
+          ' reports/takeprofit-quote-freshness-outage-v2/quote-freshness-outage-result.json >/dev/null
+          cat reports/takeprofit-quote-freshness-outage-v2/quote-freshness-outage-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-quote-freshness-outage-v2-${{ github.run_id }}
+          path: reports/takeprofit-quote-freshness-outage-v2/
+          if-no-files-found: error
+          retention-days: 14

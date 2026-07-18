@@ -1,0 +1,38 @@
+{
+  "schema_version": "liminalqa-takeprofit-quote-freshness-outage-v2",
+  "name": "TakeProfit public quote freshness outage and recovery experiment",
+  "target_url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "expected_symbol": "BTC/USDT",
+  "quote_url_fragment": "QuoteApi/ListQuotes",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 1,
+    "isMobile": true,
+    "hasTouch": true
+  },
+  "navigation_timeout_ms": 90000,
+  "bootstrap_timeout_ms": 90000,
+  "outage_durations_ms": [90000, 105000, 120000],
+  "outage_sample_interval_ms": 1000,
+  "recovery_timeout_ms": 90000,
+  "post_restore_observation_ms": 15000,
+  "post_restore_sample_interval_ms": 1000,
+  "boundaries": {
+    "public_page_only": true,
+    "browser_level_offline_mode_only": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "exploitation": false,
+    "vulnerability_claim": false
+  },
+  "limitations": [
+    "The experiment does not compare the visible price with an external market source.",
+    "The experiment confirms freshness signaling only on the public indicator page.",
+    "Authenticated workspace transport, trading actions, and decision impact remain outside scope."
+  ]
+}
