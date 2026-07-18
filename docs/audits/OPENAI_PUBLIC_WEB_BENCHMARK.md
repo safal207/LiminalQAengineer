@@ -20,11 +20,11 @@ The central cross-domain question is:
 | `chatgpt-public-shell` | Unauthenticated ChatGPT web entry | `https://chatgpt.com/` |
 | `openai-codex` | Codex product overview | `https://openai.com/codex/` |
 | `openai-developers` | Developer portal landing | `https://developers.openai.com/` |
-| `openai-api-quickstart` | Public API quickstart documentation | `https://platform.openai.com/docs/quickstart/make-your-first-api-request` |
+| `openai-api-quickstart` | Public API quickstart documentation | `https://developers.openai.com/api/docs/quickstart` |
 | `openai-help` | Help Center landing | `https://help.openai.com/en-us` |
 | `openai-status` | Service status dashboard | `https://status.openai.com/` |
 
-The inventory was verified against official OpenAI public surfaces on 2026-07-19.
+The inventory was verified against official OpenAI public surfaces on 2026-07-19. The older `platform.openai.com/docs/quickstart/make-your-first-api-request` route rendered a public “Page not found” state during the first evidence run, so the benchmark was corrected to the canonical quickstart linked by the official docs navigation.
 
 ## Safety boundary
 
@@ -72,6 +72,7 @@ The benchmark does not use `FAIL` as a vulnerability label. A poor score is a bo
 4. Do not infer model or API reliability from a static-page Lighthouse result.
 5. Do not infer root cause from the Status page alone.
 6. Preserve exact-head and artifact-digest provenance before publishing a causal conclusion.
+7. Treat a stale or removed documentation route as an inventory defect first, not as an OpenAI reliability defect.
 
 ## Expected next evidence step
 
