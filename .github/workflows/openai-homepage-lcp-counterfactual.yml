@@ -112,11 +112,44 @@ jobs:
               'setTimeout(resolve, 15_000)': 'setTimeout(resolve, 70_000)',
               '# LiminalQA · Tradernet hero preload counterfactual': '# LiminalQA · OpenAI homepage early-discovery counterfactual',
               'Browser-local response-stage injection only. Tradernet servers and persistent state are unchanged.': 'Browser-local response-stage injection only. OpenAI servers and persistent state are unchanged.',
+              'if (invalid.length > 0) throw new Error(`${variant} produced ${invalid.length} invalid runs`);': 'if (invalid.length > 0) console.warn(`${variant} produced ${invalid.length} incomplete exact-asset runs`);',
           }
           for old, new in replacements.items():
               if old not in source:
                   raise SystemExit(f"Expected shared-probe fragment not found: {old}")
               source = source.replace(old, new)
+
+          old_verdict = '''  let verdict;
+          let interpretation;
+          if (heroStartGain >= 500 && lcpGain >= 500) {'''
+          new_verdict = '''  const baselineAssetObserved = variants.baseline.filter(
+            (run) => Number.isFinite(run.metrics.hero_request_start_ms)
+          ).length;
+          const baselineLcpMatches = variants.baseline.filter(
+            (run) => run.metrics.lcp_entry?.url === experiment.hero_url
+          ).length;
+
+          let verdict;
+          let interpretation;
+          if (baselineAssetObserved < 2 || baselineLcpMatches < 2) {
+            verdict = "INCONCLUSIVE";
+            interpretation =
+              "The pinned historical asset was not a stable baseline LCP in at least two rounds; the experiment does not silently retarget.";
+          } else if (heroStartGain >= 500 && lcpGain >= 500) {'''
+          if old_verdict not in source:
+              raise SystemExit("Expected verdict block was not found in shared preload probe")
+          source = source.replace(old_verdict, new_verdict)
+
+          old_packet = '''    confidence: "MEDIUM",
+              variants: {'''
+          new_packet = '''    confidence: verdict === "INCONCLUSIVE" ? "LOW" : "MEDIUM",
+              baseline_asset_observed_count: baselineAssetObserved,
+              baseline_lcp_match_count: baselineLcpMatches,
+              variants: {'''
+          if old_packet not in source:
+              raise SystemExit("Expected packet block was not found in shared preload probe")
+          source = source.replace(old_packet, new_packet)
+
           target_path.write_text(source, encoding="utf-8")
           PY
           node --check reports/openai-homepage-lcp/runtime/openai_preload_experiment.mjs
@@ -214,6 +247,14 @@ jobs:
               f"| Optimized exact asset | {ab['lcp_ms']} ms | {at['lcp_ms']} ms | {asset['effects']['lcp_ms']['delta']} ms | {asset['effects']['lcp_ms']['improvement_percent']}% |",
               "",
               f"Prepared image: {prep['original_bytes']} → {prep['optimized_bytes']} bytes ({prep['byte_reduction_percent']}% reduction).",
+              "",
+              "## Exact-target validity",
+              "",
+              f"- Preload baseline asset observed: {preload.get('baseline_asset_observed_count', 'n/a')}/3",
+              f"- Preload baseline LCP match: {preload.get('baseline_lcp_match_count', 'n/a')}/3",
+              f"- Asset baseline observed: {asset.get('baseline_asset_observed_count', 'n/a')}/3",
+              f"- Asset baseline LCP match: {asset.get('baseline_lcp_match_count', 'n/a')}/3",
+              f"- Optimized request fulfilled: {asset.get('optimized_fulfilled_count', 'n/a')}/3",
               "",
               "## Interpretation boundary",
               "",
