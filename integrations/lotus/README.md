@@ -104,3 +104,43 @@ Run capture-gate tests:
 ```bash
 python3 -m unittest tests/test_lotus_capture_gate.py -v
 ```
+
+## Operator-guided Playwright runner
+
+`scripts/lotus_playwright_capture.py` creates the evidence packet consumed by
+the gate. It deliberately does not automate product interactions:
+
+- Chromium is always headed;
+- the operator manually selects dates, changes currency, and uses Back/Forward;
+- the runner records three checkpoints: `before`, `after_currency`, and
+  `after_history`;
+- no button or form is clicked by the runner;
+- known payment/reservation submission request paths are aborted;
+- the raw HAR is redacted and deleted;
+- screenshots require explicit human redaction review;
+- each attempt receives a unique browser-context ID;
+- finalization requires at least two independent contexts.
+
+CI executes only the standard-library `plan` command and regression tests. It
+does not install Playwright, launch a browser, or contact Airbnb.
+
+Validate the runner plan:
+
+```bash
+python3 scripts/lotus_playwright_capture.py plan \
+  --profile integrations/lotus/capture/airbnb-currency-atomicity-v0.1.json \
+  --capture-template integrations/lotus/examples/airbnb-run-002.capture.json
+```
+
+The local runbook, installation command, two-attempt workflow, redaction rules,
+and finalization command are documented in
+[`capture/PLAYWRIGHT_RUNNER.md`](capture/PLAYWRIGHT_RUNNER.md).
+
+Run runner regression tests:
+
+```bash
+python3 -m unittest tests/test_lotus_playwright_capture.py -v
+```
+
+A finalized package may become `READY_FOR_REVIEW / F3`; it still cannot become a
+confirmed defect without a separate Pythia or human judgment.
