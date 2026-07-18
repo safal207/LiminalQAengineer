@@ -1,0 +1,36 @@
+{
+  "schema_version": "liminalqa-lotus-liminaldb-bridge-v0.1",
+  "purpose": "Convert a deterministic Lotus Decision Packet into an append-only, replayable, hash-linked event ledger compatible with the LiminalDB Mirror Timeline role.",
+  "liminaldb_source": {
+    "repository": "safal207/LiminalDB",
+    "commit": "75ef9f7f403a34c60aa2ceba4cb3c97870d73e77",
+    "path": "liminal-db/crates/liminal-core/src/mirror.rs",
+    "blob_sha": "b66ed1c6ecb6726eb59e3153d38d81a55a7eeca5",
+    "rule": "append-only replayable timeline; deterministic order and hash lineage"
+  },
+  "event_types": [
+    "evidence_observed",
+    "pythia_judged",
+    "cml_memory_proposed",
+    "ls_control_assessed",
+    "lotus_decided"
+  ],
+  "invariants": {
+    "global_hash_chain": true,
+    "deterministic_finding_order": true,
+    "deterministic_event_order": true,
+    "source_packet_hash_required": true,
+    "replay_snapshot_required": true,
+    "silent_memory_acceptance": false,
+    "network_write": false
+  },
+  "authority": {
+    "mode": "audit_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "deployment": false,
+    "merge": false
+  }
+}
