@@ -12,6 +12,16 @@ on:
       - audits/lighthouse/tradernet/policy.json
       - scripts/lighthouse_to_liminalqa.py
       - scripts/lighthouse_portfolio_summary.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-domain-portfolio.yml
+      - audits/lighthouse/tradernet/domains.json
+      - audits/lighthouse/tradernet/lighthouserc.cjs
+      - audits/lighthouse/tradernet/policy.json
+      - scripts/lighthouse_to_liminalqa.py
+      - scripts/lighthouse_portfolio_summary.py
 
 permissions:
   contents: read
