@@ -6,8 +6,10 @@ on:
       - "integrations/lotus/**"
       - "scripts/validate_lotus_evidence.py"
       - "scripts/lotus_capture_gate.py"
+      - "scripts/lotus_playwright_capture.py"
       - "tests/test_lotus_evidence.py"
       - "tests/test_lotus_capture_gate.py"
+      - "tests/test_lotus_playwright_capture.py"
       - ".github/workflows/lotus-evidence-contract.yml"
   push:
     branches: [main]
@@ -15,8 +17,10 @@ on:
       - "integrations/lotus/**"
       - "scripts/validate_lotus_evidence.py"
       - "scripts/lotus_capture_gate.py"
+      - "scripts/lotus_playwright_capture.py"
       - "tests/test_lotus_evidence.py"
       - "tests/test_lotus_capture_gate.py"
+      - "tests/test_lotus_playwright_capture.py"
 
 permissions:
   contents: read
@@ -29,6 +33,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Validate Python sources
+        run: |
+          python3 -m py_compile \
+            scripts/validate_lotus_evidence.py \
+            scripts/lotus_capture_gate.py \
+            scripts/lotus_playwright_capture.py \
+            tests/test_lotus_evidence.py \
+            tests/test_lotus_capture_gate.py \
+            tests/test_lotus_playwright_capture.py
       - name: Validate vertical-slice contract
         run: python3 scripts/validate_lotus_evidence.py
       - name: Validate planned browser capture template
@@ -36,7 +49,13 @@ jobs:
           python3 scripts/lotus_capture_gate.py \
             --spec integrations/lotus/capture/airbnb-currency-atomicity-v0.1.json \
             --capture integrations/lotus/examples/airbnb-run-002.capture.json
+      - name: Validate Playwright runner plan without target interaction
+        run: |
+          python3 scripts/lotus_playwright_capture.py plan \
+            --profile integrations/lotus/capture/airbnb-currency-atomicity-v0.1.json \
+            --capture-template integrations/lotus/examples/airbnb-run-002.capture.json
       - name: Run contract regression tests
         run: |
           python3 -m unittest tests/test_lotus_evidence.py -v
           python3 -m unittest tests/test_lotus_capture_gate.py -v
+          python3 -m unittest tests/test_lotus_playwright_capture.py -v
