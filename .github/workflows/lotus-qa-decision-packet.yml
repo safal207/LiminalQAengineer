@@ -1,0 +1,105 @@
+name: Lotus QA Decision Packet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/lotus-qa-decision-packet-v0-1
+    paths:
+      - .github/workflows/lotus-qa-decision-packet.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/lotus-findings-v0.1.json
+      - audits/lotus/lotus-decision-packet-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - tests/test_lotus_qa_decision_packet.py
+      - docs/audits/LOTUS_QA_DECISION_PACKET.md
+  pull_request:
+    branches:
+      - agent/openai-homepage-lcp-counterfactual
+      - main
+    paths:
+      - .github/workflows/lotus-qa-decision-packet.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/lotus-findings-v0.1.json
+      - audits/lotus/lotus-decision-packet-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - tests/test_lotus_qa_decision_packet.py
+      - docs/audits/LOTUS_QA_DECISION_PACKET.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lotus-qa-decision-packet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Pythia → CML → LS packet
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate static inputs and Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m json.tool standards/lotus-qa/lotus-qa-contract-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/lotus-findings-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/lotus-decision-packet-v0.1.json >/dev/null
+          python3 -m py_compile scripts/lotus_qa_decision_packet.py tests/test_lotus_qa_decision_packet.py
+
+      - name: Run Lotus contract regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_lotus_qa_decision_packet.py -v
+
+      - name: Regenerate deterministic packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/lotus
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings audits/lotus/lotus-findings-v0.1.json \
+            --output-dir reports/lotus
+          cmp reports/lotus/lotus-decision-packet.json audits/lotus/lotus-decision-packet-v0.1.json
+          cmp reports/lotus/lotus-decision-packet.md docs/audits/LOTUS_QA_DECISION_PACKET.md
+
+      - name: Validate decision and authority invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == "liminalqa-lotus-decision-packet-v0.1" and
+            .summary.finding_count == 7 and
+            .summary.pythia_verdicts.ALLOW == 5 and
+            .summary.pythia_verdicts.BLOCK == 1 and
+            .summary.pythia_verdicts.ESCALATE == 1 and
+            .summary.decision_statuses.CONFIRMED == 5 and
+            .summary.decision_statuses.BLOCKED == 1 and
+            .summary.decision_statuses.NEEDS_EVIDENCE == 1 and
+            .summary.durable_memory_count == 0 and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.deployment == false and
+            .authority.merge == false and
+            ([.findings[].authority.mode] | all(. == "audit_only")) and
+            ([.findings[].decision.human_review_required] | all(. == true))
+          ' reports/lotus/lotus-decision-packet.json >/dev/null
+          cat reports/lotus/lotus-decision-packet.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact Lotus packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: lotus-qa-decision-packet-${{ github.run_id }}
+          path: reports/lotus/
+          if-no-files-found: error
+          retention-days: 14
