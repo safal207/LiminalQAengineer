@@ -35,14 +35,18 @@ jobs:
     env:
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
+      EXACT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Checkout exact workflow revision
+      - name: Checkout exact branch head
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXACT_HEAD_SHA }}
 
-      - name: Validate profile and analyzer
+      - name: Validate exact revision, profile, and analyzer
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXACT_HEAD_SHA}"
           node --version
           npm --version
           python3 --version
@@ -83,16 +87,18 @@ jobs:
           set -euo pipefail
           result="reports/claude-code-rerun/claude-code-exact-rerun-result.json"
           test "$(find .lighthouseci -maxdepth 1 -name 'lhr-*.json' | wc -l)" -eq 3
-          jq -e '
-            .target == "https://claude.com/product/claude-code" and
-            .profile.runs == 3 and
-            .profile.throttling_method == "devtools" and
-            .result.valid_lcp_runs + .result.no_lcp_runs <= 3 and
-            .interpretation.performance_zero_is_product_score == false and
-            (.result.state == "VALID_LCP_REPEATED" or
-             .result.state == "NO_LCP_REPEATED" or
-             .result.state == "MIXED_INCONCLUSIVE")
-          ' "${result}" >/dev/null
+          jq -e \
+            --arg exact_head "${EXACT_HEAD_SHA}" \
+            '.target == "https://claude.com/product/claude-code" and
+             .provenance.exact_head_sha == $exact_head and
+             .profile.runs == 3 and
+             .profile.throttling_method == "devtools" and
+             .result.valid_lcp_runs + .result.no_lcp_runs <= 3 and
+             .interpretation.performance_zero_is_product_score == false and
+             (.result.state == "VALID_LCP_REPEATED" or
+              .result.state == "NO_LCP_REPEATED" or
+              .result.state == "MIXED_INCONCLUSIVE")' \
+            "${result}" >/dev/null
 
           if jq -e '.interpretation.supersession_allowed == true' "${result}" >/dev/null; then
             jq -e '.result.valid_lcp_runs >= 2 and .result.prior_no_lcp_status == "NOT_REPRODUCED_UNDER_DEVTOOLS_PROFILE"' "${result}" >/dev/null
