@@ -38,10 +38,10 @@
     },
     {
       "slug": "openai-api-quickstart",
-      "url": "https://platform.openai.com/docs/quickstart/make-your-first-api-request",
-      "origin": "https://platform.openai.com",
+      "url": "https://developers.openai.com/api/docs/quickstart",
+      "origin": "https://developers.openai.com",
       "surface": "public API quickstart documentation",
-      "evidence": "Official OpenAI API quickstart",
+      "evidence": "Canonical OpenAI API quickstart linked from the official docs navigation",
       "status": "confirmed_public"
     },
     {
@@ -80,6 +80,7 @@
     "ChatGPT is observed only as delivered to a non-authenticated public browser session.",
     "The benchmark records QA, accessibility, performance, SEO, and browser-best-practice signals only.",
     "No credentials, API keys, prompts, conversations, files, payments, account changes, tool calls, or agent actions are used.",
-    "Inventory URLs were verified against official OpenAI public surfaces on 2026-07-19."
+    "Inventory URLs were verified against official OpenAI public surfaces on 2026-07-19.",
+    "The obsolete platform.openai.com/docs/quickstart/make-your-first-api-request route was rejected after it rendered Page not found; the benchmark uses the canonical developers.openai.com API quickstart instead."
   ]
 }
