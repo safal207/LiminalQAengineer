@@ -43,10 +43,12 @@ jobs:
           config="audits/browser/takeprofit/chart-quote-probe.json"
           python3 -m json.tool "${config}" >/dev/null
           jq -e '
-            .targetUrl == "https://takeprofit.com/platform" and
-            .switchSymbol == "BTCUSDT" and
+            .targetUrl == "https://takeprofit.com/indicator/atr-super-trend-multi-source-57" and
+            .expectedSymbolHint == "BTC" and
+            .attemptSymbolSwitch == false and
             .boundaries.public_page_only == true and
             .boundaries.browser_local_diagnostics_only == true and
+            .boundaries.passive_application_traffic_observation == true and
             .boundaries.authenticated_testing == false and
             .boundaries.application_api_testing == false and
             .boundaries.financial_operations == false and
