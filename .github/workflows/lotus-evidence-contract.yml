@@ -25,6 +25,7 @@ on:
       - "tests/test_lotus_capture_gate.py"
       - "tests/test_lotus_playwright_capture.py"
       - "tests/test_lotus_airbnb_capture_session.py"
+      - ".github/workflows/lotus-evidence-contract.yml"
 
 permissions:
   contents: read
@@ -34,6 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
