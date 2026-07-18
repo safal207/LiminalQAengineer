@@ -1,0 +1,147 @@
+{
+  "schema_version": "liminalqa-takeprofit-stale-quote-counterfactual-result-v1",
+  "run": {
+    "workflow_run_id": 29664173396,
+    "exact_head_sha": "2584c21587f54d6d3c9680ccdb41d86d028cabd3",
+    "artifact_id": 8435271754,
+    "artifact_digest": "sha256:0a8574204b3a802278928c7213c235421bd79c5186dbd48eac7a0423f5970a2b",
+    "raw_result_sha256": "sha256:5e7ed2c55d8b7af9f1b5a9809df25e623296c319f635ca1cea246f7dc948307b",
+    "runner_result_evidence_sha256": "a545e7644891eb703626c5a19e7cb2d02f44073c89666125a1fa88cd3d42353e",
+    "completed_at": "2026-07-18T22:54:35.137Z"
+  },
+  "target": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "verdict": "SUPPORTED_STALE_STATE_GAP",
+  "classification": {
+    "verdict": "SUPPORTED_STALE_STATE_GAP",
+    "checks": {
+      "baseline_quote_liveness": "PASS",
+      "hold_experiment": "PASS",
+      "stale_state_clarity": "FAIL",
+      "recovery_after_release": "PASS",
+      "natural_poll_overlap": "OBSERVED",
+      "out_of_order_transport_delivery": "CREATED",
+      "out_of_order_application_effect": "UNVERIFIED"
+    },
+    "interpretation": {
+      "stale_state_gap_confirmed": true,
+      "polling_model": "The client initiated another quote response while an older response was held.",
+      "ordering_boundary": "An older browser-held quote response was delivered after a newer response, but whether the application applied or rejected it is not observable from the public canvas and remains unverified.",
+      "pythia_boundary": "Confirmed observations remain separate from application-state hypotheses. Missing canvas-level quote identity prevents a claim that the visible price rolled back.",
+      "cml_boundary": "The result may be linked to the earlier five-second interruption and ChartStore initialization family as correlated evidence, not as a confirmed shared root cause.",
+      "ls_boundary": "A visible last-known chart without a freshness marker reduces the user's ability to distinguish current market state from retained state."
+    }
+  },
+  "baseline": {
+    "quote_response_count": 2,
+    "distinct_quote_body_count": 2,
+    "quote_response_gaps_ms": [35379],
+    "freshness_terms_observed": [],
+    "chart_visible": true,
+    "expected_symbol_visible": true
+  },
+  "treatment": {
+    "quote_response_count": 6,
+    "distinct_quote_body_count": 4,
+    "freshness_terms_observed": [],
+    "overlapping_quote_responses": [
+      {
+        "ordinal": 3,
+        "received_at": "2026-07-18T22:53:01.028Z",
+        "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "body_bytes": 0
+      },
+      {
+        "ordinal": 4,
+        "received_at": "2026-07-18T22:53:01.059Z",
+        "body_sha256": "da6f9265b56d70a04dabb9ea5dd4d7758dec099a40ae2a2242d44dfdf4abba55",
+        "body_bytes": 227
+      },
+      {
+        "ordinal": 5,
+        "received_at": "2026-07-18T22:54:00.751Z",
+        "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "body_bytes": 0
+      },
+      {
+        "ordinal": 6,
+        "received_at": "2026-07-18T22:54:00.782Z",
+        "body_sha256": "6f23fc99d34c0eda6dfac00e5cf81cae1e2898d383268b8a1750f4760387be9a",
+        "body_bytes": 227
+      }
+    ],
+    "held_response": {
+      "ordinal": 2,
+      "body_sha256": "704a8f26ca4239cc00eac6f718311d238433da75ad86fbe3f1a81264a5cab179",
+      "body_bytes": 227,
+      "held_at": "2026-07-18T22:52:58.634Z",
+      "released_at": "2026-07-18T22:54:14.675Z",
+      "hold_duration_ms": 76041,
+      "delivered_after_newer_response": true,
+      "states": {
+        "hold_start": {
+          "at": "2026-07-18T22:53:14.244Z",
+          "expected_symbol_visible": true,
+          "chart_surface_count": 2,
+          "freshness_terms": []
+        },
+        "before_release": {
+          "at": "2026-07-18T22:54:14.547Z",
+          "expected_symbol_visible": true,
+          "chart_surface_count": 2,
+          "freshness_terms": []
+        },
+        "after_release": {
+          "at": "2026-07-18T22:54:34.737Z",
+          "expected_symbol_visible": true,
+          "chart_surface_count": 2,
+          "freshness_terms": []
+        }
+      },
+      "screenshots": {
+        "hold_start": {
+          "file": "02-hold-start.png",
+          "sha256": "a9617ed6d92de4d6cc62383318374ff88abb6344b66cfbd1f14a69a2bcf957d5",
+          "bytes": 290130
+        },
+        "before_release": {
+          "file": "03-before-release.png",
+          "sha256": "c3a76a6f65308c9a128a9a4ec52d398ab841c05e529b9c67b514385df9d3dcb3",
+          "bytes": 290110
+        },
+        "after_release": {
+          "file": "04-after-release.png",
+          "sha256": "c3a76a6f65308c9a128a9a4ec52d398ab841c05e529b9c67b514385df9d3dcb3",
+          "bytes": 290110
+        }
+      }
+    },
+    "final_state": {
+      "expected_symbol_visible": true,
+      "chart_surface_count": 2,
+      "freshness_terms": []
+    },
+    "tracked_console_error_count": 2,
+    "page_error_count": 0
+  },
+  "boundaries": {
+    "public_page_only": true,
+    "browser_local_request_delay_only": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "authority": {
+    "mode": "evidence_only",
+    "grants": {
+      "ownership": false,
+      "approval": false,
+      "execution": false,
+      "delivery": false,
+      "merge": false
+    }
+  }
+}
