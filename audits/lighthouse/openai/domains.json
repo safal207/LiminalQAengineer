@@ -1,0 +1,85 @@
+{
+  "schema_version": "liminalqa-public-domain-portfolio-v1",
+  "name": "OpenAI public web benchmark",
+  "scope_kind": "passive_public_quality",
+  "max_parallel": 2,
+  "targets": [
+    {
+      "slug": "openai-home",
+      "url": "https://openai.com/",
+      "origin": "https://openai.com",
+      "surface": "company and product homepage",
+      "evidence": "Official OpenAI homepage",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "chatgpt-public-shell",
+      "url": "https://chatgpt.com/",
+      "origin": "https://chatgpt.com",
+      "surface": "unauthenticated ChatGPT web entry shell",
+      "evidence": "Official ChatGPT web entry documented by OpenAI Help Center",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "openai-codex",
+      "url": "https://openai.com/codex/",
+      "origin": "https://openai.com",
+      "surface": "Codex product overview",
+      "evidence": "Official OpenAI Codex product page",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "openai-developers",
+      "url": "https://developers.openai.com/",
+      "origin": "https://developers.openai.com",
+      "surface": "developer portal landing",
+      "evidence": "Official OpenAI Developers portal",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "openai-api-quickstart",
+      "url": "https://platform.openai.com/docs/quickstart/make-your-first-api-request",
+      "origin": "https://platform.openai.com",
+      "surface": "public API quickstart documentation",
+      "evidence": "Official OpenAI API quickstart",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "openai-help",
+      "url": "https://help.openai.com/en-us",
+      "origin": "https://help.openai.com",
+      "surface": "public Help Center landing",
+      "evidence": "Official OpenAI Help Center",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "openai-status",
+      "url": "https://status.openai.com/",
+      "origin": "https://status.openai.com",
+      "surface": "public service status dashboard",
+      "evidence": "Official OpenAI Status page",
+      "status": "confirmed_public"
+    }
+  ],
+  "boundaries": {
+    "one_navigation_per_target": true,
+    "public_pages_only": true,
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "prompt_submission": false,
+    "agent_or_tool_execution": false,
+    "account_or_billing_actions": false,
+    "file_uploads": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Each exact allowlisted target receives one passive Lighthouse navigation with at most two targets running concurrently.",
+    "ChatGPT is observed only as delivered to a non-authenticated public browser session.",
+    "The benchmark records QA, accessibility, performance, SEO, and browser-best-practice signals only.",
+    "No credentials, API keys, prompts, conversations, files, payments, account changes, tool calls, or agent actions are used.",
+    "Inventory URLs were verified against official OpenAI public surfaces on 2026-07-19."
+  ]
+}
