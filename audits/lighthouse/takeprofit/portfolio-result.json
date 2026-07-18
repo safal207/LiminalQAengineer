@@ -1,0 +1,91 @@
+{
+  "schema_version": "liminalqa-takeprofit-lighthouse-portfolio-v1",
+  "run": {
+    "workflow_run_id": 29661982911,
+    "exact_head_sha": "a8890c785bcc8754d27aac5d9f5fd390e0f7b7b7",
+    "lighthouse_version": "12.6.1",
+    "portfolio_artifact_digest": "sha256:87083147b2868566f406ffd99b965531f636a422ddbce0010676b1cc9e4dc1fe"
+  },
+  "verdict": "WARN",
+  "target_count": 6,
+  "warning_count": 6,
+  "portfolio_metrics": {
+    "average_performance_score": 34.0,
+    "fastest_lcp_ms": 4844.2,
+    "slowest_lcp_ms": 24838.2
+  },
+  "targets": [
+    {
+      "slug": "takeprofit-home",
+      "url": "https://takeprofit.com/",
+      "scores": {"performance": 27, "accessibility": 78, "best_practices": 71, "seo": 100},
+      "metrics": {"fcp_ms": 13032.1, "lcp_ms": 24838.2, "tbt_ms": 2258.0, "cls": 0.0},
+      "evidence_sha256": "99e0130fc6b988fb01de33307dbe22e884820d1e8611cf33ec7d7735ba564c9f"
+    },
+    {
+      "slug": "takeprofit-platform",
+      "url": "https://takeprofit.com/platform",
+      "scores": {"performance": 25, "accessibility": 82, "best_practices": 93, "seo": 92},
+      "metrics": {"fcp_ms": 10922.7, "lcp_ms": 24157.8, "tbt_ms": 4417.7, "cls": 0.000509},
+      "evidence_sha256": "d3120e3fb93020dbe0df16fb9752538bacf0f31998bb50421f5944b7852fb18f"
+    },
+    {
+      "slug": "takeprofit-indicators",
+      "url": "https://takeprofit.com/indicators",
+      "scores": {"performance": 38, "accessibility": 78, "best_practices": 89, "seo": 100},
+      "metrics": {"fcp_ms": 2932.4, "lcp_ms": 7002.7, "tbt_ms": 5020.4, "cls": 0.000526},
+      "evidence_sha256": "7c606e09cdf39bca0a89be7350cfaa2679182094c97ba293c1f52a78ba4697d8"
+    },
+    {
+      "slug": "takeprofit-indicator-detail",
+      "url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+      "scores": {"performance": 26, "accessibility": 80, "best_practices": 75, "seo": 100},
+      "metrics": {"fcp_ms": 7976.4, "lcp_ms": 7976.4, "tbt_ms": 4663.0, "cls": 0.000591},
+      "evidence_sha256": "10f27c34c73458917dd171b3747eb5351d068d2056c1653cdbcea0ba3774f0a7"
+    },
+    {
+      "slug": "takeprofit-feed",
+      "url": "https://takeprofit.com/feed",
+      "scores": {"performance": 45, "accessibility": 76, "best_practices": 75, "seo": 100},
+      "metrics": {"fcp_ms": 3175.6, "lcp_ms": 4844.2, "tbt_ms": 5662.5, "cls": 0.000419},
+      "evidence_sha256": "df87c2170fe6d991f86095930f24a0426855ff897b2d494e987b5f547e37aa2a"
+    },
+    {
+      "slug": "takeprofit-docs-overview",
+      "url": "https://takeprofit.com/docs/guide/getting-started/Overview",
+      "scores": {"performance": 43, "accessibility": 96, "best_practices": 96, "seo": 92},
+      "metrics": {"fcp_ms": 1680.2, "lcp_ms": 10253.1, "tbt_ms": 4461.5, "cls": 0.000052},
+      "evidence_sha256": "b079c53828915de6fdbcd7c8ff018c5c3d12c3f181dba63f9d2630c34b278a16"
+    }
+  ],
+  "recurring_findings": [
+    {"audit_id": "bootup-time", "target_count": 6},
+    {"audit_id": "unused-javascript", "target_count": 5},
+    {"audit_id": "legacy-javascript", "target_count": 5},
+    {"audit_id": "cache-insight", "target_count": 5},
+    {"audit_id": "render-blocking-resources", "target_count": 5},
+    {"audit_id": "uses-text-compression", "target_count": 5},
+    {"audit_id": "unused-css-rules", "target_count": 5},
+    {"audit_id": "button-name", "target_count": 5},
+    {"audit_id": "errors-in-console", "target_count": 3},
+    {"audit_id": "dom-size", "target_count": 3}
+  ],
+  "current_regression_signal": {
+    "verdict": "STILL_PRESENT_IN_CHANGED_FORM",
+    "family": "ChartStore required-field validation during published indicator initialization",
+    "observed_errors": [
+      "[ChartStore] settings.chart.timeToCloseLabel is a required field",
+      "settings.chart.style.lineSource is a required field",
+      "settings.chart.style.tpo is a required field"
+    ]
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  }
+}
