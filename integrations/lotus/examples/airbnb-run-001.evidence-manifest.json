@@ -1,0 +1,21 @@
+{
+  "manifest_version": "proofpath-lqa-evidence/0.1",
+  "bundle_id": "ABNB-RUN-001",
+  "status": "planned-example",
+  "integrity_only": true,
+  "truth_claim": false,
+  "artifacts": [
+    {
+      "path": "integrations/lotus/examples/airbnb-run-001.json",
+      "sha256": "c4aa9e04b7669041fcb465cbf9a2df57ceb30b07742f0a9e6a6cc326915343f8",
+      "media_type": "application/json"
+    },
+    {
+      "path": "integrations/lotus/examples/airbnb-run-001.ttrace.jsonl",
+      "sha256": "804900e94412afb8cad1a6027e433b1f0d00851685ab065f7e27f6648d35d12d",
+      "media_type": "application/x-ndjson"
+    }
+  ],
+  "decision_ref": "DRP-ABNB-RUN-001-DEC-001",
+  "boundary_note": "Matching hashes prove artifact integrity only. They do not prove the Airbnb hypothesis."
+}
