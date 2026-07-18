@@ -26,6 +26,7 @@ class ContractError(ValueError):
 
 
 def load_json(path: Path) -> dict[str, Any]:
+    """Load one JSON object and reject non-object top-level values."""
     with path.open(encoding="utf-8") as handle:
         value = json.load(handle)
     if not isinstance(value, dict):
@@ -34,10 +35,12 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def parse_ts(value: str) -> datetime:
+    """Parse an ISO-8601 timestamp, accepting the common trailing-Z form."""
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def validate_run(run: dict[str, Any]) -> None:
+    """Validate the run envelope, claims, protocol pins, and authority boundaries."""
     required = {
         "schema_version", "run_id", "status", "target", "source_base",
         "protocol_pins", "claims", "lotus", "drp_decision",
@@ -96,6 +99,7 @@ def validate_run(run: dict[str, Any]) -> None:
 
 
 def load_and_validate_trace(path: Path, run_id: str, decision_id: str) -> None:
+    """Load a T-Trace JSONL file and enforce ordering, identity, and decision links."""
     records = []
     with path.open(encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, start=1):
@@ -124,6 +128,7 @@ def load_and_validate_trace(path: Path, run_id: str, decision_id: str) -> None:
 
 
 def sha256_file(path: Path) -> str:
+    """Return the lowercase SHA-256 digest for a file without loading it at once."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(65536), b""):
@@ -132,6 +137,7 @@ def sha256_file(path: Path) -> str:
 
 
 def validate_manifest(manifest: dict[str, Any]) -> None:
+    """Verify the integrity-only boundary and every referenced artifact digest."""
     if manifest.get("integrity_only") is not True or manifest.get("truth_claim") is not False:
         raise ContractError("manifest: integrity/truth boundary must be explicit")
 
@@ -148,6 +154,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
 
 
 def validate_all() -> None:
+    """Validate the repository's complete planned evidence example."""
     run = load_json(RUN_PATH)
     manifest = load_json(MANIFEST_PATH)
     validate_run(run)
@@ -160,6 +167,7 @@ def validate_all() -> None:
 
 
 def main() -> int:
+    """Run all validations and return a shell-friendly process status."""
     try:
         validate_all()
     except (OSError, KeyError, TypeError, ContractError) as exc:
