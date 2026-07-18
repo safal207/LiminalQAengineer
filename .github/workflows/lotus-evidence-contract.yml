@@ -1,0 +1,31 @@
+name: Lotus evidence contract
+
+on:
+  pull_request:
+    paths:
+      - "integrations/lotus/**"
+      - "scripts/validate_lotus_evidence.py"
+      - "tests/test_lotus_evidence.py"
+      - ".github/workflows/lotus-evidence-contract.yml"
+  push:
+    branches: [main]
+    paths:
+      - "integrations/lotus/**"
+      - "scripts/validate_lotus_evidence.py"
+      - "tests/test_lotus_evidence.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate vertical-slice contract
+        run: python3 scripts/validate_lotus_evidence.py
+      - name: Run contract regression tests
+        run: python3 -m unittest tests/test_lotus_evidence.py -v
