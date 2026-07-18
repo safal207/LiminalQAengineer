@@ -21,6 +21,7 @@ on:
       - docs/audits/TRADERNET_*.md
       - scripts/lighthouse_to_liminalqa.py
       - scripts/lighthouse_causality_graph.py
+      - scripts/render_lighthouse_causality.py
   pull_request:
     branches:
       - main
@@ -30,6 +31,7 @@ on:
       - docs/audits/TRADERNET_*.md
       - scripts/lighthouse_to_liminalqa.py
       - scripts/lighthouse_causality_graph.py
+      - scripts/render_lighthouse_causality.py
 
 permissions:
   contents: read
@@ -77,7 +79,8 @@ jobs:
           python3 --version
           python3 -m py_compile \
             scripts/lighthouse_to_liminalqa.py \
-            scripts/lighthouse_causality_graph.py
+            scripts/lighthouse_causality_graph.py \
+            scripts/render_lighthouse_causality.py
 
       - name: Collect Lighthouse evidence
         env:
@@ -102,6 +105,10 @@ jobs:
           python3 scripts/lighthouse_causality_graph.py \
             --input-dir .lighthouseci \
             --output-dir reports/lighthouse
+
+          python3 scripts/render_lighthouse_causality.py \
+            --input reports/lighthouse/causality-graph.json \
+            --output reports/lighthouse/causality-graph.md
 
           cat reports/lighthouse/summary.md >> "${GITHUB_STEP_SUMMARY}"
           printf '\n\n' >> "${GITHUB_STEP_SUMMARY}"
