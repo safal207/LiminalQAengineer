@@ -119,33 +119,41 @@ jobs:
                   raise SystemExit(f"Expected shared-probe fragment not found: {old}")
               source = source.replace(old, new)
 
-          old_verdict = '''  let verdict;
-          let interpretation;
-          if (heroStartGain >= 500 && lcpGain >= 500) {'''
-          new_verdict = '''  const baselineAssetObserved = variants.baseline.filter(
-            (run) => Number.isFinite(run.metrics.hero_request_start_ms)
-          ).length;
-          const baselineLcpMatches = variants.baseline.filter(
-            (run) => run.metrics.lcp_entry?.url === experiment.hero_url
-          ).length;
-
-          let verdict;
-          let interpretation;
-          if (baselineAssetObserved < 2 || baselineLcpMatches < 2) {
-            verdict = "INCONCLUSIVE";
-            interpretation =
-              "The pinned historical asset was not a stable baseline LCP in at least two rounds; the experiment does not silently retarget.";
-          } else if (heroStartGain >= 500 && lcpGain >= 500) {'''
+          old_verdict = "\n".join([
+              "  let verdict;",
+              "  let interpretation;",
+              "  if (heroStartGain >= 500 && lcpGain >= 500) {",
+          ])
+          new_verdict = "\n".join([
+              "  const baselineAssetObserved = variants.baseline.filter(",
+              "    (run) => Number.isFinite(run.metrics.hero_request_start_ms)",
+              "  ).length;",
+              "  const baselineLcpMatches = variants.baseline.filter(",
+              "    (run) => run.metrics.lcp_entry?.url === experiment.hero_url",
+              "  ).length;",
+              "",
+              "  let verdict;",
+              "  let interpretation;",
+              "  if (baselineAssetObserved < 2 || baselineLcpMatches < 2) {",
+              '    verdict = "INCONCLUSIVE";',
+              "    interpretation =",
+              '      "The pinned historical asset was not a stable baseline LCP in at least two rounds; the experiment does not silently retarget.";',
+              "  } else if (heroStartGain >= 500 && lcpGain >= 500) {",
+          ])
           if old_verdict not in source:
               raise SystemExit("Expected verdict block was not found in shared preload probe")
           source = source.replace(old_verdict, new_verdict)
 
-          old_packet = '''    confidence: "MEDIUM",
-              variants: {'''
-          new_packet = '''    confidence: verdict === "INCONCLUSIVE" ? "LOW" : "MEDIUM",
-              baseline_asset_observed_count: baselineAssetObserved,
-              baseline_lcp_match_count: baselineLcpMatches,
-              variants: {'''
+          old_packet = "\n".join([
+              '    confidence: "MEDIUM",',
+              "    variants: {",
+          ])
+          new_packet = "\n".join([
+              '    confidence: verdict === "INCONCLUSIVE" ? "LOW" : "MEDIUM",',
+              "    baseline_asset_observed_count: baselineAssetObserved,",
+              "    baseline_lcp_match_count: baselineLcpMatches,",
+              "    variants: {",
+          ])
           if old_packet not in source:
               raise SystemExit("Expected packet block was not found in shared preload probe")
           source = source.replace(old_packet, new_packet)
