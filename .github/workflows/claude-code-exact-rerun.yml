@@ -1,0 +1,121 @@
+name: Claude Code Exact Rerun
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/claude-code-exact-rerun-v0-1
+    paths:
+      - .github/workflows/claude-code-exact-rerun.yml
+      - audits/lighthouse/claude-code-rerun/lighthouserc.cjs
+      - scripts/analyze_claude_code_rerun.py
+      - tests/test_analyze_claude_code_rerun.py
+  pull_request:
+    branches:
+      - agent/lotus-claude-memory-v0-1
+      - main
+    paths:
+      - .github/workflows/claude-code-exact-rerun.yml
+      - audits/lighthouse/claude-code-rerun/lighthouserc.cjs
+      - scripts/analyze_claude_code_rerun.py
+      - tests/test_analyze_claude_code_rerun.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-code-exact-rerun-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rerun:
+    name: Reproduce or supersede Claude Code NO_LCP
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate profile and analyzer
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          python3 --version
+          node -c audits/lighthouse/claude-code-rerun/lighthouserc.cjs
+          python3 -m py_compile \
+            scripts/analyze_claude_code_rerun.py \
+            tests/test_analyze_claude_code_rerun.py
+
+      - name: Run evidence-boundary regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover \
+            -s tests \
+            -p 'test_analyze_claude_code_rerun.py' \
+            -v
+
+      - name: Collect three sequential passive navigations
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci reports/claude-code-rerun
+          npx --yes @lhci/cli@0.15.1 autorun \
+            --config=audits/lighthouse/claude-code-rerun/lighthouserc.cjs
+
+      - name: Analyze exact rerun
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/analyze_claude_code_rerun.py \
+            --input-dir .lighthouseci \
+            --output-dir reports/claude-code-rerun
+          cat reports/claude-code-rerun/claude-code-exact-rerun-result.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate bounded result
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/claude-code-rerun/claude-code-exact-rerun-result.json"
+          test "$(find .lighthouseci -maxdepth 1 -name 'lhr-*.json' | wc -l)" -eq 3
+          jq -e '
+            .target == "https://claude.com/product/claude-code" and
+            .profile.runs == 3 and
+            .profile.throttling_method == "devtools" and
+            .result.valid_lcp_runs + .result.no_lcp_runs <= 3 and
+            .interpretation.performance_zero_is_product_score == false and
+            (.result.state == "VALID_LCP_REPEATED" or
+             .result.state == "NO_LCP_REPEATED" or
+             .result.state == "MIXED_INCONCLUSIVE")
+          ' "${result}" >/dev/null
+
+          if jq -e '.interpretation.supersession_allowed == true' "${result}" >/dev/null; then
+            jq -e '.result.valid_lcp_runs >= 2 and .result.prior_no_lcp_status == "NOT_REPRODUCED_UNDER_DEVTOOLS_PROFILE"' "${result}" >/dev/null
+          fi
+
+      - name: Build exact evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/claude-code-rerun/raw-lhci
+          cp .lighthouseci/lhr-*.json reports/claude-code-rerun/raw-lhci/
+          cp .lighthouseci/lhr-*.html reports/claude-code-rerun/raw-lhci/ || true
+          (
+            cd reports/claude-code-rerun
+            find . -type f ! -name SHA256SUMS.txt -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+
+      - name: Upload exact Claude Code evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-code-exact-rerun-${{ github.run_id }}
+          path: reports/claude-code-rerun/
+          if-no-files-found: error
+          retention-days: 14
