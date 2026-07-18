@@ -48,14 +48,13 @@ impl ImpactRule {
     fn match_strength(&self, changed_path: &str) -> Option<f64> {
         let path = normalize_path(changed_path);
         match self {
-            Self::PathPrefix(prefix) => path
-                .starts_with(&normalize_path(prefix))
-                .then_some(1.0),
-            Self::PathContains(fragment) => path
-                .contains(&normalize_path(fragment))
-                .then_some(0.8),
+            Self::PathPrefix(prefix) => path.starts_with(&normalize_path(prefix)).then_some(1.0),
+            Self::PathContains(fragment) => path.contains(&normalize_path(fragment)).then_some(0.8),
             Self::Extension(extension) => {
-                let extension = extension.trim().trim_start_matches('.').to_ascii_lowercase();
+                let extension = extension
+                    .trim()
+                    .trim_start_matches('.')
+                    .to_ascii_lowercase();
                 (!extension.is_empty() && path.ends_with(&format!(".{extension}"))).then_some(0.6)
             }
         }
@@ -178,18 +177,13 @@ impl ImpactSelector {
         sort_selected_tests(&mut candidates);
 
         let limit = if fallback_used {
-            self.config
-                .smoke_fallback_count
-                .min(self.config.max_tests)
+            self.config.smoke_fallback_count.min(self.config.max_tests)
         } else {
             self.config.max_tests
         };
         let omitted_candidates = candidates.len().saturating_sub(limit);
         candidates.truncate(limit);
-        let estimated_duration_ms = candidates
-            .iter()
-            .map(|test| test.average_duration_ms)
-            .sum();
+        let estimated_duration_ms = candidates.iter().map(|test| test.average_duration_ms).sum();
 
         SelectionPlan {
             changed_paths: normalized_paths,
@@ -271,9 +265,8 @@ impl ImpactSelector {
 fn score_smoke_fallback(test: &TestDescriptor) -> SelectedTest {
     let recent_failure_rate = clamp01(test.recent_failure_rate);
     let reliability = 1.0 - clamp01(test.flake_probability);
-    let normalized_score = test.criticality.weight() * 0.55
-        + recent_failure_rate * 0.25
-        + reliability * 0.20;
+    let normalized_score =
+        test.criticality.weight() * 0.55 + recent_failure_rate * 0.25 + reliability * 0.20;
 
     SelectedTest {
         name: test.name.clone(),
@@ -356,10 +349,8 @@ mod tests {
             ),
         ];
 
-        let plan = ImpactSelector::default().select(
-            &["services/auth/src/token.rs".to_string()],
-            &catalog,
-        );
+        let plan =
+            ImpactSelector::default().select(&["services/auth/src/token.rs".to_string()], &catalog);
 
         assert_eq!(plan.selected.len(), 1);
         assert_eq!(plan.selected[0].name, "auth_refresh");
@@ -396,10 +387,8 @@ mod tests {
             false,
         )];
 
-        let plan = ImpactSelector::default().select(
-            &[r".\liminalqa-core\src\types.rs".to_string()],
-            &catalog,
-        );
+        let plan = ImpactSelector::default()
+            .select(&[r".\liminalqa-core\src\types.rs".to_string()], &catalog);
 
         assert_eq!(plan.changed_paths, vec!["liminalqa-core/src/types.rs"]);
         assert_eq!(plan.selected[0].name, "rust_core");
