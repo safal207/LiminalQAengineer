@@ -2,7 +2,16 @@
 
 ## Status
 
-Configured for an exact-head GitHub Actions evidence run. Results are intentionally not pre-written: the benchmark must produce its own Lighthouse reports, decision packets, portfolio summary, and artifact digests.
+Completed on hardened exact head `e88177a324d08fb9f258e9ef7442a7715975b9f4` in GitHub Actions run `29662883190`.
+
+The run produced all seven exact domain decision packets, validated their requested URLs against the reviewed inventory, built the portfolio, and uploaded the final evidence artifact with digest:
+
+`sha256:bde5babc5e4325cfd288e0115797a6198cd93fd9b880cb9ff85d4b037fc8f7fc`
+
+Recorded outputs:
+
+- `audits/lighthouse/openai/portfolio-result.json`
+- `docs/audits/OPENAI_LIGHTHOUSE_CAUSALITY.md`
 
 ## Purpose
 
@@ -25,6 +34,18 @@ The central cross-domain question is:
 | `openai-status` | Service status dashboard | `https://status.openai.com/` |
 
 The inventory was verified against official OpenAI public surfaces on 2026-07-19. The older `platform.openai.com/docs/quickstart/make-your-first-api-request` route rendered a public “Page not found” state during the first evidence run, so the benchmark was corrected to the canonical quickstart linked by the official docs navigation.
+
+## Hardened result
+
+- Portfolio verdict: `WARN`
+- Targets: 7
+- PASS: 2
+- WARN: 5
+- Average Performance score: 57.9
+- Fastest LCP: 2.69 seconds
+- Slowest LCP: 63.00 seconds
+
+The dominant persistent outliers were the OpenAI homepage and Codex page. The full causal interpretation, replication comparison, and non-claims are documented in `OPENAI_LIGHTHOUSE_CAUSALITY.md`.
 
 ## Safety boundary
 
@@ -54,7 +75,7 @@ For each surface, the workflow stores:
 6. category scores and thresholds;
 7. Core Web Vitals and highest-priority scored findings.
 
-The portfolio stage aggregates only domain packets produced by the same workflow run.
+The portfolio stage now fails unless it receives exactly seven decision packets and their requested-URL set exactly matches the reviewed inventory from the same workflow run.
 
 ## Verdict semantics
 
@@ -74,14 +95,8 @@ The benchmark does not use `FAIL` as a vulnerability label. A poor score is a bo
 6. Preserve exact-head and artifact-digest provenance before publishing a causal conclusion.
 7. Treat a stale or removed documentation route as an inventory defect first, not as an OpenAI reliability defect.
 
-## Expected next evidence step
+## Next evidence step
 
-After the first green exact-head run:
-
-1. record the workflow run ID and exact head SHA;
-2. download and hash the portfolio artifact;
-3. classify shared versus surface-specific findings;
-4. write an evidence-backed causality report;
-5. propose at most one bounded browser-local counterfactual for the strongest supported web-performance cause.
+Run one browser-local counterfactual against the exact homepage LCP asset: substitute an optimized equivalent and separately test removal of lazy discovery, without changing server state or performing additional crawling.
 
 No authenticated ChatGPT or API contract testing belongs in v0.1.
