@@ -1,0 +1,47 @@
+{
+  "spec_version": "lqa-lotus-capture/0.1",
+  "profile_id": "airbnb-currency-atomicity-v0.1",
+  "target": "Airbnb",
+  "surface": "public web booking flow",
+  "scope": "currency atomicity from listing to checkout",
+  "stop_before": "payment_submission",
+  "minimum_independent_attempts": 2,
+  "expected_invariant": "Visible amount, currency, breakdown, and restored browser state must remain mutually consistent.",
+  "required_environment_fields": [
+    "browser",
+    "browser_version",
+    "device_timezone",
+    "locale",
+    "ip_country",
+    "authenticated"
+  ],
+  "required_artifact_roles": [
+    "network_archive",
+    "screenshot_after",
+    "screenshot_before",
+    "state_after",
+    "state_before",
+    "transition_trace"
+  ],
+  "safe_steps": [
+    "Use a clean browser profile.",
+    "Open a public listing and select dates and one guest.",
+    "Record total, breakdown, locale, and currency.",
+    "Change currency without submitting payment.",
+    "Use Back and Forward and record the restored state.",
+    "Repeat in a fresh independent browser context.",
+    "Stop before payment submission and reservation creation."
+  ],
+  "forbidden_actions": [
+    "submit payment",
+    "create a reservation",
+    "attempt denial of service",
+    "bypass authentication or authorization",
+    "collect another user's personal data"
+  ],
+  "promotion_boundary": {
+    "F2": "One executed capture with complete artifacts.",
+    "F3": "At least two independent attempts reproduce the same inconsistent state.",
+    "confirmed_defect": "Never set automatically; requires Pythia or human review."
+  }
+}
