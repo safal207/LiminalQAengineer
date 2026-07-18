@@ -9,6 +9,13 @@ on:
       - .github/workflows/takeprofit-chart-quote-probe.yml
       - audits/browser/takeprofit/chart-quote-probe.json
       - scripts/takeprofit_chart_quote_probe.mjs
+  pull_request:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-chart-quote-probe.yml
+      - audits/browser/takeprofit/chart-quote-probe.json
+      - scripts/takeprofit_chart_quote_probe.mjs
 
 permissions:
   contents: read
