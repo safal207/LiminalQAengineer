@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LiminalQAengineer/standards/lotus-qa/liminaldb-lotus-memory-event-v0.1.schema.json",
+  "title": "LiminalDB Lotus Memory AuditEvent v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "ts", "kind", "actor", "action", "details"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^lotus-[0-9a-f]{32}$"},
+    "ts": {"type": "string", "format": "date-time"},
+    "kind": {"const": "audit"},
+    "actor": {"const": "liminalqa-lotus"},
+    "action": {"const": "lotus.finding.observed"},
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "source",
+        "finding",
+        "evidence",
+        "authority",
+        "adapter",
+        "event_sha256"
+      ],
+      "properties": {
+        "schema_version": {"const": "liminaldb-lotus-memory-event-v0.1"},
+        "source": {
+          "type": "object",
+          "required": [
+            "repository",
+            "branch",
+            "commit",
+            "packet_id",
+            "packet_sha256",
+            "finding_sha256"
+          ],
+          "properties": {
+            "repository": {"type": "string", "minLength": 1},
+            "branch": {"type": "string", "minLength": 1},
+            "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "packet_id": {"type": "string", "minLength": 1},
+            "packet_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "finding_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          },
+          "additionalProperties": false
+        },
+        "finding": {
+          "type": "object",
+          "required": [
+            "finding_id",
+            "canonical_id",
+            "decision_status",
+            "pythia_verdict",
+            "cml_status",
+            "durable_memory",
+            "ls_risk"
+          ],
+          "properties": {
+            "finding_id": {"type": "string", "minLength": 1},
+            "canonical_id": {"type": "string", "minLength": 1},
+            "domain": {"type": ["string", "null"]},
+            "surface": {"type": ["string", "null"]},
+            "decision_status": {"enum": ["CONFIRMED", "BLOCKED", "NEEDS_EVIDENCE"]},
+            "severity": {"type": ["string", "null"]},
+            "confidence": {"type": ["string", "null"]},
+            "pythia_verdict": {"enum": ["ALLOW", "BLOCK", "ESCALATE"]},
+            "cml_status": {"type": ["string", "null"]},
+            "cml_recurrence": {"type": ["string", "null"]},
+            "durable_memory": {"type": "boolean"},
+            "ls_risk": {"type": ["string", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "evidence": {
+          "type": "object",
+          "required": ["state", "source_path", "bounded", "replayable"],
+          "properties": {
+            "state": {"type": ["string", "null"]},
+            "source_path": {"type": ["string", "null"]},
+            "bounded": {"type": "boolean"},
+            "replayable": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "authority": {
+          "type": "object",
+          "required": [
+            "mode",
+            "ownership",
+            "approval",
+            "execution",
+            "delivery",
+            "deployment",
+            "merge"
+          ],
+          "properties": {
+            "mode": {"const": "audit_only"},
+            "ownership": {"const": false},
+            "approval": {"const": false},
+            "execution": {"const": false},
+            "delivery": {"const": false},
+            "deployment": {"const": false},
+            "merge": {"const": false}
+          },
+          "additionalProperties": true
+        },
+        "adapter": {
+          "type": "object",
+          "required": [
+            "repository",
+            "commit",
+            "contract_path",
+            "contract_blob_sha",
+            "event_contract",
+            "write_mode"
+          ],
+          "properties": {
+            "repository": {"const": "safal207/LiminalDB"},
+            "commit": {"const": "75ef9f7f403a34c60aa2ceba4cb3c97870d73e77"},
+            "contract_path": {"const": "sdk/ts/src/protocol-types.ts"},
+            "contract_blob_sha": {"const": "fd733971aaae089df770062bcf7f2c2d6d19ca1d"},
+            "event_contract": {"const": "AuditEvent"},
+            "write_mode": {"const": "artifact_only"}
+          },
+          "additionalProperties": false
+        },
+        "event_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}
