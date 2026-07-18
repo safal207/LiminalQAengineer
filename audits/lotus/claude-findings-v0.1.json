@@ -1,0 +1,302 @@
+{
+  "schema_version": "liminalqa-lotus-findings-v0.1",
+  "packet_id": "lotus-qa-claude-public-web-2026-07-19-v0.1",
+  "repository": "safal207/LiminalQAengineer",
+  "source_branch": "agent/claude-public-web-benchmark",
+  "scope": "passive public Claude web quality evidence from workflow run 29665084768",
+  "findings": [
+    {
+      "id": "CLAUDE-PUBLIC-SHELL-PERFORMANCE-001",
+      "title": "Claude public login shell is a bounded mobile-lab performance outlier",
+      "domain": "claude",
+      "surface": "https://claude.ai/login",
+      "claim_kind": "observation",
+      "claim": "In the exact bounded Lighthouse run, the unauthenticated Claude shell redirected to /login and produced LCP 33.92 seconds and TBT 3.99 seconds.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "df79bc0f6330b6430fcb3c29962c293697158037",
+        "artifact_sha256": "fa1e380fce1401e964decc94b84dead6ec0aa8183832db5e8d1baabc746ff285",
+        "raw_report_sha256": "075b9f99f07967ccdee9124e6c632b42b58586f6f2bad2790429155384bd165f",
+        "source_path": "workflow artifact claude-public-domain-claude-public-shell-29665084768/decision-packet.json",
+        "metrics": {
+          "performance_score": 25,
+          "lcp_ms": 33918.2425,
+          "tbt_ms": 3990.8215,
+          "unused_javascript_estimated_kib": 2936,
+          "unused_javascript_estimated_savings_ms": 14480,
+          "redirect_estimated_savings_ms": 785.5
+        }
+      },
+      "causal_memory": {
+        "canonical_id": "claude.public-shell.login.mobile-lab-performance",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "unauthenticated Claude public shell redirected to /login",
+        "state_scope": "single exact Lighthouse mobile-lab packet; not field telemetry",
+        "time_scope": "workflow run 29665084768",
+        "recurrence": "single",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "degraded",
+        "timeliness": "degraded",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "A visitor waits for the login surface without a clear explanation of whether the product is still loading."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Treat the unauthenticated login shell as a dedicated performance budget and reduce the initial JavaScript execution and transfer path.",
+      "regression_test": "Repeat the exact bounded mobile profile three times and require a stable LCP candidate, median LCP within budget, and materially lower unused-JavaScript opportunity.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_SINGLE",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "CLAUDE-PRODUCT-OVERVIEW-PERFORMANCE-001",
+      "title": "Claude product overview combines severe lab LCP delay with accessibility findings",
+      "domain": "claude",
+      "surface": "https://claude.com/product/overview",
+      "claim_kind": "observation",
+      "claim": "The exact bounded run measured LCP 41.43 seconds, Performance 29, Accessibility 73, and a 2.43-second render-blocking opportunity on the Claude product overview.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "df79bc0f6330b6430fcb3c29962c293697158037",
+        "artifact_sha256": "e19e934e4d5a3722bf056f1a5809a0c79dc9ce8ab52b71e915dcb2c193ed4ae4",
+        "raw_report_sha256": "04eec4c611d7439c29ea4eca9e445d6c4838996d55992882c5d186be5a70681c",
+        "source_path": "workflow artifact claude-public-domain-claude-product-overview-29665084768/decision-packet.json",
+        "metrics": {
+          "performance_score": 29,
+          "accessibility_score": 73,
+          "lcp_ms": 41430.35425,
+          "tbt_ms": 1515,
+          "unused_javascript_estimated_kib": 847,
+          "render_blocking_estimated_savings_ms": 2431
+        },
+        "accessibility_findings": [
+          "aria-allowed-attr",
+          "color-contrast",
+          "heading-order",
+          "landmark-one-main",
+          "list"
+        ]
+      },
+      "causal_memory": {
+        "canonical_id": "claude.product-overview.mobile-lab-performance-accessibility",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "Claude public product overview",
+        "state_scope": "single exact Lighthouse mobile-lab packet; not field telemetry",
+        "time_scope": "workflow run 29665084768",
+        "recurrence": "single",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "degraded",
+        "timeliness": "degraded",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "The principal product message arrives late, while semantic and contrast defects may reduce inspectability for some visitors."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Prioritize the exact LCP path, remove avoidable render-blocking work, and repair the bounded accessibility failures.",
+      "regression_test": "Run three bounded mobile audits and require a stable LCP element, median LCP within budget, Accessibility above the agreed threshold, and no recurrence of the identified semantic failures.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_SINGLE",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "CLAUDE-SHARED-JS-CONTRIBUTOR-001",
+      "title": "Client JavaScript cost recurs across Claude public surfaces",
+      "domain": "claude",
+      "surface": "Claude public web portfolio",
+      "claim_kind": "cross_surface_contributor",
+      "claim": "Unused JavaScript recurs in six of seven Claude packets, while boot-time and bfcache findings recur in five of seven; this supports a shared contributor pattern without asserting one root cause for every runtime.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "df79bc0f6330b6430fcb3c29962c293697158037",
+        "artifact_sha256": "bc084810a9a1a5ef48cfe4d3eb6186dcc176e728761f376165cd2b07eda8a117",
+        "source_path": "workflow artifact claude-public-web-portfolio-29665084768/portfolio-summary.json",
+        "portfolio": {
+          "target_count": 7,
+          "complete_metric_packets": 6,
+          "unused_javascript_packets": 6,
+          "boot_time_packets": 5,
+          "bf_cache_packets": 5,
+          "complete_measurement_lcp_range_ms": [
+            9920.1635,
+            41430.35425
+          ]
+        },
+        "supporting_raw_report_sha256": [
+          "075b9f99f07967ccdee9124e6c632b42b58586f6f2bad2790429155384bd165f",
+          "04eec4c611d7439c29ea4eca9e445d6c4838996d55992882c5d186be5a70681c",
+          "3533b2e6bc1d3f2213bbecc91fd9b47498b89f4f023dbd43701fd283cbf0c807",
+          "d8afe126dbc5591829c144795533da6c6655ec05ab61fa685c866957d96844db",
+          "6275d01e294772af508d39d8bc2e3b8aa480d06eab8a17de94071e5f714aa680",
+          "54ca2642259f45d50ee08a041b901ae6b804bd0678f90a86234e7cc3fa5b69cc"
+        ]
+      },
+      "causal_memory": {
+        "canonical_id": "claude.public-web.shared-client-runtime-contributor",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "Claude public shell, product, docs, help, and status portfolio",
+        "state_scope": "cross-surface recurrence; runtimes remain causally separate",
+        "time_scope": "workflow run 29665084768",
+        "recurrence": "cross_surface",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "clear",
+        "timeliness": "degraded",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "Repeated client-runtime cost delays access to product, documentation, help, and status information, but exact user impact differs by surface."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Create runtime-specific JavaScript budgets and remove unused or early-loaded bundles before treating the portfolio as one implementation.",
+      "regression_test": "Re-run the seven-target portfolio and require fewer recurring unused-JavaScript, boot-time, and bfcache findings without collapsing distinct runtimes into one cause.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_RECURRING",
+        "ls": "LOW",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "CLAUDE-STATUS-INSPECTABILITY-001",
+      "title": "Claude Status has bounded accessibility and best-practice defects",
+      "domain": "claude",
+      "surface": "https://status.claude.com/",
+      "claim_kind": "accessibility",
+      "claim": "The exact bounded run measured Accessibility 83 and Best Practices 79 on Claude Status, including contrast and semantic findings that can reduce inspectability.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "df79bc0f6330b6430fcb3c29962c293697158037",
+        "artifact_sha256": "ff570db28172ff69d53ef702d864bfa109a0a4453836a57b7b754b1c1f8cb1d3",
+        "raw_report_sha256": "54ca2642259f45d50ee08a041b901ae6b804bd0678f90a86234e7cc3fa5b69cc",
+        "source_path": "workflow artifact claude-public-domain-claude-status-29665084768/decision-packet.json",
+        "metrics": {
+          "performance_score": 47,
+          "accessibility_score": 83,
+          "best_practices_score": 79,
+          "lcp_ms": 9920.1635,
+          "tbt_ms": 402
+        },
+        "findings": [
+          "color-contrast",
+          "heading-order",
+          "image-aspect-ratio",
+          "inspector-issues",
+          "third-party-cookies"
+        ]
+      },
+      "causal_memory": {
+        "canonical_id": "claude.status.public.inspectability",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "Claude public service status dashboard",
+        "state_scope": "single exact public Lighthouse packet",
+        "time_scope": "workflow run 29665084768",
+        "recurrence": "single",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "degraded",
+        "timeliness": "clear",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "unclear",
+        "user_effect": "Users relying on status information may have more difficulty inspecting service state because of contrast and semantic defects."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Repair the exact contrast and semantic failures and keep live versus historical status information structurally clear.",
+      "regression_test": "Re-run the public status page and require Accessibility and Best Practices above threshold with the identified findings absent.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_SINGLE",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "CLAUDE-CODE-PERFORMANCE-ZERO-001",
+      "title": "Claude Code Performance zero is not publishable as a confirmed defect",
+      "domain": "claude",
+      "surface": "https://claude.com/product/claude-code",
+      "claim_kind": "measurement_validity",
+      "claim": "The reported Lighthouse Performance score of zero proves a severe Claude Code product-page performance defect.",
+      "evidence": {
+        "state": "missing",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "unknown",
+        "exact_head_sha": "df79bc0f6330b6430fcb3c29962c293697158037",
+        "artifact_sha256": "538f56be0608f4c879a7476a8b71979107b75851e61a4a26944bcc0555e98ecb",
+        "raw_report_sha256": "b275a7c310867607546657a89b4c75d537c896277199d8e4abe70bc210857db3",
+        "source_path": "workflow artifact claude-public-domain-claude-code-product-29665084768/decision-packet.json",
+        "measurement": {
+          "reported_performance_score": 0,
+          "fcp_ms": 2219.965,
+          "speed_index_ms": 3502.6200482105637,
+          "lcp_ms": null,
+          "tbt_ms": null,
+          "measurement_error": "NO_LCP"
+        }
+      },
+      "causal_memory": {
+        "canonical_id": "claude.product.claude-code.lighthouse-no-lcp",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "Claude Code public product page",
+        "state_scope": "exact packet with missing LCP and TBT; score zero is not a valid severity proxy",
+        "time_scope": "workflow run 29665084768",
+        "recurrence": "conflict",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "unknown",
+        "state_visibility": "unknown",
+        "timeliness": "unknown",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "unknown",
+        "live_historical_clarity": "unknown",
+        "user_effect": "The product-page user impact cannot be assigned until the missing LCP measurement is reproduced or explained."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Repeat the exact page run with trace inspection and determine why Lighthouse emitted no LCP candidate before assigning a product defect.",
+      "regression_test": "Require at least two valid runs with non-null LCP and TBT before the performance score can support a confirmed finding.",
+      "expected": {
+        "pythia": "ESCALATE",
+        "cml": "CONFLICT",
+        "ls": "UNKNOWN",
+        "unified": "NEEDS_EVIDENCE"
+      }
+    }
+  ]
+}
