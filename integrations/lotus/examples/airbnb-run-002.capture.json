@@ -1,0 +1,16 @@
+{
+  "capture_version": "lqa-lotus-browser-capture/0.1",
+  "run_id": "ABNB-RUN-002",
+  "target": "Airbnb",
+  "profile_id": "airbnb-currency-atomicity-v0.1",
+  "status": "planned",
+  "payment_submitted": false,
+  "reservation_created": false,
+  "secrets_redacted": true,
+  "started_at": null,
+  "completed_at": null,
+  "environment": {},
+  "attempts": [],
+  "artifacts": [],
+  "note": "Populate only with evidence captured from an authorized, non-destructive browser run."
+}
