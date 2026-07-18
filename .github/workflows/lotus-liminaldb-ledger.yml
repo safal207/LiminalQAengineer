@@ -1,0 +1,143 @@
+name: Lotus LiminalDB Ledger Bridge
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/lotus-liminaldb-ledger-v0-1
+    paths:
+      - .github/workflows/lotus-liminaldb-ledger.yml
+      - standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/lotus-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_ledger.py
+      - tests/test_lotus_liminaldb_ledger.py
+      - docs/audits/LOTUS_LIMINALDB_LEDGER.md
+  pull_request:
+    branches:
+      - agent/lotus-qa-decision-packet-v0-1
+      - main
+    paths:
+      - .github/workflows/lotus-liminaldb-ledger.yml
+      - standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/lotus-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_ledger.py
+      - tests/test_lotus_liminaldb_ledger.py
+      - docs/audits/LOTUS_LIMINALDB_LEDGER.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lotus-liminaldb-ledger-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify replayable Lotus ledger
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate contracts and Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m json.tool standards/lotus-qa/lotus-qa-contract-v0.1.json >/dev/null
+          python3 -m json.tool standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/lotus-findings-v0.1.json >/dev/null
+          python3 -m py_compile \
+            scripts/lotus_qa_decision_packet.py \
+            scripts/lotus_liminaldb_ledger.py \
+            tests/test_lotus_liminaldb_ledger.py
+
+      - name: Run ledger regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover \
+            -s tests \
+            -p 'test_lotus_liminaldb_ledger.py' \
+            -v
+
+      - name: Generate exact Lotus decision packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/lotus reports/lotus-ledger reports/lotus-ledger-second
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings audits/lotus/lotus-findings-v0.1.json \
+            --output-dir reports/lotus
+
+      - name: Generate and replay LiminalDB-compatible ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/lotus_liminaldb_ledger.py generate \
+            --contract standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json \
+            --packet reports/lotus/lotus-decision-packet.json \
+            --output-dir reports/lotus-ledger
+
+          python3 scripts/lotus_liminaldb_ledger.py verify \
+            --contract standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json \
+            --packet reports/lotus/lotus-decision-packet.json \
+            --ledger reports/lotus-ledger/lotus-ledger.jsonl \
+            --snapshot reports/lotus-ledger/lotus-ledger-snapshot.json
+
+      - name: Prove deterministic regeneration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/lotus_liminaldb_ledger.py generate \
+            --contract standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json \
+            --packet reports/lotus/lotus-decision-packet.json \
+            --output-dir reports/lotus-ledger-second
+
+          cmp reports/lotus-ledger/lotus-ledger.jsonl \
+              reports/lotus-ledger-second/lotus-ledger.jsonl
+          cmp reports/lotus-ledger/lotus-ledger-snapshot.json \
+              reports/lotus-ledger-second/lotus-ledger-snapshot.json
+          cmp reports/lotus-ledger/manifest.sha256 \
+              reports/lotus-ledger-second/manifest.sha256
+
+      - name: Validate event count and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(( $(jq '.findings | length' reports/lotus/lotus-decision-packet.json) * 5 ))"
+          observed="$(wc -l < reports/lotus-ledger/lotus-ledger.jsonl)"
+          test "${observed}" -eq "${expected}"
+
+          jq -s -e '
+            all(.[ ];
+              .authority.mode == "audit_only" and
+              .authority.ownership == false and
+              .authority.approval == false and
+              .authority.execution == false and
+              .authority.delivery == false and
+              .authority.deployment == false and
+              .authority.merge == false
+            )
+          ' reports/lotus-ledger/lotus-ledger.jsonl >/dev/null
+
+          jq -e \
+            --argjson expected "${expected}" \
+            '.event_count == $expected and .finding_count == 7' \
+            reports/lotus-ledger/lotus-ledger-snapshot.json >/dev/null
+
+      - name: Upload exact replayable ledger
+        uses: actions/upload-artifact@v4
+        with:
+          name: lotus-liminaldb-ledger-${{ github.run_id }}
+          path: |
+            reports/lotus/lotus-decision-packet.json
+            reports/lotus-ledger/
+          if-no-files-found: error
+          retention-days: 14
