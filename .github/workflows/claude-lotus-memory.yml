@@ -1,0 +1,201 @@
+name: Claude Lotus Memory Integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/lotus-claude-memory-v0-1
+    paths:
+      - .github/workflows/claude-lotus-memory.yml
+      - audits/lotus/lotus-findings-v0.1.json
+      - audits/lotus/claude-findings-v0.1.json
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json
+      - scripts/merge_lotus_findings.py
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_ledger.py
+      - tests/test_merge_lotus_findings.py
+      - tests/test_lotus_qa_decision_packet.py
+      - tests/test_lotus_liminaldb_ledger.py
+      - docs/audits/CLAUDE_LOTUS_MEMORY.md
+  pull_request:
+    branches:
+      - agent/lotus-liminaldb-ledger-v0-1
+      - main
+    paths:
+      - .github/workflows/claude-lotus-memory.yml
+      - audits/lotus/lotus-findings-v0.1.json
+      - audits/lotus/claude-findings-v0.1.json
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json
+      - scripts/merge_lotus_findings.py
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_ledger.py
+      - tests/test_merge_lotus_findings.py
+      - tests/test_lotus_qa_decision_packet.py
+      - tests/test_lotus_liminaldb_ledger.py
+      - docs/audits/CLAUDE_LOTUS_MEMORY.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-lotus-memory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Claude Lotus memory and replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate JSON and Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m json.tool audits/lotus/lotus-findings-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/claude-findings-v0.1.json >/dev/null
+          python3 -m json.tool standards/lotus-qa/lotus-qa-contract-v0.1.json >/dev/null
+          python3 -m json.tool standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json >/dev/null
+          python3 -m py_compile \
+            scripts/merge_lotus_findings.py \
+            scripts/lotus_qa_decision_packet.py \
+            scripts/lotus_liminaldb_ledger.py \
+            tests/test_merge_lotus_findings.py \
+            tests/test_lotus_qa_decision_packet.py \
+            tests/test_lotus_liminaldb_ledger.py
+
+      - name: Run regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_merge_lotus_findings.py' -v
+          python3 -m unittest discover -s tests -p 'test_lotus_qa_decision_packet.py' -v
+          python3 -m unittest discover -s tests -p 'test_lotus_liminaldb_ledger.py' -v
+
+      - name: Merge exact findings documents
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/claude-lotus reports/claude-lotus-second
+          mkdir -p reports/claude-lotus
+          python3 scripts/merge_lotus_findings.py \
+            --input audits/lotus/lotus-findings-v0.1.json \
+            --input audits/lotus/claude-findings-v0.1.json \
+            --packet-id lotus-qa-cross-domain-plus-claude-2026-07-19-v0.1 \
+            --source-branch agent/lotus-claude-memory-v0-1 \
+            --scope 'bounded public QA evidence from Tradernet, TakeProfit, OpenAI, and Claude surfaces' \
+            --output reports/claude-lotus/combined-findings.json
+
+          jq -e '
+            (.source_packets | length) == 2 and
+            (.findings | length) == 12 and
+            ([.findings[].id] | length) == ([.findings[].id] | unique | length)
+          ' reports/claude-lotus/combined-findings.json >/dev/null
+
+      - name: Generate combined Lotus packet and ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings reports/claude-lotus/combined-findings.json \
+            --output-dir reports/claude-lotus/packet
+
+          python3 scripts/lotus_liminaldb_ledger.py generate \
+            --contract standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json \
+            --packet reports/claude-lotus/packet/lotus-decision-packet.json \
+            --output-dir reports/claude-lotus/ledger
+
+          python3 scripts/lotus_liminaldb_ledger.py verify \
+            --contract standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json \
+            --packet reports/claude-lotus/packet/lotus-decision-packet.json \
+            --ledger reports/claude-lotus/ledger/lotus-ledger.jsonl \
+            --snapshot reports/claude-lotus/ledger/lotus-ledger-snapshot.json
+
+      - name: Validate Claude verdicts and combined counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          packet=reports/claude-lotus/packet/lotus-decision-packet.json
+          snapshot=reports/claude-lotus/ledger/lotus-ledger-snapshot.json
+
+          jq -e '
+            .summary.finding_count == 12 and
+            .summary.pythia_verdicts == {"ALLOW": 9, "BLOCK": 1, "ESCALATE": 2} and
+            .summary.decision_statuses == {"BLOCKED": 1, "CONFIRMED": 9, "NEEDS_EVIDENCE": 2} and
+            .summary.durable_memory_count == 0
+          ' "${packet}" >/dev/null
+
+          jq -e '
+            (.findings[] | select(.finding_id == "CLAUDE-CODE-PERFORMANCE-ZERO-001") |
+              .judgment.verdict == "ESCALATE" and
+              .causal_memory.status == "CONFLICT" and
+              .user_control.risk == "UNKNOWN" and
+              .decision.status == "NEEDS_EVIDENCE" and
+              .decision.severity == "UNASSIGNED"
+            ) and
+            (.findings[] | select(.finding_id == "CLAUDE-SHARED-JS-CONTRIBUTOR-001") |
+              .judgment.verdict == "ALLOW" and
+              .causal_memory.status == "PROPOSED_RECURRING" and
+              .decision.status == "CONFIRMED"
+            )
+          ' "${packet}" >/dev/null
+
+          jq -e '.event_count == 60 and .finding_count == 12' "${snapshot}" >/dev/null
+          test "$(wc -l < reports/claude-lotus/ledger/lotus-ledger.jsonl)" -eq 60
+
+      - name: Prove deterministic regeneration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/claude-lotus-second
+          python3 scripts/merge_lotus_findings.py \
+            --input audits/lotus/lotus-findings-v0.1.json \
+            --input audits/lotus/claude-findings-v0.1.json \
+            --packet-id lotus-qa-cross-domain-plus-claude-2026-07-19-v0.1 \
+            --source-branch agent/lotus-claude-memory-v0-1 \
+            --scope 'bounded public QA evidence from Tradernet, TakeProfit, OpenAI, and Claude surfaces' \
+            --output reports/claude-lotus-second/combined-findings.json
+
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings reports/claude-lotus-second/combined-findings.json \
+            --output-dir reports/claude-lotus-second/packet
+
+          python3 scripts/lotus_liminaldb_ledger.py generate \
+            --contract standards/lotus-qa/lotus-liminaldb-bridge-v0.1.json \
+            --packet reports/claude-lotus-second/packet/lotus-decision-packet.json \
+            --output-dir reports/claude-lotus-second/ledger
+
+          cmp reports/claude-lotus/combined-findings.json reports/claude-lotus-second/combined-findings.json
+          cmp reports/claude-lotus/packet/lotus-decision-packet.json reports/claude-lotus-second/packet/lotus-decision-packet.json
+          cmp reports/claude-lotus/ledger/lotus-ledger.jsonl reports/claude-lotus-second/ledger/lotus-ledger.jsonl
+          cmp reports/claude-lotus/ledger/lotus-ledger-snapshot.json reports/claude-lotus-second/ledger/lotus-ledger-snapshot.json
+
+      - name: Build exact artifact manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd reports/claude-lotus
+            sha256sum \
+              combined-findings.json \
+              packet/lotus-decision-packet.json \
+              packet/lotus-decision-packet.md \
+              ledger/lotus-ledger.jsonl \
+              ledger/lotus-ledger-snapshot.json \
+              > SHA256SUMS.txt
+          )
+
+      - name: Upload combined Claude Lotus evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-lotus-memory-${{ github.run_id }}
+          path: reports/claude-lotus/
+          if-no-files-found: error
+          retention-days: 14
