@@ -1,0 +1,243 @@
+name: Claude Public Web Benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/claude-public-web-benchmark
+    paths:
+      - .github/workflows/claude-public-web-benchmark.yml
+      - audits/lighthouse/claude/domains.json
+      - audits/lighthouse/claude/lighthouserc.cjs
+      - audits/lighthouse/claude/policy.json
+      - scripts/lighthouse_to_liminalqa.py
+      - scripts/lighthouse_portfolio_summary.py
+  pull_request:
+    branches:
+      - agent/lotus-qa-decision-packet-v0-1
+      - main
+    paths:
+      - .github/workflows/claude-public-web-benchmark.yml
+      - audits/lighthouse/claude/domains.json
+      - audits/lighthouse/claude/lighthouserc.cjs
+      - audits/lighthouse/claude/policy.json
+      - scripts/lighthouse_to_liminalqa.py
+      - scripts/lighthouse_portfolio_summary.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-public-web-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    name: Validate exact public target inventory
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded inventory
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          inventory="audits/lighthouse/claude/domains.json"
+          policy="audits/lighthouse/claude/policy.json"
+          python3 -m json.tool "${inventory}" >/dev/null
+          python3 -m json.tool "${policy}" >/dev/null
+
+          count="$(jq '.targets | length' "${inventory}")"
+          if [[ "${count}" -ne 7 ]]; then
+            echo "Claude benchmark requires exactly 7 reviewed targets; got ${count}" >&2
+            exit 1
+          fi
+
+          jq -e '
+            .scope_kind == "passive_public_quality" and
+            .max_parallel == 2 and
+            .boundaries.one_navigation_per_target == true and
+            .boundaries.public_pages_only == true and
+            .boundaries.active_security_testing == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.api_testing == false and
+            .boundaries.prompt_submission == false and
+            .boundaries.agent_or_tool_execution == false and
+            .boundaries.account_or_billing_actions == false and
+            .boundaries.file_uploads == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.vulnerability_claim == false and
+            (([.targets[].url] | sort) == ([
+              "https://claude.ai/",
+              "https://claude.com/product/overview",
+              "https://claude.com/product/claude-code",
+              "https://platform.claude.com/docs/en/home",
+              "https://platform.claude.com/docs/en/api/overview",
+              "https://support.claude.com/en/",
+              "https://status.claude.com/"
+            ] | sort))
+          ' "${inventory}" >/dev/null
+
+          while IFS= read -r url; do
+            python3 scripts/lighthouse_to_liminalqa.py validate-url \
+              --policy "${policy}" \
+              --url "${url}" >/dev/null
+          done < <(jq -r '.targets[].url' "${inventory}")
+
+          matrix="$(jq -c '{include: [.targets[] | {slug: .slug, url: .url}]}' "${inventory}")"
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+          echo "Validated ${count} exact allowlisted Claude public targets."
+
+  audit:
+    name: Lighthouse · ${{ matrix.slug }}
+    needs: inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.inventory.outputs.matrix) }}
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      LIGHTHOUSE_TARGET_URL: ${{ matrix.url }}
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Confirm exact inventory membership
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e \
+            --arg slug "${{ matrix.slug }}" \
+            --arg url "${{ matrix.url }}" \
+            '.targets[] | select(.slug == $slug and .url == $url)' \
+            audits/lighthouse/claude/domains.json >/dev/null
+          python3 scripts/lighthouse_to_liminalqa.py validate-url \
+            --policy audits/lighthouse/claude/policy.json \
+            --url "${{ matrix.url }}" >/dev/null
+
+      - name: Record runtime versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          python3 --version
+          python3 -m py_compile \
+            scripts/lighthouse_to_liminalqa.py \
+            scripts/lighthouse_portfolio_summary.py
+
+      - name: Collect one passive Lighthouse navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci reports/lighthouse reports/domain
+          mkdir -p "reports/domain/${{ matrix.slug }}"
+          npx --yes @lhci/cli@0.15.1 autorun \
+            --config=audits/lighthouse/claude/lighthouserc.cjs
+
+      - name: Build bounded decision packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="reports/domain/${{ matrix.slug }}"
+          python3 scripts/lighthouse_to_liminalqa.py report \
+            --policy audits/lighthouse/claude/policy.json \
+            --input-dir .lighthouseci \
+            --output-dir "${output}"
+
+          sed -i \
+            's/LiminalQA · Tradernet public Lighthouse audit/LiminalQA · Claude public web benchmark/' \
+            "${output}/summary.md"
+
+          mkdir -p "${output}/raw-lhci"
+          cp -R .lighthouseci/. "${output}/raw-lhci/"
+          if [[ -d reports/lighthouse/raw ]]; then
+            mkdir -p "${output}/raw-report"
+            cp -R reports/lighthouse/raw/. "${output}/raw-report/"
+          fi
+          cat "${output}/summary.md" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact domain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-public-domain-${{ matrix.slug }}-${{ github.run_id }}
+          path: reports/domain/${{ matrix.slug }}/
+          if-no-files-found: warn
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate Claude LiminalQA packet
+    needs: audit
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Download completed domain packets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: claude-public-domain-*-${{ github.run_id }}
+          path: downloaded-domain-packets
+
+      - name: Validate complete exact-run evidence set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob
+          import json
+          from pathlib import Path
+
+          inventory = json.loads(Path("audits/lighthouse/claude/domains.json").read_text())
+          expected = sorted(target["url"] for target in inventory["targets"])
+          packet_paths = sorted(glob.glob("downloaded-domain-packets/**/decision-packet.json", recursive=True))
+          if len(packet_paths) != len(expected):
+              raise SystemExit(
+                  f"Incomplete portfolio evidence: expected {len(expected)} decision packets, got {len(packet_paths)}"
+              )
+
+          observed = []
+          for raw_path in packet_paths:
+              packet = json.loads(Path(raw_path).read_text())
+              observed.append(packet["target"]["requested_url"])
+          observed.sort()
+          if observed != expected:
+              raise SystemExit(
+                  "Decision-packet target set differs from the exact allowlisted inventory\n"
+                  f"expected={expected}\nobserved={observed}"
+              )
+          print(f"Validated complete exact-run evidence for {len(observed)} targets.")
+          PY
+
+      - name: Build portfolio summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/lighthouse_portfolio_summary.py \
+            --input-dir downloaded-domain-packets \
+            --output-dir reports/portfolio
+          jq -e '.target_count == 7 and (.targets | length) == 7' \
+            reports/portfolio/portfolio-summary.json >/dev/null
+          sed -i \
+            's/LiminalQA · Tradernet public domain portfolio/LiminalQA · Claude public web portfolio/' \
+            reports/portfolio/portfolio-summary.md
+          cat reports/portfolio/portfolio-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload portfolio evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-public-web-portfolio-${{ github.run_id }}
+          path: reports/portfolio/
+          if-no-files-found: error
+          retention-days: 14
