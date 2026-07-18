@@ -32,7 +32,7 @@ During that period:
 
 - the BTC/USDT chart stayed visible;
 - no `stale`, `delayed`, `offline`, `disconnected`, or `reconnecting` state appeared;
-- four later quote-response events occurred;
+- four later quote-response events occurred, including two non-empty changed quote bodies;
 - the held older response was delivered after newer responses;
 - the chart remained visible after release.
 
@@ -129,7 +129,7 @@ Track the last successful symbol-bound market-data timestamp separately from pag
 
 **Verdict:** `ESCALATE`.
 
-The transport condition was created and observed: four later quote-response events occurred while response #2 was held, then the older response was released afterward.
+The transport condition was created and observed: four later quote-response events, including two non-empty quote bodies, occurred while response #2 was held, then the older response was released afterward.
 
 Application effect remains unverified because the public canvas does not expose:
 
