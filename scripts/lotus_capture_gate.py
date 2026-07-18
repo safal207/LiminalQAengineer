@@ -51,6 +51,7 @@ class GateResult:
         confirmed_defect: bool,
         reasons: tuple[str, ...],
     ) -> None:
+        """Store one deterministic capture-gate outcome."""
         self.status = status
         self.evidence_grade = evidence_grade
         self.ready_for_review = ready_for_review
@@ -58,6 +59,7 @@ class GateResult:
         self.reasons = reasons
 
     def as_dict(self) -> dict[str, Any]:
+        """Render the result as a JSON-serializable dictionary."""
         return {
             "status": self.status,
             "evidence_grade": self.evidence_grade,
@@ -68,6 +70,7 @@ class GateResult:
 
 
 def load_json(path: Path) -> dict[str, Any]:
+    """Load one capture or profile JSON object from disk."""
     with path.open(encoding="utf-8") as handle:
         value = json.load(handle)
     if not isinstance(value, dict):
@@ -76,6 +79,7 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def parse_ts(value: str, field: str) -> datetime:
+    """Parse a timezone-aware ISO-8601 timestamp for a named field."""
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (TypeError, ValueError) as exc:
@@ -86,6 +90,7 @@ def parse_ts(value: str, field: str) -> datetime:
 
 
 def sha256_file(path: Path) -> str:
+    """Return the lowercase SHA-256 digest for one evidence artifact."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(65536), b""):
@@ -94,6 +99,7 @@ def sha256_file(path: Path) -> str:
 
 
 def validate_spec(spec: dict[str, Any]) -> None:
+    """Validate the immutable Airbnb capture-profile safety contract."""
     if spec.get("spec_version") != "lqa-lotus-capture/0.1":
         raise CaptureError("spec: unsupported spec_version")
     if spec.get("target") != "Airbnb":
@@ -108,6 +114,7 @@ def validate_spec(spec: dict[str, Any]) -> None:
 
 
 def _validate_artifact(artifact: dict[str, Any], root: Path) -> None:
+    """Verify one artifact role, safe relative path, existence, and digest."""
     role = artifact.get("role")
     if role not in REQUIRED_ARTIFACT_ROLES:
         raise CaptureError(f"artifact: unsupported role {role!r}")
@@ -134,6 +141,7 @@ def validate_capture(
     capture: dict[str, Any],
     root: Path,
 ) -> GateResult:
+    """Validate capture completeness and classify it without confirming a defect."""
     validate_spec(spec)
 
     if capture.get("capture_version") != "lqa-lotus-browser-capture/0.1":
@@ -230,6 +238,7 @@ def validate_capture(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the capture gate and return a shell-friendly process status."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--capture", type=Path, required=True)
