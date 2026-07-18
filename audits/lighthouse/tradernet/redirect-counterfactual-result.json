@@ -1,0 +1,100 @@
+{
+  "schema_version": "liminalqa-counterfactual-result-v1",
+  "experiment_run": {
+    "github_run_id": 29661477160,
+    "exact_head_sha": "8a9018972c23dbef0c3c5bf4df029b4bb9ee1ee5",
+    "artifact_name": "tradernet-redirect-counterfactual-29661477160",
+    "artifact_sha256": "a2a4d06525957015e7d84d5cbf9a7176970dc7110768a8d012b8bae67b2b825f",
+    "runs_per_variant": 3,
+    "same_runner": true
+  },
+  "verdict": "MIXED_SUPPORT",
+  "confidence": "MEDIUM",
+  "variants": {
+    "redirect_root": {
+      "url": "https://tradernet.ru/",
+      "run_count": 3,
+      "medians": {
+        "first_contentful_paint_ms": 2098.963,
+        "largest_contentful_paint_ms": 11867.902,
+        "speed_index_ms": 3983.745,
+        "total_blocking_time_ms": 672.5,
+        "cumulative_layout_shift": 0.131,
+        "redirect_duration_ms": 505.0,
+        "categories": {
+          "performance": 50.0,
+          "accessibility": 96.0,
+          "best-practices": 75.0,
+          "seo": 100.0
+        }
+      },
+      "report_sha256": [
+        "59f0ea9408f12da2825a0db7f234037b69079bcb436113b02442f0eeb10e8ad3",
+        "361b6ab4d081b1f89431f5f430da3c86beca82f3ec2cad32a0c195d5f8325e90",
+        "e626c0cc73ba6942f2498552aa82e50359c7922cf35458eacf39daabd73d245a"
+      ]
+    },
+    "direct_ru": {
+      "url": "https://tradernet.ru/?site_lang=ru",
+      "run_count": 3,
+      "medians": {
+        "first_contentful_paint_ms": 2093.134,
+        "largest_contentful_paint_ms": 11893.8,
+        "speed_index_ms": 3940.85,
+        "total_blocking_time_ms": 668.0,
+        "cumulative_layout_shift": 0.131,
+        "redirect_duration_ms": 0.0,
+        "categories": {
+          "performance": 50.0,
+          "accessibility": 96.0,
+          "best_practices": 75.0,
+          "seo": 100.0
+        }
+      },
+      "report_sha256": [
+        "a5bffebfd4904036da74332a17b203c6e6dd1f36bffae0461824bdba603d7da0",
+        "26a6a7931fdc4060da442abe4d62c7834c9a498eb63f89aa546d531a16477e46",
+        "dfee562bfb3c3142f2d4f10f505a4ab8f5a4389e39add01bbf1c929b3af7017c"
+      ]
+    }
+  },
+  "effects": {
+    "redirect_duration_ms": {
+      "direct_minus_redirect": -505.0,
+      "improvement_percent": 100.0
+    },
+    "first_contentful_paint_ms": {
+      "direct_minus_redirect": -5.829,
+      "improvement_percent": 0.28
+    },
+    "largest_contentful_paint_ms": {
+      "direct_minus_redirect": 25.898,
+      "improvement_percent": -0.22
+    },
+    "speed_index_ms": {
+      "direct_minus_redirect": -42.895,
+      "improvement_percent": 1.08
+    },
+    "total_blocking_time_ms": {
+      "direct_minus_redirect": -4.5,
+      "improvement_percent": 0.67
+    },
+    "cumulative_layout_shift": {
+      "direct_minus_redirect": 0.0,
+      "improvement_percent": 0.0
+    }
+  },
+  "causal_interpretation": {
+    "confirmed": "The direct language URL removes an observed median redirect step of 505 ms.",
+    "not_supported": "Removing that redirect does not materially improve FCP, LCP, TBT, CLS, or the Lighthouse Performance score in this six-run experiment.",
+    "inference": "The redirect is real technical debt but is not the dominant cause of the approximately 12-second LCP; shared runtime cost and late LCP discovery remain higher-priority causes.",
+    "next_experiment": "Isolate late hero discovery and broad shared JavaScript bootstrap while keeping the exact direct language URL constant."
+  },
+  "boundaries": {
+    "passive_public_navigation": true,
+    "authenticated_testing": false,
+    "active_security_testing": false,
+    "financial_operations": false,
+    "field_performance_claim": false
+  }
+}
