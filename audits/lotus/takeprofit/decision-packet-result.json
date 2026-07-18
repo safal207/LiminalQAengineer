@@ -1,0 +1,54 @@
+{
+  "schema_version": "liminalqa-takeprofit-lotus-decision-result-v1",
+  "run": {
+    "workflow_run_id": 29664342786,
+    "exact_head_sha": "b8fcf8afab18f890f25e8ef530a8ebb0b7928153",
+    "artifact_id": 8435287820,
+    "artifact_digest": "sha256:3addcaf8f7a9a75db05cb96b5b65542b12806414e5d0afd19d48fd95ad492482",
+    "decision_packet_sha256": "sha256:a73f707597ee6e5cedd83ded0c3cc1b8620f6c5b40cf6467384b152bbd2a49de",
+    "markdown_sha256": "sha256:bd802e564cc03c36ac786e5536c6def7dda7f0ff759c8c84bcbc1e7ae5e64eed"
+  },
+  "decision": "ESCALATE",
+  "stop_reason": "CONFIRMED_STATE_AMBIGUITY_AND_UNRESOLVED_ORDERING_BOUNDARY",
+  "target": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "cases": [
+    {
+      "id": "TP-CHART-STATE-01",
+      "state": "CONFIRMED_REPEATED_FAMILY",
+      "pythia": "CONFIRMED",
+      "cml": "REPEATED_FAMILY",
+      "ls": "DEGRADED_BUT_PARTIALLY_HIDDEN"
+    },
+    {
+      "id": "TP-QUOTE-STATE-02",
+      "state": "CONFIRMED_REPEATED",
+      "pythia": "CONFIRMED",
+      "cml": "REPEATED_BEHAVIOR",
+      "ls": "INFORMED_CONTROL_REDUCED"
+    },
+    {
+      "id": "TP-QUOTE-ORDER-03",
+      "state": "TRANSPORT_CREATED_APPLICATION_UNVERIFIED",
+      "pythia": "ESCALATE",
+      "cml": "EXPERIMENTAL_CANDIDATE",
+      "ls": "RISK_NOT_YET_USER_VISIBLE"
+    }
+  ],
+  "counterfactual": {
+    "held_quote_response_ms": 76041,
+    "newer_quote_response_events_while_held": 4,
+    "older_response_delivered_after_newer": true,
+    "freshness_marker_observed": false,
+    "chart_visible_during_hold": true,
+    "recovery_after_release": "PASS",
+    "visible_price_rollback": "UNVERIFIED"
+  },
+  "authority": {
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "merge": false
+  },
+  "note": "The full generated JSON and Markdown decision packet are retained in the exact workflow artifact."
+}
