@@ -190,6 +190,36 @@ jobs:
           pattern: openai-public-domain-*-${{ github.run_id }}
           path: downloaded-domain-packets
 
+      - name: Validate complete exact-run evidence set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob
+          import json
+          from pathlib import Path
+
+          inventory = json.loads(Path("audits/lighthouse/openai/domains.json").read_text())
+          expected = sorted(target["url"] for target in inventory["targets"])
+          packet_paths = sorted(glob.glob("downloaded-domain-packets/**/decision-packet.json", recursive=True))
+          if len(packet_paths) != len(expected):
+              raise SystemExit(
+                  f"Incomplete portfolio evidence: expected {len(expected)} decision packets, got {len(packet_paths)}"
+              )
+
+          observed = []
+          for raw_path in packet_paths:
+              packet = json.loads(Path(raw_path).read_text())
+              observed.append(packet["target"]["requested_url"])
+          observed.sort()
+          if observed != expected:
+              raise SystemExit(
+                  "Decision-packet target set differs from the exact allowlisted inventory\n"
+                  f"expected={expected}\nobserved={observed}"
+              )
+          print(f"Validated complete exact-run evidence for {len(observed)} targets.")
+          PY
+
       - name: Build portfolio summary
         shell: bash
         run: |
@@ -197,6 +227,11 @@ jobs:
           python3 scripts/lighthouse_portfolio_summary.py \
             --input-dir downloaded-domain-packets \
             --output-dir reports/portfolio
+          jq -e '.target_count == 7 and (.targets | length) == 7' \
+            reports/portfolio/portfolio-summary.json >/dev/null
+          sed -i \
+            's/LiminalQA · Tradernet public domain portfolio/LiminalQA · OpenAI public web portfolio/' \
+            reports/portfolio/portfolio-summary.md
           cat reports/portfolio/portfolio-summary.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload portfolio evidence
