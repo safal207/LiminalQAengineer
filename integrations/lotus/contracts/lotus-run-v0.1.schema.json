@@ -71,6 +71,7 @@
     "protocol_pins": {
       "type": "array",
       "minItems": 4,
+      "maxItems": 4,
       "items": {
         "type": "object",
         "required": [
