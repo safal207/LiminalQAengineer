@@ -1,0 +1,98 @@
+name: Tradernet Public Lighthouse Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Allowlisted public Tradernet page
+        required: true
+        default: https://tradernet.ru/
+        type: choice
+        options:
+          - https://tradernet.ru/
+          - https://tradernet.ru/ideas/
+          - https://tradernet.ru/terminal
+  push:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/tradernet-lighthouse.yml
+      - audits/lighthouse/tradernet/**
+      - scripts/lighthouse_to_liminalqa.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-lighthouse-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-quality-audit:
+    name: Public web quality decision packet
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Resolve and validate allowlisted target
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_url="${{ github.event.inputs.target_url }}"
+          if [[ -z "${target_url}" ]]; then
+            target_url="https://tradernet.ru/"
+          fi
+
+          normalized_url="$(python3 scripts/lighthouse_to_liminalqa.py validate-url \
+            --policy audits/lighthouse/tradernet/policy.json \
+            --url "${target_url}")"
+
+          echo "target_url=${normalized_url}" >> "${GITHUB_OUTPUT}"
+          echo "Auditing allowlisted public URL: ${normalized_url}"
+
+      - name: Record runtime versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          python3 --version
+
+      - name: Collect Lighthouse evidence
+        env:
+          LIGHTHOUSE_TARGET_URL: ${{ steps.target.outputs.target_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci reports/lighthouse
+          mkdir -p reports/lighthouse
+          npx --yes @lhci/cli@0.15.1 autorun \
+            --config=audits/lighthouse/tradernet/lighthouserc.cjs
+
+      - name: Build LiminalQA decision packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/lighthouse_to_liminalqa.py report \
+            --policy audits/lighthouse/tradernet/policy.json \
+            --input-dir .lighthouseci \
+            --output-dir reports/lighthouse
+          cat reports/lighthouse/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-lighthouse-${{ github.run_id }}
+          path: |
+            reports/lighthouse/
+            .lighthouseci/
+          if-no-files-found: warn
+          retention-days: 14
