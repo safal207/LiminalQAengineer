@@ -7,9 +7,11 @@ on:
       - "scripts/validate_lotus_evidence.py"
       - "scripts/lotus_capture_gate.py"
       - "scripts/lotus_playwright_capture.py"
+      - "scripts/lotus_airbnb_capture_session.py"
       - "tests/test_lotus_evidence.py"
       - "tests/test_lotus_capture_gate.py"
       - "tests/test_lotus_playwright_capture.py"
+      - "tests/test_lotus_airbnb_capture_session.py"
       - ".github/workflows/lotus-evidence-contract.yml"
   push:
     branches: [main]
@@ -18,9 +20,11 @@ on:
       - "scripts/validate_lotus_evidence.py"
       - "scripts/lotus_capture_gate.py"
       - "scripts/lotus_playwright_capture.py"
+      - "scripts/lotus_airbnb_capture_session.py"
       - "tests/test_lotus_evidence.py"
       - "tests/test_lotus_capture_gate.py"
       - "tests/test_lotus_playwright_capture.py"
+      - "tests/test_lotus_airbnb_capture_session.py"
 
 permissions:
   contents: read
@@ -39,9 +43,11 @@ jobs:
             scripts/validate_lotus_evidence.py \
             scripts/lotus_capture_gate.py \
             scripts/lotus_playwright_capture.py \
+            scripts/lotus_airbnb_capture_session.py \
             tests/test_lotus_evidence.py \
             tests/test_lotus_capture_gate.py \
-            tests/test_lotus_playwright_capture.py
+            tests/test_lotus_playwright_capture.py \
+            tests/test_lotus_airbnb_capture_session.py
       - name: Validate vertical-slice contract
         run: python3 scripts/validate_lotus_evidence.py
       - name: Validate planned browser capture template
@@ -54,8 +60,14 @@ jobs:
           python3 scripts/lotus_playwright_capture.py plan \
             --profile integrations/lotus/capture/airbnb-currency-atomicity-v0.1.json \
             --capture-template integrations/lotus/examples/airbnb-run-002.capture.json
+      - name: Validate one-command session plan without target interaction
+        run: |
+          python3 scripts/lotus_airbnb_capture_session.py plan \
+            --listing-url https://www.airbnb.com/rooms/123 \
+            --output-root /tmp/lotus-airbnb-plan
       - name: Run contract regression tests
         run: |
           python3 -m unittest tests/test_lotus_evidence.py -v
           python3 -m unittest tests/test_lotus_capture_gate.py -v
           python3 -m unittest tests/test_lotus_playwright_capture.py -v
+          python3 -m unittest tests/test_lotus_airbnb_capture_session.py -v
