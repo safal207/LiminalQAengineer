@@ -77,7 +77,7 @@ jobs:
               "https://chatgpt.com/",
               "https://openai.com/codex/",
               "https://developers.openai.com/",
-              "https://platform.openai.com/docs/quickstart/make-your-first-api-request",
+              "https://developers.openai.com/api/docs/quickstart",
               "https://help.openai.com/en-us",
               "https://status.openai.com/"
             ] | sort))
