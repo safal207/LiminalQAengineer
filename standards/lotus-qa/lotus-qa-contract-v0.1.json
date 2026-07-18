@@ -1,0 +1,91 @@
+{
+  "schema_version": "liminalqa-lotus-qa-contract-v0.1",
+  "name": "LiminalQA Lotus Decision Packet",
+  "decision_path": [
+    "liminalqa_signal",
+    "pythia_judgment",
+    "cml_causal_memory",
+    "ls_user_control",
+    "lotus_decision_packet"
+  ],
+  "source_contracts": {
+    "pythia": {
+      "repository": "safal207/pythiaLabs",
+      "commit": "03efe66e1d7920480fe6fa1dc310fe6b17faaf80",
+      "path": "LOTUS.md",
+      "blob_sha": "ddd6f7986e18d4a9a1bb72589251cea44faa4a91",
+      "rule": "A verdict may guide action, but it must never hide its evidence or pretend uncertainty is permission."
+    },
+    "cml": {
+      "repository": "safal207/Causal-Memory-Layer",
+      "commit": "33f904d28c78a560aaab3b0be4f6fd501f22116d",
+      "path": "docs/LOTUS.md",
+      "blob_sha": "d4c4610c2188eba2c2f7007fc484d8a72af84505",
+      "rule": "Memory may preserve causes, lessons, and responsibility lineage, but it may not silently become authority."
+    },
+    "ls": {
+      "repository": "safal207/LS",
+      "commit": "c9b070682a6a405553fa29f18bc95dc9e5d9c232",
+      "path": "LOTUS.md",
+      "blob_sha": "ec6ae5af4469628812eb46db23b9238cbb719df8",
+      "rule": "Does this help intelligence grow without reducing human freedom?"
+    }
+  },
+  "pythia": {
+    "proposed_action": "publish the bounded claim as a confirmed QA finding",
+    "verdicts": ["ALLOW", "BLOCK", "ESCALATE"],
+    "allow_requires": [
+      "bounded evidence",
+      "replayable evidence",
+      "exact evidence state",
+      "claim support that is observed or counterfactually supported"
+    ],
+    "block_when": [
+      "the claim is contradicted",
+      "a counterfactual does not support the asserted causal role",
+      "the claim overstates its evidence"
+    ],
+    "escalate_when": [
+      "evidence is missing, stale, conflicting, inaccessible, or provenance-unverified",
+      "the counterfactual is inconclusive",
+      "the claim support remains unknown"
+    ]
+  },
+  "cml": {
+    "durable_acceptance_requires_human_review": true,
+    "statuses": [
+      "PROPOSED_SINGLE",
+      "PROPOSED_RECURRING",
+      "CONFLICT",
+      "NEGATIVE_CAUSAL_MEMORY",
+      "ACCEPTED"
+    ],
+    "context_keys": [
+      "canonical_id",
+      "repository_scope",
+      "surface_scope",
+      "state_scope",
+      "time_scope"
+    ]
+  },
+  "ls": {
+    "dimensions": [
+      "state_visibility",
+      "timeliness",
+      "action_reversibility",
+      "duplicate_action_risk",
+      "error_explainability",
+      "live_historical_clarity"
+    ],
+    "risk_levels": ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL", "UNKNOWN"]
+  },
+  "authority": {
+    "mode": "audit_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "deployment": false,
+    "merge": false
+  }
+}
