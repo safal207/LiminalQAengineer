@@ -1,6 +1,4 @@
-use liminalqa_runner::{
-    Criticality, ImpactRule, ImpactSelector, TestDescriptor,
-};
+use liminalqa_runner::{Criticality, ImpactRule, ImpactSelector, TestDescriptor};
 
 fn main() -> anyhow::Result<()> {
     let changed_paths = vec![
