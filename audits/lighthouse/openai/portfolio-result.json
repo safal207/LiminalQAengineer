@@ -1,0 +1,119 @@
+{
+  "schema_version": "liminalqa-lighthouse-portfolio-v1",
+  "run_kind": "passive_public_domain_quality_portfolio",
+  "verdict": "WARN",
+  "target_count": 7,
+  "warning_count": 5,
+  "targets": [
+    {
+      "artifact_path": "downloaded-domain-packets/openai-public-domain-chatgpt-public-shell-29662883190/decision-packet.json",
+      "requested_url": "https://chatgpt.com/",
+      "final_url": "https://chatgpt.com/",
+      "verdict": "PASS",
+      "severity": "LOW",
+      "scores": {"performance": 68, "accessibility": 96, "best_practices": 96, "seo": 92},
+      "metrics_ms": {"fcp": 2532.0025, "lcp": 2689.0025, "tbt": 1316.5000000000005},
+      "cls": 0.0,
+      "evidence_sha256": "b3a4f074aa9f5313a09efe10c4f52980aa17ac32db2af8bb91b64d952b75c75c",
+      "fetch_time": "2026-07-18T22:08:35.481Z"
+    },
+    {
+      "artifact_path": "downloaded-domain-packets/openai-public-domain-openai-developers-29662883190/decision-packet.json",
+      "requested_url": "https://developers.openai.com/",
+      "final_url": "https://developers.openai.com/",
+      "verdict": "WARN",
+      "severity": "LOW",
+      "scores": {"performance": 57, "accessibility": 98, "best_practices": 100, "seo": 92},
+      "metrics_ms": {"fcp": 2030.4355, "lcp": 6201.6155, "tbt": 770.5},
+      "cls": 0.000223077387769581,
+      "evidence_sha256": "fbaf106a3594c374b3aa72696f75fd0fd2291bcd0979aeec604b02f9f60ee24c",
+      "fetch_time": "2026-07-18T22:10:09.225Z"
+    },
+    {
+      "artifact_path": "downloaded-domain-packets/openai-public-domain-openai-api-quickstart-29662883190/decision-packet.json",
+      "requested_url": "https://developers.openai.com/api/docs/quickstart",
+      "final_url": "https://developers.openai.com/api/docs/quickstart",
+      "verdict": "PASS",
+      "severity": "LOW",
+      "scores": {"performance": 66, "accessibility": 100, "best_practices": 96, "seo": 100},
+      "metrics_ms": {"fcp": 4420.5244999999995, "lcp": 5907.9425, "tbt": 64.5},
+      "cls": 0.0,
+      "evidence_sha256": "9780c24841e5329e262203182d1585950d4f7bb233517e32aabdbac9d76c321c",
+      "fetch_time": "2026-07-18T22:10:57.726Z"
+    },
+    {
+      "artifact_path": "downloaded-domain-packets/openai-public-domain-openai-help-29662883190/decision-packet.json",
+      "requested_url": "https://help.openai.com/en-us",
+      "final_url": "https://help.openai.com/en-us",
+      "verdict": "WARN",
+      "severity": "MEDIUM",
+      "scores": {"performance": 62, "accessibility": 88, "best_practices": 57, "seo": 100},
+      "metrics_ms": {"fcp": 4879.568500000001, "lcp": 5183.644500000002, "tbt": 287.0},
+      "cls": 0.0,
+      "evidence_sha256": "7cc5697988e5a9ddf26bb0b25878f952a412122405665ea08fdb6c165e7acf49",
+      "fetch_time": "2026-07-18T22:11:12.159Z"
+    },
+    {
+      "artifact_path": "downloaded-domain-packets/openai-public-domain-openai-home-29662883190/decision-packet.json",
+      "requested_url": "https://openai.com/",
+      "final_url": "https://openai.com/",
+      "verdict": "WARN",
+      "severity": "MEDIUM",
+      "scores": {"performance": 43, "accessibility": 100, "best_practices": 61, "seo": 100},
+      "metrics_ms": {"fcp": 2406.6369999999997, "lcp": 63002.59450000006, "tbt": 913.0000000000005},
+      "cls": 0.0003358673826849315,
+      "evidence_sha256": "f59669be9e8a07c2f4cf5c3a3006032d72d939df9d3c1e9400d52b304ee73df9",
+      "fetch_time": "2026-07-18T22:08:29.876Z"
+    },
+    {
+      "artifact_path": "downloaded-domain-packets/openai-public-domain-openai-codex-29662883190/decision-packet.json",
+      "requested_url": "https://openai.com/codex/",
+      "final_url": "https://openai.com/codex/",
+      "verdict": "WARN",
+      "severity": "HIGH",
+      "scores": {"performance": 34, "accessibility": 100, "best_practices": 61, "seo": 100},
+      "metrics_ms": {"fcp": 3001.2590000000005, "lcp": 14695.3025, "tbt": 4438.5},
+      "cls": 0.0001897874499531548,
+      "evidence_sha256": "8c31f1515212ef8eba52610e6892fd8d7554933ad24b209eb4465ddaaef069c2",
+      "fetch_time": "2026-07-18T22:09:26.219Z"
+    },
+    {
+      "artifact_path": "downloaded-domain-packets/openai-public-domain-openai-status-29662883190/decision-packet.json",
+      "requested_url": "https://status.openai.com/",
+      "final_url": "https://status.openai.com/",
+      "verdict": "WARN",
+      "severity": "LOW",
+      "scores": {"performance": 75, "accessibility": 80, "best_practices": 100, "seo": 91},
+      "metrics_ms": {"fcp": 1124.2885, "lcp": 4323.288500000001, "tbt": 378.50000000000045},
+      "cls": 0.0,
+      "evidence_sha256": "b6eeaf40268a731654398fb5d200ef7e9efe073df614fc50b05b8aeb87806a2f",
+      "fetch_time": "2026-07-18T22:11:49.443Z"
+    }
+  ],
+  "portfolio_metrics": {"average_performance_score": 57.9, "slowest_lcp_ms": 63002.59450000006, "fastest_lcp_ms": 2689.0025},
+  "recurring_findings": [
+    {"audit_id": "unused-javascript", "target_count": 6},
+    {"audit_id": "bootup-time", "target_count": 6},
+    {"audit_id": "largest-contentful-paint-element", "target_count": 4},
+    {"audit_id": "mainthread-work-breakdown", "target_count": 4},
+    {"audit_id": "forced-reflow-insight", "target_count": 4},
+    {"audit_id": "errors-in-console", "target_count": 3},
+    {"audit_id": "network-dependency-tree-insight", "target_count": 3},
+    {"audit_id": "dom-size", "target_count": 3},
+    {"audit_id": "deprecations", "target_count": 3},
+    {"audit_id": "inspector-issues", "target_count": 3},
+    {"audit_id": "bf-cache", "target_count": 2},
+    {"audit_id": "color-contrast", "target_count": 2}
+  ],
+  "boundaries": {
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false,
+    "statement": "This portfolio compares one passive Lighthouse navigation per allowlisted public target. Inventory membership is not proof of common ownership or authorization."
+  },
+  "generated_at": "2026-07-18T22:12:11.351041+00:00"
+}
