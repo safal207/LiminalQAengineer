@@ -1,7 +1,8 @@
 {
-  "schema_version": "liminalqa-takeprofit-chart-quote-probe-config-v1",
-  "targetUrl": "https://takeprofit.com/platform",
-  "switchSymbol": "BTCUSDT",
+  "schema_version": "liminalqa-takeprofit-chart-quote-probe-config-v2",
+  "targetUrl": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "expectedSymbolHint": "BTC",
+  "attemptSymbolSwitch": false,
   "viewport": {
     "width": 390,
     "height": 844,
@@ -9,13 +10,14 @@
   },
   "navigationTimeoutMs": 90000,
   "initialWaitMs": 30000,
-  "postSwitchWaitMs": 18000,
+  "liveObservationMs": 16000,
   "offlineMs": 5000,
   "reconnectWaitMs": 18000,
   "reloadWaitMs": 30000,
   "boundaries": {
     "public_page_only": true,
     "browser_local_diagnostics_only": true,
+    "passive_application_traffic_observation": true,
     "authenticated_testing": false,
     "application_api_testing": false,
     "financial_operations": false,
