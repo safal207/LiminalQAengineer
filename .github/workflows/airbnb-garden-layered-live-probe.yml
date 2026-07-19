@@ -22,7 +22,7 @@ concurrency:
 
 env:
   GARDEN_SHA: 4fd36bc2748c6f5c48b3f6967072d09ee478699f
-  PROBE_SHA: 404da0d714de334e18080138623370fdc32717f5
+  PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
   LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
 
@@ -319,7 +319,7 @@ jobs:
           result = {
               'schema_version': 'airbnb-garden-layered-live-result-v0.1',
               'garden_commit': '4fd36bc2748c6f5c48b3f6967072d09ee478699f',
-              'probe_commit': '404da0d714de334e18080138623370fdc32717f5',
+              'probe_commit': 'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
               'target': 'https://www.airbnb.com/rooms/1418689551881927394',
               'garden_events': events,
               'missing_garden_events': missing,
