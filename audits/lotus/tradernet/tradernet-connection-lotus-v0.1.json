@@ -1,0 +1,134 @@
+{
+  "schema_version": "lotus-qa-decision-packet-v0.1",
+  "packet_id": "tradernet-public-connections-2026-07-19",
+  "subject": {
+    "platform": "Tradernet",
+    "scope": "public unauthenticated chart and terminal entry",
+    "source_repository": "https://github.com/safal207/LiminalQAengineer",
+    "source_pr": 72
+  },
+  "evidence": [
+    {
+      "id": "connection-lifecycle",
+      "run_id": 29666251111,
+      "head_sha": "4d58d54db49a8ef43260c7f5c4a2ac683c8e865f",
+      "artifact_sha256": "65fc7473982cca5ea2071b7219390b70824fb3613b8f1d59e32c918f71d7ca67",
+      "result": "NO_FIRST_PARTY_WEBSOCKET_OBSERVED"
+    },
+    {
+      "id": "duplicate-settings",
+      "run_id": 29666496587,
+      "head_sha": "6d22575cf4cca307508614d1eb6c6bfd3e5ee62d",
+      "artifact_sha256": "20f5d9fd464b63a1f65a54636129ccdb7c16b0a801ea9557efc1791a39b55088",
+      "result": "CONFIRMED_REDUNDANT_DUPLICATE_REQUEST"
+    }
+  ],
+  "findings": [
+    {
+      "id": "TRADERNET-PUBLIC-DUPLICATE-SETTINGS-001",
+      "claim": "The public chart issues two overlapping GET requests to the same user-settings endpoint from separate Fetch and XHR frontend paths and receives byte-identical successful responses.",
+      "status": "CONFIRMED",
+      "severity": "P2_PERFORMANCE_RELIABILITY",
+      "confidence": 100,
+      "reproduction": {
+        "fresh_contexts": 3,
+        "matching_rounds": 3,
+        "requests_per_round": 2,
+        "same_start_millisecond": true,
+        "overlap": true,
+        "http_200": true,
+        "identical_response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "response_bytes": 2,
+        "encoded_transfer_bytes_per_request": 3463,
+        "resource_types": [
+          "Fetch",
+          "XHR"
+        ]
+      },
+      "causal_chain": [
+        "modern chart-theoretical-info bundle requests user settings with Fetch",
+        "legacy chart_grid restore path requests the same settings with XHR",
+        "both requests begin concurrently",
+        "both return successful byte-identical responses",
+        "the browser and server perform redundant work"
+      ],
+      "human_impact": "Confirmed unnecessary network and backend work on public chart startup. No visible chart corruption, stale quote, account impact, or trading-decision impact was established.",
+      "repair": "Create one shared settings-loading owner or promise/cache and let both chart consumers use the same result. Add a regression assertion that one navigation produces at most one in-flight GET for the endpoint."
+    },
+    {
+      "id": "TRADERNET-PUBLIC-ZOMBIE-WS-001",
+      "claim": "The public chart or terminal login leaves a first-party WebSocket alive after reload or navigation-away.",
+      "status": "BLOCKED_NOT_TESTABLE",
+      "severity": "UNASSIGNED",
+      "confidence": 100,
+      "reason": "Neither public surface naturally opened a first-party Tradernet WebSocket during the bounded lifecycle run. Absence of a testable transport cannot support a zombie-connection claim."
+    },
+    {
+      "id": "TRADERNET-PUBLIC-STALE-STATE-001",
+      "claim": "The chart keeps stale market information visible during a transport outage without a freshness indicator.",
+      "status": "NEEDS_EVIDENCE",
+      "severity": "UNASSIGNED",
+      "confidence": 40,
+      "required_evidence": "Repeat during an active market session with a naturally updating quote source, prove updates stop during offline mode, preserve timestamped visible state, and prove recovery after reconnect."
+    },
+    {
+      "id": "TRADERNET-PUBLIC-SETTINGS-POST-001",
+      "claim": "The natural 33,404-byte settings POST on public chart startup is unnecessary or mutates state incorrectly.",
+      "status": "NEEDS_EVIDENCE",
+      "severity": "UNASSIGNED",
+      "confidence": 25,
+      "observed_only": {
+        "matching_rounds": 3,
+        "method": "POST",
+        "request_body_bytes": 33404,
+        "http_status": 200
+      },
+      "required_evidence": "Establish product intent, session state, payload semantics, repeated-navigation behavior, and measurable user or backend cost before assigning a defect. Raw request bodies were not retained."
+    }
+  ],
+  "pythia": {
+    "verdicts": {
+      "TRADERNET-PUBLIC-DUPLICATE-SETTINGS-001": "ALLOW",
+      "TRADERNET-PUBLIC-ZOMBIE-WS-001": "BLOCK",
+      "TRADERNET-PUBLIC-STALE-STATE-001": "ESCALATE",
+      "TRADERNET-PUBLIC-SETTINGS-POST-001": "ESCALATE"
+    },
+    "rule": "Only the 3-of-3 overlapping, successful, byte-identical duplicate request crosses the confirmation boundary."
+  },
+  "cml": {
+    "memory_mode": "PROPOSE_ONLY",
+    "durable_acceptance": false,
+    "selected_path": [
+      "public chart startup",
+      "modern Fetch settings loader and legacy XHR restore loader coexist",
+      "two overlapping requests target the same endpoint",
+      "responses are byte-identical in 3 of 3 fresh contexts",
+      "consolidate settings ownership and add one-in-flight regression guard"
+    ],
+    "shared_root_cause_scope": "The dual-loader cause is supported for this endpoint only and is not asserted as the root cause of other Tradernet mobile or runtime findings."
+  },
+  "ls": {
+    "verdict": "HUMAN_REVIEW_REQUIRED",
+    "priority": [
+      "TRADERNET-PUBLIC-DUPLICATE-SETTINGS-001",
+      "TRADERNET-PUBLIC-STALE-STATE-001",
+      "TRADERNET-PUBLIC-SETTINGS-POST-001",
+      "TRADERNET-PUBLIC-ZOMBIE-WS-001"
+    ],
+    "control_assessment": "The confirmed issue wastes startup resources but does not currently demonstrate misleading market state or loss of user control."
+  },
+  "liminaldb": {
+    "write_mode": "artifact_only",
+    "durable_memory": false,
+    "supersession": "A future market-open lifecycle run may supersede the stale-state and zombie-transport uncertainty but cannot alter this exact evidence record."
+  },
+  "authority": {
+    "mode": "audit_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "external_submission": false,
+    "merge": false
+  }
+}
