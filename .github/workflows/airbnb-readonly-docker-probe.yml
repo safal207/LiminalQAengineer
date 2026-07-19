@@ -18,17 +18,29 @@ on:
 permissions:
   contents: read
 
-env:
-  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1
-  OUTPUT_ROOT: artifacts/ABNB-RUN-002-DOCKER
-
 jobs:
   readonly-probe:
+    name: readonly-probe-${{ matrix.slug }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - slug: antalya-center
+            listing_url: 'https://www.airbnb.com/rooms/1418689551881927394?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1'
+          - slug: alanya-center
+            listing_url: 'https://www.airbnb.com/rooms/1411471065836934375?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1'
+          - slug: alanya-beach
+            listing_url: 'https://www.airbnb.com/rooms/928065654314274579?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1'
     container:
       image: mcr.microsoft.com/playwright/python:v1.60.0-noble
       options: --ipc=host
+    env:
+      LISTING_URL: ${{ matrix.listing_url }}
+      OUTPUT_ROOT: artifacts/ABNB-MATRIX-${{ matrix.slug }}
+      RUN_SLUG: ${{ matrix.slug }}
 
     steps:
       - name: Checkout exact branch state
@@ -42,6 +54,7 @@ jobs:
       - name: Record execution boundary
         run: |
           printf '%s\n' \
+            "Target: $LISTING_URL" \
             'Public unauthenticated listing only.' \
             'Dates and guest are URL query inputs only.' \
             'No form submission.' \
@@ -67,7 +80,8 @@ jobs:
           path = Path(os.environ['OUTPUT_ROOT']) / 'probe-result.json'
           data = json.loads(path.read_text())
           print(json.dumps({
-              'run_id': data['run_id'],
+              'slug': os.environ['RUN_SLUG'],
+              'target': data['target'],
               'outcomes': data['outcomes'],
               'normalized_signatures': data['normalized_signatures'],
               'evidence_grade': data['evidence_grade'],
@@ -82,7 +96,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ABNB-RUN-002-DOCKER
-          path: artifacts/ABNB-RUN-002-DOCKER
+          name: ABNB-MATRIX-${{ matrix.slug }}
+          path: artifacts/ABNB-MATRIX-${{ matrix.slug }}
           if-no-files-found: warn
           retention-days: 14
