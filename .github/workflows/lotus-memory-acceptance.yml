@@ -67,7 +67,7 @@ jobs:
             vendor/LiminalDB/tests/test_validate_pythia_negative_memory.py
           (
             cd vendor/Pythia
-            python3 -m unittest test/lotus_ltp_acceptance_test.py -v
+            python3 -m unittest discover -s test -p 'lotus_ltp_acceptance_test.py' -v
           ) 2>&1 | tee reports/pythia/tests.log
           (
             cd vendor/LiminalDB
