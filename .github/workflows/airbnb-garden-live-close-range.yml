@@ -1,0 +1,278 @@
+name: Airbnb Garden Live Close Range
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/airbnb-garden-liminalos-comparison-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-live-close-range.yml
+  pull_request:
+    branches:
+      - agent/airbnb-currency-history-lotus-result-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-live-close-range.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airbnb-garden-live-close-range-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 6eda85415feae21af117aa09125dcc88a1a3f9c1
+  PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
+
+jobs:
+  probe:
+    name: Live read-only probe after child-process fix
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout benchmark branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact Garden
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Checkout exact Airbnb probe
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ env.PROBE_SHA }}
+          path: vendor/airbnb-probe
+          persist-credentials: false
+
+      - name: Verify pins and prepare directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          test "$(git -C vendor/airbnb-probe rev-parse HEAD)" = "$PROBE_SHA"
+          test -f vendor/airbnb-probe/scripts/airbnb_readonly_discovered_dates_probe_v4.py
+          mkdir -p reports/close-range/{rootfs,garden-image,probe-image,evidence}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+
+      - name: Build and test Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_root="$RUNNER_TEMP/GardenLiminal-close-range"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/close-range/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/close-range/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/close-range/garden-image/gl"
+
+      - name: Build exported Playwright rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker image inspect "$PLAYWRIGHT_IMAGE" --format '{{json .RepoDigests}}' \
+            > reports/close-range/playwright-image-digests.json
+          cat > reports/close-range/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN python -m pip install --no-cache-dir playwright==1.60.0 \
+              && python -c 'import encodings, playwright; print("python-runtime-ok")'
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+          docker build -t airbnb-close-range-rootfs:${GITHUB_SHA} \
+            reports/close-range/probe-image \
+            2>&1 | tee reports/close-range/probe-image-build.log
+          id="$(docker create airbnb-close-range-rootfs:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/close-range/rootfs.tar
+          sudo tar -xf reports/close-range/rootfs.tar -C reports/close-range/rootfs
+          sudo mkdir -p reports/close-range/rootfs/opt/liminalqa reports/close-range/rootfs/evidence
+          sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py \
+            reports/close-range/rootfs/opt/liminalqa/
+          sudo chmod -R a+rX reports/close-range/rootfs/opt/liminalqa
+          browser="$(find reports/close-range/rootfs/opt/liminal-playwright \
+            -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          test -n "$browser"
+          set +e
+          timeout 30 sudo chroot reports/close-range/rootfs \
+            "/${browser#reports/close-range/rootfs/}" --version \
+            > reports/close-range/browser-preflight.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/close-range/browser-preflight.exit
+          test "$code" = 0
+
+      - name: Build Garden harness and Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/close-range/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-close-range:${GITHUB_SHA} \
+            reports/close-range/garden-image \
+            2>&1 | tee reports/close-range/garden-image-build.log
+
+          cat > reports/close-range/seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: airbnb-close-range-live
+            id: airbnb-close-range-live-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - /usr/bin/python
+              - /opt/liminalqa/airbnb_readonly_discovered_dates_probe_v4.py
+              - --listing-url
+              - ${LISTING_URL}
+              - --output-root
+              - /evidence/ABNB-GARDEN-CLOSE-RANGE
+            env:
+              - PYTHONPATH=/opt/liminalqa
+              - HOME=/tmp
+              - PLAYWRIGHT_BROWSERS_PATH=/opt/liminal-playwright
+              - PYTHONUNBUFFERED=1
+            cwd: /opt/liminalqa
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: airbnb-garden
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+
+      - name: Execute Garden live probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          name="airbnb-close-range-${GITHUB_RUN_ID}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          set +e
+          timeout 900 docker run \
+            --name "$name" \
+            --privileged \
+            --cpus 1.50 \
+            --memory 2g \
+            --pids-limit 512 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/close-range/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/close-range/seed.yaml:/work/seed.yaml:ro" \
+            garden-close-range:${GITHUB_SHA} \
+            run -f /work/seed.yaml --store mem \
+            > reports/close-range/run.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/close-range/run.exit
+          docker inspect "$name" --format '{{json .HostConfig}}' \
+            > reports/close-range/docker-host-config.json
+          docker rm -f "$name" >/dev/null
+          tail -300 reports/close-range/run.log
+
+      - name: Extract and classify result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir=reports/close-range/rootfs/evidence/ABNB-GARDEN-CLOSE-RANGE
+          if [ -d "$source_dir" ]; then
+            sudo cp -a "$source_dir" reports/close-range/evidence/
+            sudo chown -R "$(id -u):$(id -g)" reports/close-range/evidence
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('reports/close-range')
+          code = int((root / 'run.exit').read_text().strip())
+          host = json.loads((root / 'docker-host-config.json').read_text())
+          records = []
+          for line in (root / 'run.log').read_text(errors='replace').splitlines():
+              try: item = json.loads(line)
+              except Exception: continue
+              if isinstance(item, dict) and item.get('event'): records.append(item)
+          events = [item['event'] for item in records]
+          required = ['RUN_CREATED','SEED_LOADED','NS_CREATED','MOUNT_DONE','CAPS_DROPPED','SECCOMP_ENABLED','PROCESS_START','PROCESS_EXIT']
+          exit_zero = any(item.get('event') == 'PROCESS_EXIT' and item.get('code') == 0 for item in records)
+          probe_paths = list((root / 'evidence').rglob('probe-result.json'))
+          probe = json.loads(probe_paths[0].read_text()) if len(probe_paths) == 1 else None
+          limits = {'nano_cpus':host.get('NanoCpus'),'memory_bytes':host.get('Memory'),'pids_limit':host.get('PidsLimit')}
+          expected = {'nano_cpus':1500000000,'memory_bytes':2147483648,'pids_limit':512}
+          safe = bool(probe) and probe.get('confirmed_defect') is False and probe.get('payment_submitted') is False and probe.get('reservation_created') is False
+          confirmed = code == 0 and all(event in events for event in required) and exit_zero and limits == expected and safe
+          result = {
+              'schema_version':'airbnb-garden-live-close-range-v0.1',
+              'garden_commit':'6eda85415feae21af117aa09125dcc88a1a3f9c1',
+              'probe_commit':'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
+              'garden_run_exit':code,
+              'garden_events':events,
+              'missing_events':[event for event in required if event not in events],
+              'garden_process_exit_zero':exit_zero,
+              'outer_limits':{'configured':limits,'expected':expected,'matches':limits == expected},
+              'probe_present':probe is not None,
+              'probe_summary':None if probe is None else {
+                  'classifier_revision':probe.get('classifier_revision'),
+                  'outcomes':probe.get('outcomes'),
+                  'normalized_signatures':probe.get('normalized_signatures'),
+                  'evidence_grade':probe.get('evidence_grade'),
+                  'confirmed_defect':probe.get('confirmed_defect'),
+                  'payment_submitted':probe.get('payment_submitted'),
+                  'reservation_created':probe.get('reservation_created'),
+                  'resolved_target':probe.get('resolved_target'),
+                  'reload_outcome':(probe.get('reload_probe') or {}).get('outcome'),
+              },
+              'safe_readonly_probe':safe,
+              'live_garden_probe_confirmed':confirmed,
+              'authority':{'mode':'audit_only','external_submission':False,'merge':False},
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if not confirmed: raise SystemExit(1)
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/close-range/rootfs
+          rm -f reports/close-range/rootfs.tar
+          find reports/close-range -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/close-range/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airbnb-garden-live-close-range-${{ github.run_id }}
+          path: reports/close-range/
+          if-no-files-found: error
+          retention-days: 14
