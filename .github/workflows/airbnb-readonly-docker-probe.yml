@@ -1,0 +1,81 @@
+name: Airbnb read-only Docker probe
+
+on:
+  push:
+    branches:
+      - agent/abnb-run-002-docker
+    paths:
+      - scripts/airbnb_readonly_probe.py
+      - .github/workflows/airbnb-readonly-docker-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LISTING_URL: https://www.airbnb.com/rooms/1462463984133687422
+  OUTPUT_ROOT: artifacts/ABNB-RUN-002-DOCKER
+
+jobs:
+  readonly-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.60.0-noble
+      options: --ipc=host
+
+    steps:
+      - name: Checkout exact branch state
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install matching Playwright package
+        run: python -m pip install --no-cache-dir playwright==1.60.0
+
+      - name: Record execution boundary
+        run: |
+          printf '%s\n' \
+            'Public unauthenticated listing only.' \
+            'No form submission.' \
+            'No login.' \
+            'No host contact.' \
+            'No payment.' \
+            'No reservation creation.'
+
+      - name: Run two-context currency and browser-history probe
+        run: |
+          rm -rf "$OUTPUT_ROOT"
+          python scripts/airbnb_readonly_probe.py \
+            --listing-url "$LISTING_URL" \
+            --output-root "$OUTPUT_ROOT"
+
+      - name: Show compact result
+        if: always()
+        run: |
+          if [ -f "$OUTPUT_ROOT/probe-result.json" ]; then
+            python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['OUTPUT_ROOT']) / 'probe-result.json'
+          data = json.loads(path.read_text())
+          print(json.dumps({
+              'run_id': data['run_id'],
+              'outcomes': data['outcomes'],
+              'normalized_signatures': data['normalized_signatures'],
+              'evidence_grade': data['evidence_grade'],
+              'confirmed_defect': data['confirmed_defect'],
+              'payment_submitted': data['payment_submitted'],
+              'reservation_created': data['reservation_created'],
+          }, indent=2))
+          PY
+          fi
+
+      - name: Upload evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ABNB-RUN-002-DOCKER
+          path: artifacts/ABNB-RUN-002-DOCKER
+          if-no-files-found: warn
+          retention-days: 14
