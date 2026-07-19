@@ -253,6 +253,12 @@ jobs:
             .authority.deployment == false and
             .authority.merge == false
           ' "$result" >/dev/null
+
+          # The exported Alpine rootfs is disposable execution material, not evidence.
+          # Remove it before hashing and upload so root-owned files cannot pollute the packet.
+          sudo rm -rf reports/rootfs
+          rm -f reports/garden/alpine-rootfs.tar
+
           find reports -type f ! -name SHA256SUMS.txt -print0 \
             | sort -z \
             | xargs -0 sha256sum \
