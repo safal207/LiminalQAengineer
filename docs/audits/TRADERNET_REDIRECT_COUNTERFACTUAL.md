@@ -6,7 +6,7 @@ Does bypassing the public root redirect materially improve the mobile loading ex
 
 ```text
 A: https://tradernet.ru/
-   -> https://tradernet.ru/?site_lang=ru
+   → https://tradernet.ru/?site_lang=ru
 
 B: https://tradernet.ru/?site_lang=ru
 ```
@@ -15,62 +15,59 @@ Both variants were measured three times on the same GitHub-hosted runner using t
 
 ## Result
 
-**LiminalQA verdict:** `MIXED_SUPPORT`  
+**LiminalQA verdict:** `NOT_SUPPORTED`  
 **Confidence:** `MEDIUM`  
-**Exact evidence run:** `29661477160`  
-**Exact head:** `8a9018972c23dbef0c3c5bf4df029b4bb9ee1ee5`
+**Exact evidence run:** `29685629302`  
+**Exact head:** `9e214b846eb7917433290519aef2520675e055a0`
 
-| Median metric | Root with redirect | Direct language URL | Effect |
+| Median metric | Root with redirect | Direct language URL | Direct − root |
 |---|---:|---:|---:|
-| Redirect duration | 505 ms | 0 ms | **−505 ms** |
-| FCP | 2,098.96 ms | 2,093.13 ms | −5.83 ms |
-| LCP | 11,867.90 ms | 11,893.80 ms | +25.90 ms |
-| Speed Index | 3,983.75 ms | 3,940.85 ms | −42.90 ms |
-| TBT | 672.50 ms | 668.00 ms | −4.50 ms |
+| Redirect duration | 332.0 ms | 0 ms | **−332.0 ms** |
+| FCP | 1,732.58 ms | 1,749.27 ms | +16.69 ms |
+| LCP | 9,917.54 ms | 11,130.14 ms | **+1,212.61 ms** |
+| Speed Index | 3,136.76 ms | 2,965.86 ms | −170.91 ms |
+| TBT | 572.50 ms | 673.59 ms | +101.09 ms |
 | CLS | 0.131 | 0.131 | unchanged |
-| Performance | 50 | 50 | unchanged |
+| Performance | 54 | 52 | −2 |
 
 ## Causal conclusion
 
-The direct URL removes a real median redirect step of approximately **505 ms**. However, the user-visible milestones remain effectively unchanged:
+The direct URL removes a real median redirect step of **332 ms**, but the primary user-visible metric did not improve:
 
-- FCP improves by only 0.28%;
-- Speed Index improves by 1.08%;
-- TBT improves by 0.67%;
-- LCP is 25.9 ms slower, which is negligible relative to the run-to-run variance;
-- Performance, Accessibility, Best Practices and SEO scores are unchanged.
+- median LCP was approximately **1.213 seconds slower**;
+- FCP was effectively unchanged;
+- TBT was approximately **101 ms worse**;
+- Performance was **2 points lower**;
+- only Speed Index improved modestly.
 
 Therefore:
 
-> The language redirect is technical debt, but it is not the dominant cause of Tradernet's approximately 12-second mobile LCP.
+> The redirect is real technical debt, but this bounded experiment does not support it as the dominant performance cause.
 
-The saved time is absorbed or overshadowed by later stages: shared application bootstrap, main-thread work, responsive hero reconciliation and late LCP discovery.
+Removing one redirect does not remove the later resource-scheduling and runtime delays. The result strengthens the priority of exact LCP-resource discovery and post-load rendering analysis over redirect cleanup.
 
-## Updated causal graph
+## Causal graph
 
 ```mermaid
 flowchart LR
-  A[Public root navigation] --> B[Language redirect ~505 ms]
+  A[Public root navigation] --> B[Language redirect ~332 ms]
   B --> C[Final Russian HTML]
   D[Direct Russian URL] --> C
-  C --> E[Shared CSS and application runtime]
-  E --> F[Late desktop hero discovery]
-  F --> G[LCP ~11.9 s]
-  B -. removed in treatment .-> H[No material LCP change]
-  E --> H
-  F --> H
+  C --> E[Shared resource scheduling and runtime]
+  E --> F[LCP ~9.92–11.13 s]
+  B -. removed in direct variant .-> G[No LCP improvement]
+  E --> G
 ```
-
-The counterfactual weakens the earlier idea that the redirect is a high-leverage performance fix. It strengthens the shared-runtime and late-LCP-discovery explanations.
 
 ## Next bounded experiment
 
-Keep the exact direct language URL constant and test two independent hypotheses:
+Keep the exact direct language URL constant and isolate:
 
-1. **Late hero discovery:** measure the gap between final HTML completion, mobile hero request, desktop/LCP hero request and LCP across repeated runs.
-2. **Broad shared JavaScript bootstrap:** compare the landing page's first-party runtime path set and main-thread cost with a lighter public surface.
+1. exact mobile LCP-resource scheduling;
+2. the gap between hero response completion and LCP;
+3. shared JavaScript and rendering work.
 
-These tests should remain diagnostic and passive. Browser-local modifications can estimate potential improvement, but they must not be presented as production behavior until Tradernet implements and retests the change.
+Browser-local modifications may estimate direction, but they must not be presented as deployed production behavior until implemented and retested.
 
 ## Evidence boundary
 
@@ -81,8 +78,8 @@ These tests should remain diagnostic and passive. Browser-local modifications ca
 - no fuzzing, exploitation or load testing;
 - laboratory evidence only, not a field-performance claim.
 
-Artifact digest:
-
 ```text
-sha256:a2a4d06525957015e7d84d5cbf9a7176970dc7110768a8d012b8bae67b2b825f
+artifact: tradernet-redirect-counterfactual-29685629302
+artifact sha256: f66edec706085e10cf6a816e3760ba742b0b517a31cee614477eb27b0ae57987
+result sha256: 4944d1bf205a08617755ffd575547f28305899994cfcd12d711ab21be3a811e9
 ```
