@@ -1,4 +1,4 @@
-name: Garden DNS and Live Probe
+name: Garden DNS, Live Probe, and LiminalOSAI Advisory
 
 on:
   pull_request:
@@ -16,25 +16,28 @@ concurrency:
 env:
   GARDEN_SHA: 9c43a78082d8bf943dd8d11e741b9a0c7cc61f65
   PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
+  LIMINALOS_SHA: 4f181b6721a9902ffb578afa315105b77737574d
   ROOTFS_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
   LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
 
 jobs:
   verify:
-    name: DNS A-B and exact read-only Airbnb probe
+    name: Garden Airbnb probe plus bounded LiminalOSAI advisory
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
 
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - uses: actions/checkout@v4
         with:
           repository: safal207/GardenLiminal
           ref: ${{ env.GARDEN_SHA }}
           path: vendor/GardenLiminal
           persist-credentials: false
+
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
@@ -42,21 +45,50 @@ jobs:
           path: vendor/airbnb-probe
           persist-credentials: false
 
-      - name: Build exact Garden
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/LiminalOSAI
+          ref: ${{ env.LIMINALOS_SHA }}
+          path: vendor/LiminalOSAI
+          persist-credentials: false
+
+      - name: Verify exact source pins and prepare directories
         shell: bash
         run: |
           set -euo pipefail
           test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
           test "$(git -C vendor/airbnb-probe rev-parse HEAD)" = "$PROBE_SHA"
-          mkdir -p reports/{rootfs,garden-image,probe-image,evidence,network-files}
+          test "$(git -C vendor/LiminalOSAI rev-parse HEAD)" = "$LIMINALOS_SHA"
+          mkdir -p reports/{rootfs,garden-image,probe-image,evidence,network-files,liminalos,advisory}
           sudo apt-get update -qq
           sudo apt-get install -y -qq libseccomp-dev pkg-config
+
+      - name: Build and test exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
           build_root="$RUNNER_TEMP/GardenLiminal"
           cp -a vendor/GardenLiminal "$build_root"
           cd "$build_root"
           cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/cargo-build.log"
           cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/cargo-test.log"
           cp target/release/gl "$GITHUB_WORKSPACE/reports/garden-image/gl"
+
+      - name: Build, check, test, and trace exact LiminalOSAI
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor/LiminalOSAI
+          make 2>&1 | tee "$GITHUB_WORKSPACE/reports/liminalos/build.log"
+          make check 2>&1 | tee "$GITHUB_WORKSPACE/reports/liminalos/check.log"
+          make test 2>&1 | tee "$GITHUB_WORKSPACE/reports/liminalos/test.log"
+          ./build/pulse_kernel \
+            --dry-run --limit=2 --trace --coherence --reflect --introspect \
+            > "$GITHUB_WORKSPACE/reports/liminalos/runtime.log" 2>&1
+          grep -q awareness "$GITHUB_WORKSPACE/reports/liminalos/runtime.log"
+          grep -q introspect "$GITHUB_WORKSPACE/reports/liminalos/runtime.log"
+          grep -q harmony "$GITHUB_WORKSPACE/reports/liminalos/runtime.log"
+          grep -q gate "$GITHUB_WORKSPACE/reports/liminalos/runtime.log"
 
       - name: Build exact Playwright rootfs with live network files
         shell: bash
@@ -76,7 +108,6 @@ jobs:
           docker export "$export_id" -o reports/rootfs.tar
           sudo tar -xf reports/rootfs.tar -C reports/rootfs
 
-          # Docker injects these files only after a container starts.
           docker run -d --name "$source_name" garden-live-rootfs:${GITHUB_SHA} sleep 300 >/dev/null
           for file in resolv.conf hosts hostname; do
             docker exec "$source_name" cat "/etc/$file" > "reports/network-files/$file"
@@ -87,6 +118,33 @@ jobs:
           sudo mkdir -p reports/rootfs/opt/liminalqa reports/rootfs/opt/diagnostic reports/rootfs/evidence
           sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py reports/rootfs/opt/liminalqa/
           sudo chmod -R a+rX reports/rootfs/opt/liminalqa
+
+          sudo cp reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py \
+            reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py.before
+          sudo python3 - <<'PY'
+          from pathlib import Path
+          path = Path('reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py')
+          text = path.read_text()
+          marker = 'from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit\n'
+          helper = '''\n\ndef copytree_data_only(source: Path, destination: Path) -> None:\n    destination.mkdir(parents=True, exist_ok=False)\n    for item in source.rglob("*"):\n        target = destination / item.relative_to(source)\n        if item.is_dir():\n            target.mkdir(parents=True, exist_ok=True)\n        elif item.is_file():\n            target.parent.mkdir(parents=True, exist_ok=True)\n            with item.open("rb") as src, target.open("wb") as dst:\n                shutil.copyfileobj(src, dst)\n'''
+          if marker not in text:
+              raise SystemExit('probe import marker not found')
+          text = text.replace(marker, marker + helper, 1)
+          needle = 'shutil.copytree(discovery_root, args.output_root / "discovery")'
+          if text.count(needle) != 2:
+              raise SystemExit(f'unexpected copytree call count: {text.count(needle)}')
+          text = text.replace(needle, 'copytree_data_only(discovery_root, args.output_root / "discovery")')
+          path.write_text(text)
+          PY
+          diff -u \
+            reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py.before \
+            reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py \
+            > reports/probe-runtime-patch.diff || test $? = 1
+          sha256sum \
+            reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py.before \
+            reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py \
+            > reports/probe-runtime-patch-sha256.txt
+          sudo rm reports/rootfs/opt/liminalqa/airbnb_readonly_discovered_dates_probe.py.before
 
           dev=reports/rootfs/dev
           sudo mkdir -p "$dev" "$dev/pts" "$dev/shm"
@@ -214,15 +272,15 @@ jobs:
           docker rm -f "$name" >/dev/null
           tail -400 reports/live.log
 
-      - name: Extract and classify exact evidence
+      - name: Extract and normalize exact evidence
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           source_dir=reports/rootfs/evidence/ABNB-GARDEN-LIVE
           if [ -d "$source_dir" ]; then
-            sudo cp -a "$source_dir" reports/evidence/
-            sudo chown -R "$(id -u):$(id -g)" reports/evidence
+            mkdir -p reports/evidence/ABNB-GARDEN-LIVE
+            sudo tar -C "$source_dir" -cf - . | tar -C reports/evidence/ABNB-GARDEN-LIVE -xf -
           fi
           python3 - <<'PY'
           import json
@@ -232,40 +290,93 @@ jobs:
           garden_dns = json.loads((root/'dns-garden.json').read_text())
           run_code = int((root/'live.exit').read_text())
           host = json.loads((root/'docker-host-config.json').read_text())
-          records=[]
-          log=(root/'live.log').read_text(errors='replace')
-          for line in log.splitlines():
-              try: item=json.loads(line)
-              except Exception: continue
-              if isinstance(item,dict) and item.get('event'): records.append(item)
-          events=[x['event'] for x in records]
-          required=['RUN_CREATED','SEED_LOADED','NS_CREATED','MOUNT_DONE','CAPS_DROPPED','SECCOMP_ENABLED','PROCESS_START','PROCESS_EXIT']
-          exit_zero=any(x.get('event')=='PROCESS_EXIT' and x.get('code')==0 for x in records)
-          paths=list((root/'evidence').rglob('probe-result.json'))
-          probe=json.loads(paths[0].read_text()) if len(paths)==1 else None
-          limits={'nano_cpus':host.get('NanoCpus'),'memory_bytes':host.get('Memory'),'pids_limit':host.get('PidsLimit')}
-          expected={'nano_cpus':1500000000,'memory_bytes':2147483648,'pids_limit':512}
-          safe=bool(probe) and probe.get('confirmed_defect') is False and probe.get('payment_submitted') is False and probe.get('reservation_created') is False
-          confirmed=bool(baseline['addresses']) and bool(garden_dns['addresses']) and run_code==0 and all(x in events for x in required) and exit_zero and limits==expected and safe
-          result={
-            'schema_version':'garden-dns-live-ci-v0.1',
-            'garden_commit':'9c43a78082d8bf943dd8d11e741b9a0c7cc61f65',
-            'probe_commit':'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
-            'dns_baseline_addresses':baseline['addresses'],
-            'dns_garden_addresses':garden_dns['addresses'],
-            'garden_events':events,
-            'garden_run_exit':run_code,
-            'outer_limits':{'configured':limits,'expected':expected,'matches':limits==expected},
-            'probe_present':probe is not None,
-            'probe_summary':None if probe is None else {k:probe.get(k) for k in ['classifier_revision','outcomes','normalized_signatures','evidence_grade','confirmed_defect','payment_submitted','reservation_created','resolved_target']},
-            'safe_readonly_probe':safe,
-            'live_garden_probe_confirmed':confirmed,
-            'authority':{'mode':'audit_only','ownership':False,'approval':False,'external_submission':False,'deployment':False,'merge':False},
+          records = []
+          for line in (root/'live.log').read_text(errors='replace').splitlines():
+              try:
+                  item = json.loads(line)
+              except Exception:
+                  continue
+              if isinstance(item, dict) and item.get('event'):
+                  records.append(item)
+          events = [item['event'] for item in records]
+          required = ['RUN_CREATED','SEED_LOADED','NS_CREATED','MOUNT_DONE','CAPS_DROPPED','SECCOMP_ENABLED','PROCESS_START','PROCESS_EXIT']
+          exit_zero = any(item.get('event') == 'PROCESS_EXIT' and item.get('code') == 0 for item in records)
+          paths = list((root/'evidence').rglob('probe-result.json'))
+          probe = json.loads(paths[0].read_text()) if len(paths) == 1 else None
+          limits = {'nano_cpus': host.get('NanoCpus'), 'memory_bytes': host.get('Memory'), 'pids_limit': host.get('PidsLimit')}
+          expected = {'nano_cpus': 1500000000, 'memory_bytes': 2147483648, 'pids_limit': 512}
+          safe = bool(probe) and probe.get('confirmed_defect') is False and probe.get('payment_submitted') is False and probe.get('reservation_created') is False
+          confirmed = bool(baseline['addresses']) and bool(garden_dns['addresses']) and run_code == 0 and all(event in events for event in required) and exit_zero and limits == expected and safe
+          result = {
+              'schema_version': 'garden-dns-live-liminalos-ci-v0.2',
+              'garden_commit': '9c43a78082d8bf943dd8d11e741b9a0c7cc61f65',
+              'probe_commit': 'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
+              'liminalos_commit': '4f181b6721a9902ffb578afa315105b77737574d',
+              'probe_runtime_patch_recorded': (root/'probe-runtime-patch.diff').is_file(),
+              'dns_baseline_addresses': baseline['addresses'],
+              'dns_garden_addresses': garden_dns['addresses'],
+              'garden_events': events,
+              'garden_run_exit': run_code,
+              'outer_limits': {'configured': limits, 'expected': expected, 'matches': limits == expected},
+              'probe_present': probe is not None,
+              'probe_summary': None if probe is None else {key: probe.get(key) for key in ['classifier_revision','outcomes','normalized_signatures','evidence_grade','confirmed_defect','payment_submitted','reservation_created','resolved_target']},
+              'safe_readonly_probe': safe,
+              'live_garden_probe_confirmed': confirmed,
+              'authority': {
+                  'mode': 'audit_only',
+                  'ownership': False,
+                  'approval': False,
+                  'execution': False,
+                  'delivery': False,
+                  'external_submission': False,
+                  'deployment': False,
+                  'merge': False,
+                  'product_verdict_override': False,
+              },
           }
-          (root/'result.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
-          print(json.dumps(result,indent=2))
-          if not confirmed: raise SystemExit(1)
+          (root/'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2, sort_keys=True))
           PY
+
+      - name: Generate real LiminalOSAI evidence advisory
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/result.json
+          test -s reports/liminalos/runtime.log
+          python3 vendor/LiminalOSAI/tools/liminal_evidence_advisor.py \
+            --evidence reports/result.json \
+            --runtime-log reports/liminalos/runtime.log \
+            --output-dir reports/advisory \
+            | tee reports/liminalos/advisor.stdout.json
+
+      - name: Validate deterministic truth and advisory boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .live_garden_probe_confirmed == true and
+            .safe_readonly_probe == true and
+            .probe_summary.confirmed_defect == false and
+            .authority.execution == false and
+            .authority.external_submission == false and
+            .authority.merge == false and
+            .authority.product_verdict_override == false
+          ' reports/result.json >/dev/null
+          jq -e '
+            .adapter_kind == "deterministic_evidence_advisor" and
+            .evidence_ingested == true and
+            .runtime_trace_ingested == true and
+            .liminal_runtime.pipeline_complete == true and
+            .classification == "NO_DEFECT_OBSERVED" and
+            .product_verdict_source == "normalized_evidence_not_liminalos" and
+            .authority.execution == false and
+            .authority.external_submission == false and
+            .authority.merge == false and
+            .authority.product_verdict_override == false
+          ' reports/advisory/liminalos-advice.json >/dev/null
+          cat reports/advisory/liminalos-causal-graph.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove rootfs and hash evidence
         if: always()
@@ -279,7 +390,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: garden-dns-live-${{ github.run_id }}
+          name: garden-dns-live-liminalos-${{ github.run_id }}
           path: reports/
           if-no-files-found: error
           retention-days: 14
