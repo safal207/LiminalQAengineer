@@ -1,0 +1,44 @@
+{
+  "schema_version": "liminalqa-browser-counterfactual-v1",
+  "name": "Tradernet hero preload counterfactual",
+  "target_url": "https://tradernet.ru/?site_lang=ru",
+  "hero_url": "https://tradernet.ru/images/2022/invest/hero.light.2x.webp",
+  "runs_per_variant": 3,
+  "variants": [
+    {
+      "id": "baseline",
+      "description": "Unmodified public page navigation."
+    },
+    {
+      "id": "hero_preload",
+      "description": "Browser-local HTML response injection of an exact same-origin image preload with fetchpriority=high."
+    }
+  ],
+  "primary_metrics": [
+    "hero_request_start_ms",
+    "largest_contentful_paint_ms"
+  ],
+  "secondary_metrics": [
+    "first_contentful_paint_ms",
+    "hero_response_end_ms",
+    "long_task_total_ms",
+    "script_transfer_bytes",
+    "script_request_count"
+  ],
+  "boundaries": {
+    "public_page_only": true,
+    "browser_local_modification_only": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "active_security_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false
+  },
+  "limitations": [
+    "The preload variant is a browser-local synthetic estimate, not deployed production behavior.",
+    "Three runs per variant provide directional laboratory evidence.",
+    "A preload may improve network timing without improving LCP when render or hydration delay dominates."
+  ]
+}

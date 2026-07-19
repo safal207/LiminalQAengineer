@@ -1,0 +1,125 @@
+name: Tradernet Desktop Hero Preload Counterfactual
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/tradernet-hero-preload-desktop-counterfactual.yml
+      - audits/lighthouse/tradernet/hero-preload-desktop-experiment.json
+      - scripts/tradernet_hero_preload_experiment_cdp.mjs
+      - scripts/tradernet_desktop_hero_result.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-hero-preload-desktop-counterfactual.yml
+      - audits/lighthouse/tradernet/hero-preload-desktop-experiment.json
+      - scripts/tradernet_hero_preload_experiment_cdp.mjs
+      - scripts/tradernet_desktop_hero_result.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-desktop-hero-preload-counterfactual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    name: Same-runner desktop-web preload experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate exact experiment boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          experiment="audits/lighthouse/tradernet/hero-preload-desktop-experiment.json"
+          python3 -m json.tool "${experiment}" >/dev/null
+          python3 -m py_compile scripts/tradernet_desktop_hero_result.py
+          jq -e '
+            .target_url == "https://tradernet.ru/?site_lang=ru" and
+            .hero_url == "https://tradernet.ru/images/2022/invest/hero.light.1x.webp" and
+            .runs_per_variant == 3 and
+            .runtime_profile.id == "desktop_broadband" and
+            .runtime_profile.viewport.width == 1440 and
+            .runtime_profile.viewport.height == 900 and
+            .runtime_profile.viewport.isMobile == false and
+            .runtime_profile.network.connection_type == "ethernet" and
+            .runtime_profile.cpu_throttling_rate == 1 and
+            .boundaries.public_page_only == true and
+            .boundaries.browser_local_modification_only == true and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false
+          ' "${experiment}" >/dev/null
+
+      - name: Install pinned browser driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          node --check scripts/tradernet_hero_preload_experiment_cdp.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [[ -z "${chrome}" ]]; then
+            echo "Chrome executable was not found" >&2
+            exit 1
+          fi
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Collect and aggregate desktop baseline and preload rounds
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/hero-preload-desktop
+
+          node scripts/tradernet_hero_preload_experiment_cdp.mjs \
+            --experiment audits/lighthouse/tradernet/hero-preload-desktop-experiment.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/hero-preload-desktop
+
+          for variant in baseline hero_preload; do
+            for round in 1 2 3; do
+              test -s "reports/hero-preload-desktop/${variant}-round-${round}.json"
+            done
+          done
+
+          python3 scripts/tradernet_desktop_hero_result.py \
+            --input-dir reports/hero-preload-desktop \
+            --output-dir reports/hero-preload-desktop/result \
+            --experiment audits/lighthouse/tradernet/hero-preload-desktop-experiment.json
+
+          cat reports/hero-preload-desktop/result/desktop-hero-preload-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact desktop experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-desktop-hero-preload-counterfactual-${{ github.run_id }}
+          path: reports/hero-preload-desktop/
+          if-no-files-found: error
+          retention-days: 14

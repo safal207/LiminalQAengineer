@@ -1,0 +1,255 @@
+{
+  "schema_version": "liminalqa-space-time-portfolio-causality-v1",
+  "target_portfolio": "Tradernet public web surfaces",
+  "evidence": {
+    "workflow_run_id": 29661088488,
+    "head_sha": "dd07fd83c91fe98150f4730adccd8864478a9172",
+    "portfolio_artifact_digest": "sha256:a950e15191d2486839a75674082cf5fe9985a76d01cc6834bcf3ee4427f72b68",
+    "target_count": 6,
+    "fetch_window_utc": {
+      "start": "2026-07-18T21:11:05.666Z",
+      "end": "2026-07-18T21:13:08.382Z"
+    },
+    "domain_report_sha256": {
+      "rc.tradernet.com": "7dd2074704fcccc450b0cb3f6dd84119fc79452c21c11fc36759758357574796",
+      "tradernet.am": "ae2e1adbcf6481f8de022646d32bab77f926b1569d95a72c2c0122cb44848047",
+      "tradernet.com": "33456aface3d0a4e3ff28676af1e7815875bb6e4b557ebefe7fdd8b11c3b2449",
+      "tradernet.global": "cf58c6772e295c9627353408e55663b868dcb4a9a9ac42c7f9d989c5520812ce",
+      "tradernet.ru": "b12b95a6512c5a66e1e09ff18ca335d4e6dd516da0934f350808bca143cfab9d",
+      "translate.tradernet.com": "d2a8a86e1a59470cdfb5328afdb85e640e30adda50910b09913f11ec84637c1a"
+    }
+  },
+  "verdict": "WARN",
+  "confidence": "HIGH",
+  "portfolio_metrics": {
+    "average_performance_score": 33.8,
+    "warning_targets": 6,
+    "fastest_lcp_ms": 7118.252,
+    "slowest_lcp_ms": 17950.066,
+    "shared_first_party_script_paths_all_targets": 36,
+    "shared_first_party_script_paths_landing_targets": 50,
+    "script_request_range": [55, 87],
+    "script_transfer_kib_range": [1533.3, 2989.4],
+    "unused_javascript_kib_range": [964.5, 1473.8],
+    "duplicated_javascript_kib_range": [39.9, 263.5]
+  },
+  "axes": {
+    "space": [
+      "edge_redirect",
+      "shared_application_shell",
+      "legacy_runtime",
+      "modern_bundles",
+      "document_head",
+      "responsive_media",
+      "third_party_integrations",
+      "main_thread",
+      "viewport",
+      "regional_surface"
+    ],
+    "valid_time": "navigation-relative milliseconds for each isolated Lighthouse run",
+    "transaction_time": "2026-07-18 evidence collection and later causal synthesis"
+  },
+  "nodes": [
+    {
+      "id": "shared_frontend",
+      "space": "shared_application_shell",
+      "state": "observed",
+      "label": "Shared frontend/runtime footprint",
+      "evidence": "36 identical first-party script paths across all six targets; 50 across the five landing surfaces"
+    },
+    {
+      "id": "mixed_runtime",
+      "space": "legacy_runtime_and_modern_bundles",
+      "state": "derived",
+      "label": "Legacy application scripts and hashed modern bundles are loaded together",
+      "evidence": "Common /javascripts/app/* and /dist/* paths; duplicated-javascript reported on every target"
+    },
+    {
+      "id": "js_overdelivery",
+      "space": "network_and_main_thread",
+      "state": "observed",
+      "label": "JavaScript overdelivery",
+      "metrics": {
+        "requests": "55..87",
+        "transfer_kib": "1533.3..2989.4",
+        "unused_kib": "964.5..1473.8",
+        "duplicated_kib": "39.9..263.5"
+      }
+    },
+    {
+      "id": "redirect",
+      "space": "edge_redirect",
+      "state": "observed",
+      "label": "Language redirect on five of six targets",
+      "metrics": {
+        "observed_ms_range": "768..1252"
+      }
+    },
+    {
+      "id": "render_blocking",
+      "space": "document_head",
+      "state": "observed",
+      "label": "Render-blocking resources on every target",
+      "metrics": {
+        "rc_faq_modelled_savings_ms": 8156
+      }
+    },
+    {
+      "id": "main_thread_blocking",
+      "space": "main_thread",
+      "state": "observed",
+      "label": "Long main-thread blocking",
+      "metrics": {
+        "tbt_ms_range": "615..6033"
+      }
+    },
+    {
+      "id": "late_lcp",
+      "space": "viewport",
+      "state": "observed",
+      "label": "Late primary content",
+      "metrics": {
+        "lcp_ms_range": "7118..17950"
+      }
+    },
+    {
+      "id": "runtime_race",
+      "space": "document_runtime",
+      "state": "partly_observed",
+      "label": "RequireJS ordering race",
+      "evidence": "ReferenceError: require is not defined observed on tradernet.ru and tradernet.global; functional impact not yet proven"
+    },
+    {
+      "id": "integration_policy_mismatch",
+      "space": "third_party_integrations",
+      "state": "observed",
+      "label": "CSP blocks configured analytics/chat connections",
+      "evidence": "Blocked DoubleClick, CarrotQuest or Yandex connections observed on multiple targets"
+    },
+    {
+      "id": "portfolio_warn",
+      "space": "quality_gate",
+      "state": "derived",
+      "label": "Six domain packets return WARN"
+    }
+  ],
+  "edges": [
+    {
+      "from": "shared_frontend",
+      "to": "mixed_runtime",
+      "relation": "reuses",
+      "state": "observed"
+    },
+    {
+      "from": "mixed_runtime",
+      "to": "js_overdelivery",
+      "relation": "amplifies",
+      "state": "derived"
+    },
+    {
+      "from": "js_overdelivery",
+      "to": "main_thread_blocking",
+      "relation": "increases_transfer_parse_execute_cost",
+      "state": "derived"
+    },
+    {
+      "from": "redirect",
+      "to": "late_lcp",
+      "relation": "adds_navigation_delay",
+      "state": "observed_and_derived"
+    },
+    {
+      "from": "render_blocking",
+      "to": "late_lcp",
+      "relation": "delays_visual_construction",
+      "state": "derived"
+    },
+    {
+      "from": "main_thread_blocking",
+      "to": "late_lcp",
+      "relation": "delays_render_and_interactivity",
+      "state": "derived"
+    },
+    {
+      "from": "runtime_race",
+      "to": "portfolio_warn",
+      "relation": "lowers_browser_best_practices_when_observed",
+      "state": "derived"
+    },
+    {
+      "from": "integration_policy_mismatch",
+      "to": "portfolio_warn",
+      "relation": "creates_console_and_integration_failures",
+      "state": "derived"
+    },
+    {
+      "from": "late_lcp",
+      "to": "portfolio_warn",
+      "relation": "dominates_performance_warning",
+      "state": "derived"
+    }
+  ],
+  "surface_outliers": [
+    {
+      "target": "rc.tradernet.com FAQ",
+      "finding": "Worst overall surface: Performance 16, FCP 9.75 s, LCP 17.95 s, CLS 0.228, 87 scripts and 2.99 MiB script transfer",
+      "causal_hypothesis": "FAQ application loads a modern page layer together with a large shared/legacy runtime; render-blocking opportunity is 8.16 s"
+    },
+    {
+      "target": "translate.tradernet.com",
+      "finding": "Highest Total Blocking Time: 6.03 s",
+      "causal_hypothesis": "Large shared runtime plus regional integrations creates the heaviest main-thread path"
+    },
+    {
+      "target": "tradernet.com",
+      "finding": "Fastest LCP in portfolio at 7.12 s, but Best Practices only 54 and 1.13 MiB unused JS",
+      "causal_hypothesis": "Faster content discovery does not remove runtime and integration debt"
+    },
+    {
+      "target": "tradernet.am",
+      "finding": "Best category profile: Performance 55 and Best Practices 100, yet LCP remains 13.09 s",
+      "causal_hypothesis": "Fewer runtime failures improve the score while late primary media remains"
+    }
+  ],
+  "next_experiments": [
+    {
+      "rank": 1,
+      "test": "Serve the correct language URL directly and compare three paired runs",
+      "isolates": "edge redirect contribution"
+    },
+    {
+      "rank": 2,
+      "test": "Create a landing-only bundle without trading-terminal services and compare transfer, TBT and LCP",
+      "isolates": "shared runtime overdelivery"
+    },
+    {
+      "rank": 3,
+      "test": "Remove duplicate modules reported by Lighthouse and rerun",
+      "isolates": "duplicate bundle cost"
+    },
+    {
+      "rank": 4,
+      "test": "Expose and prioritize the responsive LCP image in initial HTML",
+      "isolates": "late image discovery"
+    },
+    {
+      "rank": 5,
+      "test": "On the FAQ surface, defer noncritical CSS and remove legacy application scripts not required for article rendering",
+      "isolates": "8.16 s render-blocking and mixed-shell cost"
+    },
+    {
+      "rank": 6,
+      "test": "Add an ordering guard around RequireJS initialization and repeat ten lightweight navigations",
+      "isolates": "intermittent runtime race"
+    }
+  ],
+  "boundaries": {
+    "passive_public_pages_only": true,
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "vulnerability_claim": false,
+    "ownership_inference": "The shared code footprint is observed; common legal ownership and authorized security scope are not inferred from it."
+  }
+}

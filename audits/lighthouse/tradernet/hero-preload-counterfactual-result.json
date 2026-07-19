@@ -1,0 +1,122 @@
+{
+  "schema_version": "liminalqa-browser-counterfactual-result-v2",
+  "subject": "Tradernet public mobile hero preload",
+  "target_url": "https://tradernet.ru/?site_lang=ru",
+  "runtime_profile": "mobile_3g",
+  "viewport": "412x823@2.625",
+  "exact_lcp_resource": "https://tradernet.ru/images/2022/invest/hero.light.2x.webp",
+  "evidence": {
+    "workflow_run": 29685443275,
+    "exact_head": "e593d747118415bc8ac0931824cd4fb73d707c2d",
+    "artifact": "tradernet-hero-preload-counterfactual-29685443275",
+    "artifact_sha256": "083f59a21d5fecb5e541537f1e83888f0fe62adad622ec87aa8a8372132189eb",
+    "result_sha256": "52a773d549c956ec22302d81f438c082e78ddc669b0a9947448730e7519ea923",
+    "summary_sha256": "52e31fab2587983398882bac79f383131de8aa6e27f731320df6542bea76a174",
+    "baseline_runs": 3,
+    "treatment_runs": 3,
+    "treatment_exact_document_interceptions": [
+      1,
+      1,
+      1
+    ],
+    "baseline_run_sha256": [
+      "dbdfc064ce392615588950fffb0f5b97158dce12ff46919abb5875f40dd7aecb",
+      "2bf532c651e1b3fc524bac4e0fbafbd44e0f36da880d6f0d08ac224f94f63c92",
+      "f85c685eeac36040cf8cf7c1202a5cd067a2e05b69f3dcfd2a843feee2f3ef99"
+    ],
+    "treatment_run_sha256": [
+      "f3e6fd36308dfa7166b4dcb4e0979ef7ee86321c44e1f6f6a590fbd946b0d293",
+      "b71d59dcca41ebe02fffd01fdd219755dd306406cb229ae05a3decd1c28cd24b",
+      "2d98da9556055668401527621a53a40059f960b785ffd91e4e5711f076cbb0c0"
+    ]
+  },
+  "verdict": "SUPPORTED",
+  "confidence": "MEDIUM",
+  "identity_contract": {
+    "configured_hero_was_timed_resource_in_all_runs": true,
+    "configured_hero_was_lcp_resource_in_all_runs": true,
+    "element_identity_used_for_causal_verdict": false,
+    "note": "The causal verdict is bound to the exact resource URL. Element metadata was recorded but is not required for the claim."
+  },
+  "variants": {
+    "baseline": {
+      "run_count": 3,
+      "hero_initiator_types": [
+        "img"
+      ],
+      "medians": {
+        "first_contentful_paint_ms": 7248.0,
+        "largest_contentful_paint_ms": 11044.0,
+        "hero_request_start_ms": 7202.4,
+        "hero_response_end_ms": 11024.4,
+        "hero_load_to_lcp_gap_ms": 20.4,
+        "long_task_total_ms": 1184.0,
+        "script_transfer_bytes": 1277150.0,
+        "script_request_count": 56.0,
+        "navigation_response_end_ms": 683.5
+      }
+    },
+    "hero_preload": {
+      "run_count": 3,
+      "hero_initiator_types": [
+        "link"
+      ],
+      "medians": {
+        "first_contentful_paint_ms": 7652.0,
+        "largest_contentful_paint_ms": 7652.0,
+        "hero_request_start_ms": 673.2,
+        "hero_response_end_ms": 2810.6,
+        "hero_load_to_lcp_gap_ms": 4824.3,
+        "long_task_total_ms": 1167.0,
+        "script_transfer_bytes": 1277150.0,
+        "script_request_count": 56.0,
+        "navigation_response_end_ms": 636.0
+      }
+    }
+  },
+  "effects": {
+    "hero_request_start_ms": {
+      "treatment_minus_baseline": -6529.2,
+      "improvement_percent": 90.65
+    },
+    "hero_response_end_ms": {
+      "treatment_minus_baseline": -8213.8,
+      "improvement_percent": 74.51
+    },
+    "largest_contentful_paint_ms": {
+      "treatment_minus_baseline": -3392.0,
+      "improvement_percent": 30.71
+    },
+    "first_contentful_paint_ms": {
+      "treatment_minus_baseline": 404.0,
+      "improvement_percent": -5.57
+    },
+    "hero_load_to_lcp_gap_ms": {
+      "treatment_minus_baseline": 4803.9
+    },
+    "long_task_total_ms": {
+      "treatment_minus_baseline": -17.0
+    },
+    "script_transfer_bytes": {
+      "treatment_minus_baseline": 0.0
+    },
+    "script_request_count": {
+      "treatment_minus_baseline": 0.0
+    }
+  },
+  "causal_reading": {
+    "supported": [
+      "The exact configured 2x hero remained both the timed resource and the LCP resource in all six runs.",
+      "All three treatment runs modified exactly one main document and inserted the browser-local preload.",
+      "The treatment advanced median hero request start by 6.529 seconds and improved median LCP by 3.392 seconds without changing script count or script transfer bytes.",
+      "Late resource discovery is a material contributor in this bounded synthetic mobile model."
+    ],
+    "remaining_bottleneck": "After preload, the exact hero completed around 2.811 seconds but median LCP occurred around 7.652 seconds, leaving a 4.824-second post-load render or visibility gap.",
+    "not_supported": [
+      "A claim that the synthetic result is deployed production behavior.",
+      "A universal claim across devices, network profiles, sessions, or authenticated surfaces.",
+      "A same-element causal claim; the decision is intentionally bound only to the exact resource URL."
+    ]
+  },
+  "boundary": "Public-page browser-local QA experiment only; no authentication, API calls, financial operations, fuzzing, load testing, exploitation, or server-state changes. Three alternating runs per variant provide directional laboratory evidence, not field-performance certainty."
+}
