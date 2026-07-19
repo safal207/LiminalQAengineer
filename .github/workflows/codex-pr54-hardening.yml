@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/codex-pr54-hardening.yml
+      - scripts/codex_pr54_hardening.py
 
 permissions:
   contents: write
@@ -18,44 +19,15 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: agent/tradernet-lighthouse-audit
-          fetch-depth: 3
+          fetch-depth: 0
 
-      - name: Recover reviewed patch
+      - name: Apply verified Codex fixes
         shell: bash
         run: |
           set -euo pipefail
-          git show HEAD~2:.github/workflows/codex-pr54-hardening.yml > /tmp/codex-pr54-source.yml
-          awk '
-            /python3 - <<'"'"'PY'"'"'/ { capture=1; next }
-            capture && /^          PY$/ { exit }
-            capture { sub(/^          /, ""); print }
-          ' /tmp/codex-pr54-source.yml > /tmp/codex-pr54-patch.py
-          test -s /tmp/codex-pr54-patch.py
-
-      - name: Execute reviewed patch with diagnostics
-        id: patch
-        shell: bash
-        run: |
-          set +e
-          python3 /tmp/codex-pr54-patch.py > /tmp/codex-pr54-diagnostic.log 2>&1
-          status=$?
-          cat /tmp/codex-pr54-diagnostic.log
-          echo "status=${status}" >> "${GITHUB_OUTPUT}"
-          exit "${status}"
-
-      - name: Upload patch diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: codex-pr54-hardening-diagnostic-${{ github.run_id }}
-          path: |
-            /tmp/codex-pr54-patch.py
-            /tmp/codex-pr54-diagnostic.log
-          if-no-files-found: error
-          retention-days: 7
+          python3 scripts/codex_pr54_hardening.py
 
       - name: Validate patched sources
-        if: steps.patch.outputs.status == '0'
         shell: bash
         run: |
           set -euo pipefail
@@ -68,13 +40,14 @@ jobs:
           python3 -m json.tool audits/lighthouse/tradernet/domains.json >/dev/null
 
       - name: Commit hardened review fixes
-        if: steps.patch.outputs.status == '0'
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "Codex"
           git config user.email "codex@users.noreply.github.com"
-          git rm .github/workflows/codex-pr54-hardening.yml
+          git rm \
+            .github/workflows/codex-pr54-hardening.yml \
+            scripts/codex_pr54_hardening.py
           git add \
             .github/workflows/tradernet-domain-portfolio.yml \
             .github/workflows/tradernet-lighthouse.yml \
