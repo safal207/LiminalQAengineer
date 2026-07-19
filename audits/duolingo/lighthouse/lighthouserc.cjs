@@ -1,11 +1,15 @@
 'use strict';
 
 const isDesktop = process.env.LH_PROFILE === 'desktop';
+const requestedRuns = Number.parseInt(process.env.LH_RUNS ?? '3', 10);
+const numberOfRuns = Number.isInteger(requestedRuns) && requestedRuns > 0
+  ? requestedRuns
+  : 3;
 
 module.exports = {
   ci: {
     collect: {
-      // Serial public-page audit: 5 URLs × 3 runs per profile.
+      // PR smoke uses one run; a manual evidence run uses three.
       url: [
         'https://www.duolingo.com/',
         'https://www.duolingo.com/log-in',
@@ -13,7 +17,7 @@ module.exports = {
         'https://tr.duolingo.com/imprint',
         'https://www.duolingo.com/share-direct/sm',
       ],
-      numberOfRuns: 3,
+      numberOfRuns,
       settings: {
         ...(isDesktop ? { preset: 'desktop' } : {}),
         onlyCategories: [
