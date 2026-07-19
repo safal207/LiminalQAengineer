@@ -1,0 +1,14 @@
+{
+  "schema_version": "garden-node-spawn-main-ci-v0.1",
+  "garden_commit": "6eda85415feae21af117aa09125dcc88a1a3f9c1",
+  "playwright_image": "mcr.microsoft.com/playwright/python:v1.60.0-noble",
+  "airbnb_navigation": false,
+  "mode": "runtime_diagnostic_only",
+  "authority": {
+    "ownership": false,
+    "approval": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}
