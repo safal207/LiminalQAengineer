@@ -1,0 +1,340 @@
+name: Revolut Docker Full Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/revolut-docker-full-validation-v0-1
+    paths:
+      - .github/workflows/revolut-docker-full-validation.yml
+      - scripts/revolut_retry_after_docker_probe.mjs
+      - scripts/revolut_public_runtime_probe.py
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - audits/lotus/revolut/**
+      - standards/lotus-qa/**
+      - tests/**
+      - docs/audits/REVOLUT_DOCKER_FULL_VALIDATION.md
+  pull_request:
+    branches:
+      - agent/revolut-public-runtime-probe-v0-1
+      - main
+
+permissions:
+  contents: read
+
+env:
+  REVOLUT_UPSTREAM_SHA: 13778de69e0411ee11198dc913a3b9b0f72ac880
+  NODE_IMAGE: node:22-bookworm-slim
+  PYTHON_IMAGE: python:3.12-slim
+
+concurrency:
+  group: revolut-docker-full-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-validation:
+    name: Build, test, lint, probe, and replay in Docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout exact LiminalQA revision
+        uses: actions/checkout@v6
+
+      - name: Checkout exact official Revolut X source
+        uses: actions/checkout@v6
+        with:
+          repository: revolut-engineering/revolut-x-api
+          ref: ${{ env.REVOLUT_UPSTREAM_SHA }}
+          path: vendor/revolut-x-api
+          persist-credentials: false
+
+      - name: Verify exact source and prepare evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/revolut-x-api rev-parse HEAD)" = "$REVOLUT_UPSTREAM_SHA"
+          mkdir -p reports/revolut-docker/status reports/revolut-docker/logs reports/revolut-docker/lotus
+          {
+            echo "liminalqa_sha=$(git rev-parse HEAD)"
+            echo "revolut_upstream_sha=$(git -C vendor/revolut-x-api rev-parse HEAD)"
+            echo "runner_os=$RUNNER_OS"
+            docker version
+          } > reports/revolut-docker/environment.txt
+
+      - name: Pull validation images and pin observed digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$NODE_IMAGE"
+          docker pull "$PYTHON_IMAGE"
+          docker image inspect "$NODE_IMAGE" --format '{{json .RepoDigests}}' > reports/revolut-docker/node-image-digests.json
+          docker image inspect "$PYTHON_IMAGE" --format '{{json .RepoDigests}}' > reports/revolut-docker/python-image-digests.json
+
+      - name: Install official monorepo dependencies in Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD/vendor/revolut-x-api:/work" \
+            -w /work \
+            "$NODE_IMAGE" \
+            bash -lc 'node --version && npm --version && npm ci' \
+            2>&1 | tee reports/revolut-docker/logs/npm-ci.log
+
+      - name: Build official workspaces offline before dependent checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm --network=none \
+            -v "$PWD/vendor/revolut-x-api:/work" \
+            -w /work \
+            "$NODE_IMAGE" \
+            bash -lc 'npm run build' \
+            > reports/revolut-docker/logs/build.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/revolut-docker/status/build.exit
+
+      - name: Run every autonomous upstream check offline after build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_check() {
+            local name="$1"
+            shift
+            set +e
+            docker run --rm --network=none \
+              -v "$PWD/vendor/revolut-x-api:/work" \
+              -w /work \
+              "$NODE_IMAGE" \
+              bash -lc "$*" \
+              >"reports/revolut-docker/logs/${name}.log" 2>&1
+            local code=$?
+            set -e
+            echo "$code" > "reports/revolut-docker/status/${name}.exit"
+            echo "${name}: exit ${code}"
+          }
+
+          run_check typecheck 'npm run typecheck'
+          run_check lint 'npm run lint'
+          run_check format-check 'npm run format:check'
+          run_check sync-skills-check 'npm run sync-skills:check'
+          run_check unit-tests 'npm test'
+
+      - name: Exercise Retry-After behavior against built SDK offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm --network=none \
+            -v "$PWD:/qa:ro" \
+            -v "$PWD/vendor/revolut-x-api:/upstream:ro" \
+            -v "$PWD/reports/revolut-docker:/reports" \
+            -w /qa \
+            "$NODE_IMAGE" \
+            node scripts/revolut_retry_after_docker_probe.mjs \
+              /upstream \
+              /reports/retry-after-runtime.json \
+              "$REVOLUT_UPSTREAM_SHA" \
+            > reports/revolut-docker/logs/retry-after-runtime.log 2>&1
+          code=$?
+          if [ "$code" = "0" ]; then
+            jq -e '.classification == "CONFIRMED_RETRY_AFTER_CONTRACT_MISMATCH"' \
+              reports/revolut-docker/retry-after-runtime.json >/dev/null
+            code=$?
+          fi
+          set -e
+          echo "$code" > reports/revolut-docker/status/retry-after.exit
+
+      - name: Run LiminalQA, Lotus, and memory tests offline in Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm --network=none \
+            -e SOURCE_COMMIT="$GITHUB_SHA" \
+            -v "$PWD:/work" \
+            -w /work \
+            "$PYTHON_IMAGE" \
+            sh -lc '
+              python3 --version
+              python3 -m unittest discover -s tests -p "test_*.py" -v
+              python3 scripts/lotus_qa_decision_packet.py \
+                --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+                --findings audits/lotus/revolut/revolut-findings-v0.1.json \
+                --output-dir reports/revolut-docker/lotus
+              python3 scripts/lotus_liminaldb_memory.py export \
+                --packet reports/revolut-docker/lotus/lotus-decision-packet.json \
+                --observed-at 2026-07-19T00:00:00Z \
+                --source-commit "$SOURCE_COMMIT" \
+                --output reports/revolut-docker/lotus/liminaldb-events.jsonl
+              python3 scripts/lotus_liminaldb_memory.py compare \
+                --events reports/revolut-docker/lotus/liminaldb-events.jsonl \
+                --output reports/revolut-docker/lotus/liminaldb-transitions.json
+            ' > reports/revolut-docker/logs/liminalqa-lotus.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/revolut-docker/status/liminalqa-lotus.exit
+
+      - name: Repeat bounded public endpoint observation from Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            "$PYTHON_IMAGE" \
+            python3 scripts/revolut_public_runtime_probe.py \
+              --output reports/revolut-docker/public-endpoints.json \
+            > reports/revolut-docker/logs/public-endpoints.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/revolut-docker/status/public-endpoints.exit
+
+      - name: Record dependency paths and production advisories
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          set +e
+          docker run --rm --network=none \
+            -v "$PWD/vendor/revolut-x-api:/work" \
+            -w /work \
+            "$NODE_IMAGE" \
+            bash -lc 'npm explain fast-uri hono express-rate-limit ip-address qs' \
+            > reports/revolut-docker/logs/npm-explain-advisories.log 2>&1
+          echo "$?" > reports/revolut-docker/status/npm-explain.exit
+
+          docker run --rm --network=none \
+            -v "$PWD/vendor/revolut-x-api:/work" \
+            -w /work \
+            "$NODE_IMAGE" \
+            bash -lc 'npm ls fast-uri hono express-rate-limit ip-address qs --all --json' \
+            > reports/revolut-docker/npm-advisory-dependency-tree.json 2> reports/revolut-docker/logs/npm-ls-advisories.stderr.log
+          echo "$?" > reports/revolut-docker/status/npm-ls.exit
+
+          docker run --rm \
+            -v "$PWD/vendor/revolut-x-api:/work" \
+            -w /work \
+            "$NODE_IMAGE" \
+            bash -lc 'npm audit --omit=dev --json' \
+            > reports/revolut-docker/npm-audit-production.json 2> reports/revolut-docker/logs/npm-audit-production.stderr.log
+          audit_exit=$?
+          set -e
+          echo "$audit_exit" > reports/revolut-docker/status/npm-audit-command.exit
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('reports/revolut-docker')
+          audit = json.loads((root / 'npm-audit-production.json').read_text())
+          vulnerabilities = audit.get('metadata', {}).get('vulnerabilities', {})
+          direct_high = sorted(
+              name for name, item in audit.get('vulnerabilities', {}).items()
+              if item.get('isDirect') is True and item.get('severity') == 'high'
+          )
+          critical = int(vulnerabilities.get('critical', 0))
+          gate_pass = critical == 0 and not direct_high
+          report = {
+              'schema_version': 'liminalqa-npm-advisory-classification-v0.1',
+              'classification': 'CLEAN' if int(vulnerabilities.get('total', 0)) == 0 else 'ADVISORY_REVIEW_REQUIRED',
+              'vulnerability_counts': vulnerabilities,
+              'direct_high_packages': direct_high,
+              'critical_gate_pass': gate_pass,
+              'note': 'Transitive advisories require dependency-path and runtime-reachability review; audit presence alone is not proof of exploitability in Revolut X.'
+          }
+          (root / 'npm-audit-classification.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          (root / 'status' / 'npm-audit-gate.exit').write_text('0\n' if gate_pass else '1\n')
+          PY
+
+      - name: Build exact validation summary and SHA manifest
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('reports/revolut-docker')
+
+          def read_json(name):
+              path = root / name
+              if not path.exists():
+                  return None
+              try:
+                  return json.loads(path.read_text())
+              except Exception as exc:
+                  return {'read_error': type(exc).__name__}
+
+          statuses = {}
+          for path in sorted((root / 'status').glob('*.exit')):
+              try:
+                  statuses[path.stem] = int(path.read_text().strip())
+              except Exception:
+                  statuses[path.stem] = None
+
+          summary = {
+              'schema_version': 'liminalqa-revolut-docker-full-validation-v0.2',
+              'liminalqa_sha': Path('.git/HEAD').read_text().strip() if False else None,
+              'upstream_repository': 'revolut-engineering/revolut-x-api',
+              'upstream_sha': '13778de69e0411ee11198dc913a3b9b0f72ac880',
+              'docker': {
+                  'node_image_digests': read_json('node-image-digests.json'),
+                  'python_image_digests': read_json('python-image-digests.json'),
+                  'isolation': 'offline for source checks; network only for image/dependency retrieval, npm advisory lookup, and two documented public GET requests'
+              },
+              'statuses': statuses,
+              'retry_after': read_json('retry-after-runtime.json'),
+              'public_endpoints': read_json('public-endpoints.json'),
+              'npm_audit': read_json('npm-audit-production.json'),
+              'npm_audit_classification': read_json('npm-audit-classification.json'),
+              'npm_advisory_dependency_tree': read_json('npm-advisory-dependency-tree.json')
+          }
+          (root / 'summary.json').write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
+          PY
+
+          sed -i "s/\"liminalqa_sha\": null/\"liminalqa_sha\": \"$(git rev-parse HEAD)\"/" reports/revolut-docker/summary.json
+
+          find reports/revolut-docker -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > reports/revolut-docker/SHA256SUMS.txt
+
+          {
+            echo '## Revolut Docker full validation'
+            echo
+            echo '```json'
+            jq '{upstream_sha, statuses, retry_after: .retry_after.classification, public_endpoints: .public_endpoints.summary, advisory_classification: .npm_audit_classification}' reports/revolut-docker/summary.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload exact Docker evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revolut-docker-full-validation-${{ github.run_id }}
+          path: reports/revolut-docker/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce autonomous check results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          for name in build typecheck lint format-check sync-skills-check unit-tests retry-after liminalqa-lotus public-endpoints npm-audit-gate; do
+            code=$(cat "reports/revolut-docker/status/${name}.exit")
+            if [ "$code" != "0" ]; then
+              echo "FAILED: ${name} (exit ${code})"
+              failed=1
+            fi
+          done
+          test "$failed" = "0"
