@@ -1,0 +1,65 @@
+{
+  "schema_version": "liminalqa-public-market-data-audit-v1",
+  "name": "Tradernet public chart and quote observability audit",
+  "target_url": "https://tradernet.ru/charts/MICEXINDEXCF",
+  "ticker": "MICEXINDEXCF",
+  "observation_ms": 30000,
+  "timeframe_probe": "1Y",
+  "profiles": [
+    {
+      "id": "desktop_broadband",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "network": {
+        "latency_ms": 40,
+        "download_bytes_per_second": 1250000,
+        "upload_bytes_per_second": 625000,
+        "connection_type": "ethernet"
+      },
+      "cpu_throttling_rate": 1
+    },
+    {
+      "id": "mobile_4g",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {
+        "width": 412,
+        "height": 823,
+        "deviceScaleFactor": 2.625,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "latency_ms": 85,
+        "download_bytes_per_second": 500000,
+        "upload_bytes_per_second": 187500,
+        "connection_type": "cellular4g"
+      },
+      "cpu_throttling_rate": 2
+    }
+  ],
+  "boundaries": {
+    "public_page_only": true,
+    "one_ticker_only": true,
+    "one_timeframe_switch_only": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "order_entry": false,
+    "market_depth_subscription": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false
+  },
+  "limitations": [
+    "The run observes only traffic naturally initiated by one public chart page.",
+    "No absence of live quote frames is treated as a defect during a weekend or closed market session.",
+    "Cross-surface price consistency requires a later authorized or public multi-surface experiment.",
+    "Detected JSON invariants are heuristics and must be reviewed against the exact response schema."
+  ]
+}

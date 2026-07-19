@@ -1,0 +1,129 @@
+name: Tradernet Chart Causal Follow-ups
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-chart-quote-audit
+    paths:
+      - .github/workflows/tradernet-chart-causal-followups.yml
+      - audits/tradernet/chart-quote-public.json
+      - scripts/tradernet_public_hloc_integrity.mjs
+      - scripts/tradernet_chart_route_matrix.mjs
+  pull_request:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/tradernet-chart-causal-followups.yml
+      - audits/tradernet/chart-quote-public.json
+      - scripts/tradernet_public_hloc_integrity.mjs
+      - scripts/tradernet_chart_route_matrix.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-chart-causal-followups-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hloc-integrity:
+    name: Naturally loaded HLOC integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate bounded target
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            (.target_url == "https://tradernet.ru/charts/MICEXINDEXCF") and
+            (.ticker == "MICEXINDEXCF") and
+            (.boundaries.direct_api_testing == false) and
+            (.boundaries.authenticated_testing == false) and
+            (.boundaries.financial_operations == false)
+          ' audits/tradernet/chart-quote-public.json >/dev/null
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Locate Chrome and validate script
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/tradernet_public_hloc_integrity.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+      - name: Capture naturally requested candle history
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradernet-hloc-integrity
+          node scripts/tradernet_public_hloc_integrity.mjs \
+            --config audits/tradernet/chart-quote-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradernet-hloc-integrity
+          cat reports/tradernet-hloc-integrity/hloc-integrity-summary.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload HLOC evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-hloc-integrity-${{ github.run_id }}
+          path: reports/tradernet-hloc-integrity/
+          if-no-files-found: error
+          retention-days: 14
+
+  route-matrix:
+    name: User-agent and viewport route matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate bounded matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            (.target_url == "https://tradernet.ru/charts/MICEXINDEXCF") and
+            ((.profiles | length) == 2) and
+            (.boundaries.public_page_only == true) and
+            (.boundaries.authenticated_testing == false) and
+            (.boundaries.direct_api_testing == false) and
+            (.boundaries.load_testing == false)
+          ' audits/tradernet/chart-quote-public.json >/dev/null
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Locate Chrome and validate script
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/tradernet_chart_route_matrix.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+      - name: Run four-way public route matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradernet-chart-route-matrix
+          node scripts/tradernet_chart_route_matrix.mjs \
+            --config audits/tradernet/chart-quote-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradernet-chart-route-matrix
+          cat reports/tradernet-chart-route-matrix/route-matrix-summary.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload route evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-chart-route-matrix-${{ github.run_id }}
+          path: reports/tradernet-chart-route-matrix/
+          if-no-files-found: error
+          retention-days: 14
