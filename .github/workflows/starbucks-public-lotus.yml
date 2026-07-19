@@ -1,0 +1,131 @@
+name: Starbucks Public Lotus Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/starbucks-public-lotus-audit-v0-1
+    paths:
+      - .github/workflows/starbucks-public-lotus.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/starbucks/starbucks-public-evidence-v0.1.json
+      - audits/lotus/starbucks/starbucks-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_starbucks_lotus_packet.py
+      - docs/audits/STARBUCKS_PUBLIC_LOTUS_AUDIT.md
+  pull_request:
+    branches:
+      - agent/revolut-public-lotus-audit-v0-1
+      - agent/lotus-liminaldb-memory-v0-1
+      - main
+    paths:
+      - .github/workflows/starbucks-public-lotus.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/starbucks/starbucks-public-evidence-v0.1.json
+      - audits/lotus/starbucks/starbucks-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_starbucks_lotus_packet.py
+      - docs/audits/STARBUCKS_PUBLIC_LOTUS_AUDIT.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starbucks-public-lotus-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Starbucks Lotus findings and memory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate source material
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m json.tool audits/lotus/starbucks/starbucks-public-evidence-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/starbucks/starbucks-findings-v0.1.json >/dev/null
+          python3 -m py_compile scripts/lotus_qa_decision_packet.py scripts/lotus_liminaldb_memory.py tests/test_starbucks_lotus_packet.py
+
+      - name: Run Starbucks Lotus regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_starbucks_lotus_packet.py -v
+
+      - name: Generate exact packet and LiminalDB memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/starbucks
+          python3 scripts/lotus_qa_decision_packet.py --contract standards/lotus-qa/lotus-qa-contract-v0.1.json --findings audits/lotus/starbucks/starbucks-findings-v0.1.json --output-dir reports/starbucks
+          python3 scripts/lotus_liminaldb_memory.py export --packet reports/starbucks/lotus-decision-packet.json --observed-at "$(git show -s --format=%cI HEAD)" --source-commit "$(git rev-parse HEAD)" --output reports/starbucks/liminaldb-events.jsonl
+          python3 scripts/lotus_liminaldb_memory.py compare --events reports/starbucks/liminaldb-events.jsonl --output reports/starbucks/liminaldb-transitions.json
+
+      - name: Validate decisions, privacy, memory, and authority boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == "liminalqa-lotus-decision-packet-v0.1" and
+            .summary.finding_count == 6 and
+            .summary.pythia_verdicts.ALLOW == 2 and
+            .summary.pythia_verdicts.BLOCK == 2 and
+            .summary.pythia_verdicts.ESCALATE == 2 and
+            .summary.decision_statuses.CONFIRMED == 2 and
+            .summary.decision_statuses.BLOCKED == 2 and
+            .summary.decision_statuses.NEEDS_EVIDENCE == 2 and
+            .summary.user_control_risks.HIGH == 1 and
+            .summary.user_control_risks.MEDIUM == 1 and
+            .summary.user_control_risks.LOW == 1 and
+            .summary.user_control_risks.NONE == 2 and
+            .summary.user_control_risks.UNKNOWN == 1 and
+            .summary.durable_memory_count == 0 and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.deployment == false and
+            .authority.merge == false and
+            (.findings[] | select(.finding_id == "SBX-SEC-PUBLIC-CREDENTIAL-SIGNAL-001") | .decision.status) == "NEEDS_EVIDENCE" and
+            (.findings[] | select(.finding_id == "SBX-SEC-PUBLIC-CREDENTIAL-SIGNAL-001") | .decision.severity) == "UNASSIGNED" and
+            (.findings[] | select(.finding_id == "SBX-SEC-ACTIVE-EXPLOIT-HYPOTHESIS-001") | .decision.status) == "BLOCKED" and
+            (.findings[] | select(.finding_id == "SBX-A11Y-NOJS-WCAG-HYPOTHESIS-001") | .decision.status) == "BLOCKED"
+          ' reports/starbucks/lotus-decision-packet.json >/dev/null
+          jq -e '
+            .disclosure_boundary.raw_secret_stored == false and
+            .disclosure_boundary.raw_secret_used == false and
+            .disclosure_boundary.affected_careers_routes_published == false
+          ' audits/lotus/starbucks/starbucks-public-evidence-v0.1.json >/dev/null
+          jq -s -e '
+            length == 6 and
+            ([.[].id] | unique | length) == 6 and
+            ([.[].details.adapter.write_mode] | all(. == "artifact_only")) and
+            ([.[].details.finding.durable_memory] | all(. == false)) and
+            ([.[].details.authority.execution] | all(. == false)) and
+            ([.[].details.authority.merge] | all(. == false))
+          ' reports/starbucks/liminaldb-events.jsonl >/dev/null
+          jq -e '
+            .schema_version == "liminaldb-lotus-compare-v0.1" and
+            .event_count == 6 and
+            .canonical_finding_count == 6 and
+            .transition_count == 0
+          ' reports/starbucks/liminaldb-transitions.json >/dev/null
+          sha256sum audits/lotus/starbucks/starbucks-public-evidence-v0.1.json reports/starbucks/lotus-decision-packet.json reports/starbucks/liminaldb-events.jsonl reports/starbucks/liminaldb-transitions.json > reports/starbucks/SHA256SUMS.txt
+          cat reports/starbucks/lotus-decision-packet.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact Starbucks Lotus artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: starbucks-public-lotus-${{ github.run_id }}
+          path: reports/starbucks/
+          if-no-files-found: error
+          retention-days: 14
