@@ -1,0 +1,121 @@
+{
+  "schema_version": "liminalqa-terminal-loading-causal-result-v1",
+  "target_url": "https://tradernet.ru/terminal",
+  "overall_verdict": "WARN",
+  "confirmed_findings": [
+    {
+      "id": "mobile-hidden-onboarding-image",
+      "verdict": "CONFIRMED",
+      "severity": "MEDIUM_PERFORMANCE",
+      "profile": "mobile_4g",
+      "resource": "https://tradernet.ru/images/2022/authorization/onboarding.light.2x.png",
+      "encoded_bytes": 346800,
+      "natural_size": "870x870",
+      "rendered_size": "0x0",
+      "visible": false,
+      "share_of_total_mobile_transfer_percent": 12.84,
+      "causal_reading": "The responsive mobile login layout hides the onboarding illustration, but the browser still selects and downloads the 2x resource."
+    },
+    {
+      "id": "missing-onboarding-image-request",
+      "verdict": "CONFIRMED",
+      "severity": "LOW",
+      "profiles": ["desktop_broadband", "mobile_4g"],
+      "resource": "https://tradernet.ru/images/2022/authorization/onboarding.png",
+      "http_status": 404,
+      "user_visible_breakage": false,
+      "causal_reading": "Both public login navigations issue a first-party request for a missing image while a light responsive image still renders."
+    }
+  ],
+  "observed_loading": {
+    "desktop_broadband": {
+      "http_status": 200,
+      "final_url": "https://tradernet.ru/terminal?site_lang=ru",
+      "state": "AUTH_WALL",
+      "first_useful_ui_ms": 3061,
+      "fcp_ms": 3044,
+      "lcp_ms": 3532,
+      "load_event_ms": 4347.6,
+      "total_requests": 72,
+      "total_encoded_bytes": 2463358,
+      "script_requests": 55,
+      "script_encoded_bytes": 1580822,
+      "long_task_count": 7,
+      "long_task_total_ms": 822
+    },
+    "mobile_4g": {
+      "http_status": 200,
+      "final_url": "https://tradernet.ru/terminal?site_lang=ru",
+      "state": "AUTH_WALL",
+      "first_useful_ui_ms": 3585,
+      "fcp_ms": 3588,
+      "lcp_ms": 3872,
+      "load_event_ms": 6867.4,
+      "total_requests": 73,
+      "total_encoded_bytes": 2700761,
+      "script_requests": 56,
+      "script_encoded_bytes": 1579681,
+      "long_task_count": 4,
+      "long_task_total_ms": 525
+    }
+  },
+  "not_defects": [
+    {
+      "id": "unauthenticated-login-wall",
+      "reason": "The public terminal entry consistently returns an authentication page on both profiles; no device routing divergence was observed."
+    },
+    {
+      "id": "no-market-websocket-before-authentication",
+      "reason": "No trading WebSocket connection is expected on the unauthenticated login page."
+    },
+    {
+      "id": "aborted-google-analytics-collect",
+      "reason": "The aborted third-party analytics request is not a first-party terminal dependency."
+    }
+  ],
+  "candidates_requiring_follow_up": [
+    {
+      "id": "desktop-require-is-not-defined",
+      "signal": "ReferenceError: require is not defined",
+      "profile": "desktop_broadband",
+      "current_user_impact": "NOT_ESTABLISHED",
+      "next_experiment": "Repeat three cold desktop runs and correlate the exception with auth widget initialization and user interactions."
+    },
+    {
+      "id": "heavy-auth-bootstrap",
+      "signal": "Approximately 1.58 MB of JavaScript across 55-56 script requests for the public login state.",
+      "current_user_impact": "DIRECTIONAL_LATENCY_SIGNAL",
+      "next_experiment": "Run three same-profile cold loads and attribute long tasks to exact bundles before filing a stable performance defect."
+    },
+    {
+      "id": "blocked-yandex-websocket",
+      "signal": "CSP blocks wss://mc.yandex.com/solid.ws",
+      "current_user_impact": "LIKELY_TELEMETRY_ONLY",
+      "next_experiment": "Confirm whether any product feature depends on the blocked connection before reporting."
+    }
+  ],
+  "evidence": [
+    {
+      "run_id": 29663675619,
+      "head_sha": "20f827e4c77e1edc97ad897800e3e3a4961b3fea",
+      "artifact": "tradernet-public-terminal-loading-29663675619",
+      "sha256": "19fe1f0515fac24a2c45bb93ec39058d14fe14698478a417af507d1d9729b570"
+    },
+    {
+      "run_id": 29663762367,
+      "head_sha": "3a1e882ddb62278af3ae8aaf2ba637df0fc720de",
+      "artifact": "tradernet-terminal-mobile-image-29663762367",
+      "sha256": "7a5ff63a0b9a79ddbe37535046dbfbc6d581a9df9a1b7a54aef82b5521a194c1"
+    }
+  ],
+  "safety_boundary": {
+    "public_page_only": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "portfolio_access": false,
+    "financial_operations": false,
+    "form_submission": false,
+    "load_testing": false,
+    "active_security_testing": false
+  }
+}
