@@ -1,6 +1,6 @@
 # Tradernet public connection lifecycle audit
 
-This audit tests whether transports naturally initiated by public Tradernet pages are released and recreated safely across a bounded lifecycle.
+This audit tests whether transports naturally initiated by public Tradernet pages are released and recreated safely across a bounded lifecycle, then follows the strongest reproducible signal through a focused duplicate-request experiment and Lotus decision packet.
 
 ## Targets
 
@@ -20,59 +20,56 @@ cold public navigation
 → navigate to about:blank + 12 s teardown observation
 ```
 
-The probe records only connection metadata, normalized URLs without query strings, frame byte counts, response statuses, phase counts, DOM state flags, and coarse runtime metrics. It does not retain WebSocket payloads, response bodies, headers, cookies, authentication data, prices, portfolios, or orders.
+The probe records connection metadata, normalized URLs without query strings, frame byte counts, response statuses, phase counts, DOM state flags and coarse runtime metrics. It does not retain WebSocket payloads, response bodies, headers, cookies, authentication data, prices, portfolios or orders.
 
-## Zombie-connection result
+## Fresh zombie-connection result
 
-Evidence run `29666251111` on exact head `4d58d54db49a8ef43260c7f5c4a2ac683c8e865f` completed successfully.
-
-Artifact SHA-256:
+Evidence run `29687311888` on exact head `89a13d3e98f811f07f56543265ca1a8399f79c65` completed successfully.
 
 ```text
-65fc7473982cca5ea2071b7219390b70824fb3613b8f1d59e32c918f71d7ca67
+artifact: tradernet-connection-lifecycle-29687311888
+artifact sha256: 9641cb67da53d947cf107d6ba0cb37eec2ee3fcc7f79c8f734a0d6948f1c953d
+aggregate result sha256: 7999ae13d4d5050779786ab26a720d30b974ec08e94346407159799447a11505
 ```
 
-Neither public surface naturally opened a first-party Tradernet WebSocket during the bounded run. Therefore:
+Neither public surface naturally opened a first-party Tradernet WebSocket. Therefore:
 
 - no duplicate active first-party socket was observed;
 - no reconnect storm was observed;
 - no socket survived reload or navigation to `about:blank`;
-- the zombie-WebSocket claim is `BLOCKED_NOT_TESTABLE`, not confirmed and not disproved for authenticated trading surfaces.
+- the zombie-WebSocket claim remains `BLOCKED_NOT_TESTABLE`, not confirmed and not disproved for authenticated trading surfaces.
 
-Third-party Yandex telemetry WebSocket failures remain diagnostics only. They cannot create a Tradernet product finding.
+The lifecycle aggregate contains no confirmed finding. It retains overlapping-request signals as `NEEDS_EVIDENCE`; the settings endpoint is adjudicated separately by the focused experiment below. Third-party telemetry remains diagnostic only.
 
-## Confirmed duplicate settings request
+## Fresh confirmed duplicate settings request
 
-The lifecycle run exposed two overlapping requests to:
+The public chart naturally starts two overlapping GET requests to:
 
 ```text
 https://tradernet.ru/stocks/security-info/ajax-get-user-settings/
 ```
 
-A focused experiment repeated the observation in three independent fresh browser contexts.
-
-Evidence run `29666496587` on exact head `6d22575cf4cca307508614d1eb6c6bfd3e5ee62d` completed successfully.
-
-Artifact SHA-256:
+Focused run `29687311871` on exact head `89a13d3e98f811f07f56543265ca1a8399f79c65` repeated the observation in three independent fresh browser contexts.
 
 ```text
-20f5d9fd464b63a1f65a54636129ccdb7c16b0a801ea9557efc1791a39b55088
+artifact: tradernet-duplicate-settings-29687311871
+artifact sha256: 0b7fb1232f828e72870951ebb44c5b4b6953a84d7fe5e3b93ab9a1b38c94ecb8
+result sha256: 88624d99703c653b8be6c6f3e3a4c4f129d06269a273c440aac070b30a61666a
 ```
 
 Every round produced:
 
-- two GET requests beginning in the same millisecond;
+- exactly two GET requests beginning in the same millisecond;
 - overlapping in-flight intervals;
 - HTTP 200 for both requests;
-- byte-identical response-body SHA-256;
+- the same two-byte response-body SHA-256;
+- encoded transfer between `3,463` and `3,465` bytes per request;
 - one modern `Fetch` initiator from `chart-theoretical-info.desktop...js`;
 - one legacy `XHR` initiator through jQuery from `chart_grid.js` / `l.restore`.
 
 **Verdict:** `CONFIRMED_REDUNDANT_DUPLICATE_REQUEST`  
 **Severity:** `P2_PERFORMANCE_RELIABILITY`  
 **Confidence:** high (`3/3` fresh contexts)
-
-The evidence supports a bounded dual-loader cause for this endpoint:
 
 ```text
 modern chart settings loader
@@ -83,21 +80,19 @@ legacy chart-grid restore loader
 → redundant browser and backend work
 ```
 
-It does not establish visible chart corruption, stale quotes, account impact, or trading-decision impact.
+The evidence does not establish visible chart corruption, stale quotes, account impact or trading-decision impact.
 
 ### Recommended repair
 
 Use one shared settings-loading owner or shared promise/cache. Both chart consumers should reuse the same in-flight result. Add a regression assertion that one chart navigation produces at most one in-flight GET for the settings endpoint.
 
-## Candidates retained as uncertainty
+## Candidate retained as uncertainty: startup settings POST
 
-### Startup settings POST
+All three fresh contexts naturally emitted one successful POST to the settings endpoint family. Observed request-body sizes ranged from `33,187` to `33,404` bytes. Each response was HTTP 200 with the same one-byte response hash. Raw request bodies were not retained.
 
-In all three focused rounds, the page naturally sent one successful POST to the settings endpoint family with an observed request-body length of `33,404` bytes. Raw request bodies were not retained.
+This remains `NEEDS_EVIDENCE`, not a defect. Product intent, session semantics, payload meaning, repeated-navigation behavior and measurable user or backend cost must be established first.
 
-This is `NEEDS_EVIDENCE`, not a defect. Product intent, session semantics, repeated-navigation behavior and measurable user or backend cost must be established first.
-
-### Stale-state visibility
+## Candidate retained as uncertainty: stale-state visibility
 
 The public lifecycle run did not provide an active-session naturally updating first-party stream. A stale/offline-indicator conclusion therefore requires a market-open experiment with timestamped visible quote evidence and proven recovery.
 
@@ -111,12 +106,12 @@ audits/lotus/tradernet/tradernet-connection-lotus-v0.1.json
 
 - **Pythia:** `ALLOW` duplicate settings request; `BLOCK` zombie-WebSocket claim; `ESCALATE` stale-state and settings-POST hypotheses.
 - **CML:** retains the modern-loader + legacy-loader causal path for this endpoint only; durable acceptance remains false.
-- **LS:** assigns `P2` because resource waste is confirmed but misleading market state or loss of user control is not.
+- **LS:** prioritizes the P2 resource waste while acknowledging that misleading market state or loss of user control is not established.
 - **LiminalDB bridge:** artifact-only observation; no live write or durable memory acceptance.
 
-## Deterministic defect thresholds
+## Deterministic lifecycle thresholds
 
-A product finding may be supported only when one of these boundaries is crossed:
+A lifecycle product finding may be supported only when one of these boundaries is crossed:
 
 1. more than one active first-party WebSocket exists for the same normalized URL in a lifecycle snapshot;
 2. a first-party socket created before reload remains open beyond the configured grace period;
@@ -124,8 +119,8 @@ A product finding may be supported only when one of these boundaries is crossed:
 4. recovery creates at least five first-party sockets with median spacing below three seconds;
 5. the same first-party URL returns at least three HTTP error responses during the bounded lifecycle.
 
-## Safety boundary
+## Safety and authority boundary
 
-Public pages and natural browser requests only. The audit performs no authentication, direct application API calls, subscriptions created by the test, market-depth access, portfolio access, form submission, order entry, financial operation, fuzzing, load testing, exploitation, or security-vulnerability claim.
+Public pages and natural browser requests only. The audit performs no authentication, direct application API calls, test-created subscriptions, market-depth access, portfolio or personal-data access, form submission, order entry, financial operation, fuzzing, load testing, exploitation, external ticket creation or security-vulnerability claim.
 
-Absence of live market frames outside an active session is not classified as a defect. Third-party telemetry connections are diagnostic only.
+Absence of live market frames outside an active session is not classified as a defect. Third-party telemetry connections are diagnostic only. Ownership, approval, execution, delivery, external submission and merge authority remain false.
