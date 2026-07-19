@@ -1,0 +1,22 @@
+DUO-LH-20260719-ENV-001 — execution evidence
+
+Node: v22.16.0
+npm: 10.9.2
+Chromium: 144.0.7559.96 (Debian 13 build)
+
+Remote target connectivity:
+- HTTPS HEAD request to https://www.duolingo.com/
+- Result: curl exit 6
+- Message: Could not resolve host: www.duolingo.com
+
+Dependency preparation:
+- npm registry metadata was reachable.
+- Lighthouse/LHCI installation did not complete within the available execution window.
+
+Local Chromium control:
+- Non-root launch: crashpad error and trace/breakpoint exit.
+- Root diagnostic launch with no-sandbox: timeout with DBus, NETLINK, inotify and zygote errors.
+- The no-sandbox attempt was diagnostic only and is not accepted as production Garden evidence.
+
+Conclusion:
+No Duolingo page was observed by Lighthouse. No performance, accessibility, best-practices, SEO or Core Web Vitals result may be inferred from this run.
