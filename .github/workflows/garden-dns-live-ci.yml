@@ -1,4 +1,4 @@
-name: Garden DNS, Live Probe, and LiminalOSAI Advisory
+name: Garden, Airbnb, LiminalOSAI, and LTP Integrity
 
 on:
   pull_request:
@@ -17,14 +17,15 @@ env:
   GARDEN_SHA: 9c43a78082d8bf943dd8d11e741b9a0c7cc61f65
   PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
   LIMINALOS_SHA: 4f181b6721a9902ffb578afa315105b77737574d
+  LTP_SHA: b1fcf43977a2de5cd21b84887d6dcdc1d451acd1
   ROOTFS_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
   LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
 
 jobs:
   verify:
-    name: Garden Airbnb probe plus bounded LiminalOSAI advisory
+    name: Garden probe, LiminalOSAI advisory, and LTP integrity
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 65
 
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +53,13 @@ jobs:
           path: vendor/LiminalOSAI
           persist-credentials: false
 
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-
+          ref: ${{ env.LTP_SHA }}
+          path: vendor/LTP
+          persist-credentials: false
+
       - name: Verify exact source pins and prepare directories
         shell: bash
         run: |
@@ -59,7 +67,8 @@ jobs:
           test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
           test "$(git -C vendor/airbnb-probe rev-parse HEAD)" = "$PROBE_SHA"
           test "$(git -C vendor/LiminalOSAI rev-parse HEAD)" = "$LIMINALOS_SHA"
-          mkdir -p reports/{rootfs,garden-image,probe-image,evidence,network-files,liminalos,advisory}
+          test "$(git -C vendor/LTP rev-parse HEAD)" = "$LTP_SHA"
+          mkdir -p reports/{rootfs,garden-image,probe-image,evidence,network-files,liminalos,advisory,ltp}
           sudo apt-get update -qq
           sudo apt-get install -y -qq libseccomp-dev pkg-config
 
@@ -89,6 +98,18 @@ jobs:
           grep -q introspect "$GITHUB_WORKSPACE/reports/liminalos/runtime.log"
           grep -q harmony "$GITHUB_WORKSPACE/reports/liminalos/runtime.log"
           grep -q gate "$GITHUB_WORKSPACE/reports/liminalos/runtime.log"
+
+      - name: Install and test exact LTP lifecycle verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+          cd vendor/LTP
+          pnpm install --frozen-lockfile --ignore-scripts \
+            2>&1 | tee "$GITHUB_WORKSPACE/reports/ltp/install.log"
+          pnpm test:lifecycle-integrity \
+            2>&1 | tee "$GITHUB_WORKSPACE/reports/ltp/test.log"
 
       - name: Build exact Playwright rootfs with live network files
         shell: bash
@@ -308,10 +329,11 @@ jobs:
           safe = bool(probe) and probe.get('confirmed_defect') is False and probe.get('payment_submitted') is False and probe.get('reservation_created') is False
           confirmed = bool(baseline['addresses']) and bool(garden_dns['addresses']) and run_code == 0 and all(event in events for event in required) and exit_zero and limits == expected and safe
           result = {
-              'schema_version': 'garden-dns-live-liminalos-ci-v0.2',
+              'schema_version': 'garden-airbnb-liminalos-ltp-ci-v0.3',
               'garden_commit': '9c43a78082d8bf943dd8d11e741b9a0c7cc61f65',
               'probe_commit': 'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
               'liminalos_commit': '4f181b6721a9902ffb578afa315105b77737574d',
+              'ltp_commit': 'b1fcf43977a2de5cd21b84887d6dcdc1d451acd1',
               'probe_runtime_patch_recorded': (root/'probe-runtime-patch.diff').is_file(),
               'dns_baseline_addresses': baseline['addresses'],
               'dns_garden_addresses': garden_dns['addresses'],
@@ -351,7 +373,202 @@ jobs:
             --output-dir reports/advisory \
             | tee reports/liminalos/advisor.stdout.json
 
-      - name: Validate deterministic truth and advisory boundaries
+      - name: Join authorization, observation, and response claims with LTP
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/result.json
+          test -s reports/advisory/liminalos-advice.json
+          cat > reports/ltp/airbnb-transition.integration.test.ts <<'TS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { describe, expect, it } from 'vitest';
+          import {
+            sha256Ref,
+            verifyLifecycleIntegrity,
+            wrapRecord,
+          } from './verify';
+
+          const workspace = process.env.GITHUB_WORKSPACE;
+          if (!workspace) throw new Error('GITHUB_WORKSPACE is required');
+          const outputDir = path.join(workspace, 'reports', 'ltp');
+          const readJson = (relative: string) =>
+            JSON.parse(fs.readFileSync(path.join(workspace, relative), 'utf8'));
+          const writeJson = (name: string, value: unknown) =>
+            fs.writeFileSync(path.join(outputDir, name), JSON.stringify(value, null, 2) + '\n');
+
+          describe('Airbnb trustworthy transition', () => {
+            it('verifies evidence-bound claims and rejects a fabricated defect claim', () => {
+              const run = readJson('reports/result.json');
+              const advisory = readJson('reports/advisory/liminalos-advice.json');
+              const transitionId = `airbnb-garden-${process.env.GITHUB_RUN_ID}`;
+              const subjectId = 'airbnb-listing-1418689551881927394';
+              const actionIdentity = {
+                kind: 'public_readonly_airbnb_currency_history_probe',
+                listing_id: '1418689551881927394',
+                prohibited: ['login', 'host_contact', 'payment', 'reservation', 'external_submission'],
+              };
+              const binding = {
+                garden_commit: process.env.GARDEN_SHA,
+                probe_commit: process.env.PROBE_SHA,
+                liminalos_commit: process.env.LIMINALOS_SHA,
+                ltp_commit: process.env.LTP_SHA,
+                workflow_head: process.env.GITHUB_SHA,
+                workflow_run_id: process.env.GITHUB_RUN_ID,
+              };
+              const actionDigest = sha256Ref(actionIdentity);
+              const bindingDigest = sha256Ref(binding);
+              const authorization = wrapRecord({
+                transition_id: transitionId,
+                subject_id: subjectId,
+                action_identity_digest: actionDigest,
+                binding_digest: bindingDigest,
+                decision: 'ALLOW',
+                current_state: 'ACTIVE',
+                scope: actionIdentity,
+                authority: {
+                  external_submission: false,
+                  deployment: false,
+                  merge: false,
+                },
+              });
+              const joinedResult = {
+                run,
+                advisory,
+                workflow: binding,
+              };
+              const observation = wrapRecord({
+                transition_id: transitionId,
+                subject_id: subjectId,
+                authorization_ref: authorization.record_ref,
+                action_identity_digest: actionDigest,
+                binding_digest: bindingDigest,
+                execution_status: 'EXECUTED',
+                result: joinedResult,
+                result_digest: sha256Ref(joinedResult),
+              });
+
+              const responseText = [
+                'Garden completed the exact public read-only Airbnb probe.',
+                'Both TRY to EUR to TRY to EUR attempts were consistent.',
+                'No confirmed Airbnb product defect was observed.',
+                'No payment or reservation was performed.',
+                'LiminalOSAI ingested the evidence but cannot override the product verdict.',
+              ].join('\n');
+
+              const observationRefs = [observation.record_ref];
+              const verified = verifyLifecycleIntegrity({
+                transition_id: transitionId,
+                subject_id: subjectId,
+                response_text: responseText,
+                authorization_record: authorization,
+                observation_records: [observation],
+                verifier: { id: 'ltp-airbnb-integrity', version: '0.1' },
+                claims: [
+                  {
+                    claim_id: 'garden-executed',
+                    claim_text: 'Garden completed the exact probe.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'EXECUTION_STATUS_EQUALS', expected_status: 'EXECUTED' },
+                  },
+                  {
+                    claim_id: 'live-probe-confirmed',
+                    claim_text: 'The complete live Garden lifecycle was observed.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/run/live_garden_probe_confirmed', expected_value: true },
+                  },
+                  {
+                    claim_id: 'currency-history-consistent',
+                    claim_text: 'Both currency and history attempts were consistent.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/run/probe_summary/outcomes', expected_value: ['consistent', 'consistent'] },
+                  },
+                  {
+                    claim_id: 'no-confirmed-defect',
+                    claim_text: 'No confirmed Airbnb defect was observed.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/run/probe_summary/confirmed_defect', expected_value: false },
+                  },
+                  {
+                    claim_id: 'no-payment',
+                    claim_text: 'No payment was submitted.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/run/probe_summary/payment_submitted', expected_value: false },
+                  },
+                  {
+                    claim_id: 'no-reservation',
+                    claim_text: 'No reservation was created.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/run/probe_summary/reservation_created', expected_value: false },
+                  },
+                  {
+                    claim_id: 'liminalos-ingested',
+                    claim_text: 'LiminalOSAI ingested the evidence.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/advisory/evidence_ingested', expected_value: true },
+                  },
+                  {
+                    claim_id: 'liminalos-no-override',
+                    claim_text: 'LiminalOSAI cannot override the evidence-bound verdict.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/advisory/authority/product_verdict_override', expected_value: false },
+                  },
+                ],
+              });
+
+              const fabricated = verifyLifecycleIntegrity({
+                transition_id: transitionId,
+                subject_id: subjectId,
+                response_text: 'A confirmed Airbnb product defect was found.',
+                authorization_record: authorization,
+                observation_records: [observation],
+                verifier: { id: 'ltp-airbnb-negative-control', version: '0.1' },
+                claims: [
+                  {
+                    claim_id: 'fabricated-confirmed-defect',
+                    claim_text: 'A confirmed Airbnb product defect was found.',
+                    observation_refs: observationRefs,
+                    comparison: { kind: 'JSON_POINTER_EQUALS', pointer: '/run/probe_summary/confirmed_defect', expected_value: true },
+                    text_heuristic: { pattern: 'confirmed Airbnb product defect was found', flags: 'i' },
+                  },
+                ],
+              });
+
+              expect(verified.response_integrity_record.overall_verdict).toBe('VERIFIED');
+              expect(verified.dimensions.authority).toBe('VALID');
+              expect(verified.dimensions.execution).toBe('OBSERVED_EXECUTED');
+              expect(verified.verification_level).toBe('FULL_LIFECYCLE_JOINED');
+              expect(verified.response_integrity_record.claims.every((claim) => claim.verdict === 'SUPPORTED')).toBe(true);
+              expect(fabricated.response_integrity_record.overall_verdict).toBe('FAILED');
+              expect(fabricated.response_integrity_record.claims[0].verdict).toBe('CONTRADICTED');
+              expect(fabricated.response_integrity_record.claims[0].heuristic_result).toBe('MATCH');
+
+              writeJson('authorization-record.json', authorization);
+              writeJson('observation-record.json', observation);
+              writeJson('ltp-response-integrity.json', verified);
+              writeJson('ltp-negative-control.json', fabricated);
+              writeJson('ltp-transition-packet.json', {
+                schema_version: 'airbnb-ltp-transition-v0.1',
+                ltp_commit: process.env.LTP_SHA,
+                transition_id: transitionId,
+                subject_id: subjectId,
+                authorization_ref: authorization.record_ref,
+                observation_ref: observation.record_ref,
+                verified_response: verified,
+                fabricated_claim_control: fabricated,
+              });
+            });
+          });
+          TS
+          cp reports/ltp/airbnb-transition.integration.test.ts \
+            vendor/LTP/tools/lifecycle-integrity/airbnb-transition.integration.test.ts
+          cd vendor/LTP
+          pnpm exec vitest run tools/lifecycle-integrity/airbnb-transition.integration.test.ts \
+            2>&1 | tee "$GITHUB_WORKSPACE/reports/ltp/integration.log"
+          rm tools/lifecycle-integrity/airbnb-transition.integration.test.ts
+
+      - name: Validate deterministic, advisory, and LTP boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -376,7 +593,28 @@ jobs:
             .authority.merge == false and
             .authority.product_verdict_override == false
           ' reports/advisory/liminalos-advice.json >/dev/null
+          jq -e '
+            .response_integrity_record.overall_verdict == "VERIFIED" and
+            .dimensions.authority == "VALID" and
+            .dimensions.execution == "OBSERVED_EXECUTED" and
+            .verification_level == "FULL_LIFECYCLE_JOINED" and
+            ([.response_integrity_record.claims[].verdict] | all(. == "SUPPORTED"))
+          ' reports/ltp/ltp-response-integrity.json >/dev/null
+          jq -e '
+            .response_integrity_record.overall_verdict == "FAILED" and
+            .response_integrity_record.claims[0].verdict == "CONTRADICTED" and
+            .response_integrity_record.claims[0].heuristic_result == "MATCH"
+          ' reports/ltp/ltp-negative-control.json >/dev/null
           cat reports/advisory/liminalos-causal-graph.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo "## LTP lifecycle integrity"
+            echo
+            echo "- Authority: VALID"
+            echo "- Execution: OBSERVED_EXECUTED"
+            echo "- Actual response: VERIFIED"
+            echo "- Fabricated defect claim: CONTRADICTED"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove rootfs and hash evidence
         if: always()
@@ -390,7 +628,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: garden-dns-live-liminalos-${{ github.run_id }}
+          name: garden-airbnb-liminalos-ltp-${{ github.run_id }}
           path: reports/
           if-no-files-found: error
           retention-days: 14
