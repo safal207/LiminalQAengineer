@@ -8,6 +8,7 @@ on:
       - scripts/airbnb_readonly_probe.py
       - scripts/airbnb_readonly_probe_guard.py
       - scripts/airbnb_readonly_discovered_dates_probe.py
+      - scripts/airbnb_readonly_discovered_dates_probe_v4.py
       - .github/workflows/airbnb-readonly-docker-probe.yml
   pull_request:
     branches:
@@ -16,6 +17,7 @@ on:
       - scripts/airbnb_readonly_probe.py
       - scripts/airbnb_readonly_probe_guard.py
       - scripts/airbnb_readonly_discovered_dates_probe.py
+      - scripts/airbnb_readonly_discovered_dates_probe_v4.py
       - .github/workflows/airbnb-readonly-docker-probe.yml
   workflow_dispatch:
 
@@ -71,7 +73,7 @@ jobs:
       - name: Run discovered-date history and reload probes
         run: |
           rm -rf "$OUTPUT_ROOT"
-          python scripts/airbnb_readonly_discovered_dates_probe.py \
+          python scripts/airbnb_readonly_discovered_dates_probe_v4.py \
             --listing-url "$LISTING_URL" \
             --output-root "$OUTPUT_ROOT"
 
