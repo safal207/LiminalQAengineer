@@ -1,0 +1,269 @@
+name: Airbnb GardenLiminal and LiminalOSAI Comparison
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/airbnb-garden-liminalos-comparison-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-liminalos-comparison.yml
+      - audits/airbnb/airbnb-garden-liminalos-replay-v0.1.json
+      - scripts/airbnb_garden_liminalos_replay.py
+      - tests/test_airbnb_garden_liminalos_replay.py
+      - docs/audits/AIRBNB_GARDEN_LIMINALOS_COMPARISON.md
+  pull_request:
+    branches:
+      - agent/airbnb-currency-history-lotus-result-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-liminalos-comparison.yml
+      - audits/airbnb/airbnb-garden-liminalos-replay-v0.1.json
+      - scripts/airbnb_garden_liminalos_replay.py
+      - tests/test_airbnb_garden_liminalos_replay.py
+      - docs/audits/AIRBNB_GARDEN_LIMINALOS_COMPARISON.md
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: airbnb-garden-liminalos-comparison-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 6c30422d0492ec312a35624322f90a7761419655
+  LIMINALOS_SHA: a2c5783287a9def4b4254b9436c2e75468613dca
+  SOURCE_RUN_ID: "29678020284"
+  SOURCE_ARTIFACT: ABNB-MATRIX-antalya-center
+
+jobs:
+  compare:
+    name: Replay exact Airbnb evidence through runtime comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact comparison branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact GardenLiminal source
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Checkout exact LiminalOSAI source
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/LiminalOSAI
+          ref: ${{ env.LIMINALOS_SHA }}
+          path: vendor/LiminalOSAI
+          persist-credentials: false
+
+      - name: Download exact Airbnb evidence artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: reports/source-evidence
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+
+      - name: Verify source and contract pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          test "$(git -C vendor/LiminalOSAI rev-parse HEAD)" = "$LIMINALOS_SHA"
+          python3 -m json.tool audits/airbnb/airbnb-garden-liminalos-replay-v0.1.json >/dev/null
+          python3 -m py_compile scripts/airbnb_garden_liminalos_replay.py tests/test_airbnb_garden_liminalos_replay.py
+          python3 -m unittest tests/test_airbnb_garden_liminalos_replay.py -v
+
+      - name: Prepare evidence directories and runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/status reports/garden reports/liminalos reports/comparison reports/rootfs
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config uidmap
+
+      - name: Build and test exact GardenLiminal source
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd vendor/GardenLiminal
+
+          set +e
+          cargo build --release > "$GITHUB_WORKSPACE/reports/garden/build.log" 2>&1
+          code=$?
+          set -e
+          echo "$code" > "$GITHUB_WORKSPACE/reports/status/garden-build.exit"
+
+          set +e
+          cargo test > "$GITHUB_WORKSPACE/reports/garden/test.log" 2>&1
+          code=$?
+          set -e
+          echo "$code" > "$GITHUB_WORKSPACE/reports/status/garden-test.exit"
+
+      - name: Prepare a bounded Garden Seed and root filesystem
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          container_id="$(docker create alpine:3.20 /bin/true 2>reports/garden/docker-create.stderr)"
+          create_code=$?
+          if [ "$create_code" = "0" ] && [ -n "$container_id" ]; then
+            docker export "$container_id" -o reports/garden/alpine-rootfs.tar >reports/garden/docker-export.log 2>&1
+            export_code=$?
+            docker rm "$container_id" >/dev/null 2>&1 || true
+            if [ "$export_code" = "0" ]; then
+              sudo tar -xf reports/garden/alpine-rootfs.tar -C reports/rootfs
+            fi
+          fi
+          set -e
+
+          rootfs="$GITHUB_WORKSPACE/reports/rootfs"
+          cat > reports/garden/abnb-replay-seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: abnb-replay-capability
+            id: abnb-replay-capability-001
+          rootfs:
+            path: ${rootfs}
+          entrypoint:
+            cmd: ["/bin/true"]
+            env: []
+            cwd: "/"
+          limits:
+            cpu:
+              shares: 128
+            memory:
+              max: "128Mi"
+            pids:
+              max: 32
+          security:
+            hostname: "abnb-replay"
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: "minimal"
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: "mem"
+          YAML
+
+      - name: Inspect and attempt bounded Garden lifecycle run
+        shell: bash
+        run: |
+          set -uo pipefail
+          binary="$GITHUB_WORKSPACE/vendor/GardenLiminal/target/release/gl"
+          seed="$GITHUB_WORKSPACE/reports/garden/abnb-replay-seed.yaml"
+
+          if [ -x "$binary" ]; then
+            set +e
+            "$binary" inspect -f "$seed" > reports/garden/inspect.log 2>&1
+            code=$?
+            set -e
+            echo "$code" > reports/status/garden-inspect.exit
+
+            set +e
+            sudo -E timeout 45 "$binary" run -f "$seed" --store mem > reports/garden/run.log 2>&1
+            code=$?
+            set -e
+            echo "$code" > reports/status/garden-run.exit
+          else
+            echo 127 > reports/status/garden-inspect.exit
+            echo 127 > reports/status/garden-run.exit
+            echo "GardenLiminal binary unavailable after build" > reports/garden/inspect.log
+            echo "GardenLiminal run not attempted because binary is unavailable" > reports/garden/run.log
+          fi
+
+      - name: Build, check, test, and dry-run exact LiminalOSAI source
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd vendor/LiminalOSAI
+
+          set +e
+          make > "$GITHUB_WORKSPACE/reports/liminalos/build.log" 2>&1
+          code=$?
+          set -e
+          echo "$code" > "$GITHUB_WORKSPACE/reports/status/liminalos-build.exit"
+
+          set +e
+          make check > "$GITHUB_WORKSPACE/reports/liminalos/check.log" 2>&1
+          code=$?
+          set -e
+          echo "$code" > "$GITHUB_WORKSPACE/reports/status/liminalos-check.exit"
+
+          set +e
+          make test > "$GITHUB_WORKSPACE/reports/liminalos/test.log" 2>&1
+          code=$?
+          set -e
+          echo "$code" > "$GITHUB_WORKSPACE/reports/status/liminalos-test.exit"
+
+          if [ -x build/pulse_kernel ]; then
+            set +e
+            timeout 20 ./build/pulse_kernel \
+              --dry-run --limit=2 --trace --coherence --reflect --introspect \
+              > "$GITHUB_WORKSPACE/reports/liminalos/dry-run.log" 2>&1
+            code=$?
+            set -e
+            echo "$code" > "$GITHUB_WORKSPACE/reports/status/liminalos-dry-run.exit"
+          else
+            echo 127 > "$GITHUB_WORKSPACE/reports/status/liminalos-dry-run.exit"
+            echo "pulse_kernel unavailable after build" > "$GITHUB_WORKSPACE/reports/liminalos/dry-run.log"
+          fi
+
+      - name: Replay exact evidence and build comparison packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/airbnb_garden_liminalos_replay.py \
+            --config audits/airbnb/airbnb-garden-liminalos-replay-v0.1.json \
+            --evidence-root reports/source-evidence \
+            --status-dir reports/status \
+            --garden-log-root reports/garden \
+            --output-dir reports/comparison
+
+      - name: Validate comparison truth and authority boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          result=reports/comparison/comparison.json
+          jq -e '
+            .replay.evidence_valid == true and
+            .comparison.same_input_evidence == true and
+            .comparison.baseline_decision == "NO_DEFECT_OBSERVED" and
+            .comparison.replay_decision == "NO_DEFECT_OBSERVED" and
+            .comparison.product_finding_delta == "NONE" and
+            .new_stack.garden.retroactive_isolation_claim == false and
+            .new_stack.liminalos.airbnb_defect_confirmation_authority == false and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.external_submission == false and
+            .authority.deployment == false and
+            .authority.merge == false
+          ' "$result" >/dev/null
+          find reports -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > reports/SHA256SUMS.txt
+          cat reports/comparison/comparison.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload exact comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airbnb-garden-liminalos-comparison-${{ github.run_id }}
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14
