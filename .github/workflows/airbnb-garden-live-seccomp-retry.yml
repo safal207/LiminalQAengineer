@@ -7,6 +7,11 @@ on:
       - agent/airbnb-garden-liminalos-comparison-v0-1
     paths:
       - .github/workflows/airbnb-garden-live-seccomp-retry.yml
+  pull_request:
+    branches:
+      - agent/airbnb-currency-history-lotus-result-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-live-seccomp-retry.yml
 
 permissions:
   contents: read
@@ -71,6 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           build_root="$RUNNER_TEMP/GardenLiminal-live-retry"
+          rm -rf "$build_root"
           cp -a vendor/GardenLiminal "$build_root"
           cd "$build_root"
           cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/garden-live-retry/cargo-build.log"
