@@ -4,6 +4,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,6 +80,15 @@ class LotusCaptureGateTests(unittest.TestCase):
             self.assertTrue(result.ready_for_review)
             self.assertFalse(result.confirmed_defect)
 
+    def test_authenticated_capture_is_rejected(self) -> None:
+        """The public capture profile must reject authenticated evidence."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture = self._executed_capture(root)
+            capture["environment"]["authenticated"] = True
+            with self.assertRaisesRegex(gate.CaptureError, "must remain false"):
+                gate.validate_capture(self.spec, capture, root)
+
     def test_reused_context_is_rejected(self) -> None:
         """Two attempt IDs cannot reuse one browser context."""
         with tempfile.TemporaryDirectory() as directory:
@@ -89,14 +99,26 @@ class LotusCaptureGateTests(unittest.TestCase):
                 gate.validate_capture(self.spec, capture, root)
 
     def test_mismatched_fingerprints_stay_f2(self) -> None:
-        """Different inconsistency classes cannot be promoted as one reproduction."""
+        """Different derived inconsistency classes cannot become one reproduction."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             capture = self._executed_capture(root)
+            capture["attempts"][1]["state_after"]["display_currency"] = "TRY"
             capture["attempts"][1]["state_after"]["display_total"] = "19000"
+            self._rewrite_state_bundles(root, capture)
             result = gate.validate_capture(self.spec, capture, root)
             self.assertEqual(result.evidence_grade, "F2")
             self.assertFalse(result.confirmed_defect)
+
+    def test_self_declared_inconsistency_requires_visible_state_support(self) -> None:
+        """A declaration alone cannot promote an attempt toward F3."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture = self._executed_capture(root)
+            capture["attempts"][0]["state_after"]["display_total"] = "19000"
+            self._rewrite_state_bundles(root, capture)
+            with self.assertRaisesRegex(gate.CaptureError, "not supported by visible state"):
+                gate.validate_capture(self.spec, capture, root)
 
     def test_non_string_timestamp_is_rejected(self) -> None:
         """Missing or non-string timestamps must become contract errors."""
@@ -153,14 +175,74 @@ class LotusCaptureGateTests(unittest.TestCase):
             with self.assertRaisesRegex(gate.CaptureError, "SHA mismatch"):
                 gate.validate_capture(self.spec, capture, root)
 
-    def _executed_capture(self, root: Path) -> dict:
-        """Create a complete two-context capture fixture with local artifacts."""
-        artifacts = []
-        for role in sorted(gate.REQUIRED_ARTIFACT_ROLES):
-            path = root / f"{role}.txt"
-            path.write_text(f"redacted evidence for {role}\n", encoding="utf-8")
-            artifacts.append({"role": role, "path": path.name, "sha256": digest(path)})
+    def test_missing_attempt_zip_member_is_rejected(self) -> None:
+        """A shared bundle cannot stand in for missing per-attempt evidence."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture = self._executed_capture(root)
+            before_zip = root / "screenshots-before.zip"
+            with zipfile.ZipFile(before_zip, "w") as archive:
+                archive.writestr("attempt-1/before.png", b"only-one-attempt")
+            self._refresh_artifact_digest(capture, "screenshot_before", before_zip)
+            with self.assertRaisesRegex(gate.CaptureError, "attempt members mismatch"):
+                gate.validate_capture(self.spec, capture, root)
 
+    def test_trace_context_must_bind_to_declared_attempt(self) -> None:
+        """A unique context_id must also be present in that attempt's trace."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture = self._executed_capture(root)
+            trace_path = root / "transitions.ttrace.jsonl"
+            records = [json.loads(line) for line in trace_path.read_text().splitlines()]
+            records[0]["context_id"] = "other-context"
+            trace_path.write_text(
+                "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+                encoding="utf-8",
+            )
+            self._refresh_artifact_digest(capture, "transition_trace", trace_path)
+            with self.assertRaisesRegex(gate.CaptureError, "trace context_id mismatch"):
+                gate.validate_capture(self.spec, capture, root)
+
+    def test_state_bundle_must_match_capture_attempt(self) -> None:
+        """State JSON must bind the digest to the exact attempt-level state."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            capture = self._executed_capture(root)
+            state_path = root / "states-before.json"
+            states = json.loads(state_path.read_text())
+            states[0]["display_total"] = "tampered"
+            state_path.write_text(json.dumps(states), encoding="utf-8")
+            self._refresh_artifact_digest(capture, "state_before", state_path)
+            with self.assertRaisesRegex(gate.CaptureError, "state_before artifact mismatch"):
+                gate.validate_capture(self.spec, capture, root)
+
+    def _refresh_artifact_digest(
+        self, capture: dict, role: str, path: Path
+    ) -> None:
+        for artifact in capture["artifacts"]:
+            if artifact["role"] == role:
+                artifact["sha256"] = digest(path)
+                return
+        self.fail(f"missing artifact role {role}")
+
+    def _rewrite_state_bundles(self, root: Path, capture: dict) -> None:
+        before = [
+            {"attempt_id": attempt["attempt_id"], **attempt["state_before"]}
+            for attempt in capture["attempts"]
+        ]
+        after = [
+            {"attempt_id": attempt["attempt_id"], **attempt["state_after"]}
+            for attempt in capture["attempts"]
+        ]
+        before_path = root / "states-before.json"
+        after_path = root / "states-after.json"
+        before_path.write_text(json.dumps(before), encoding="utf-8")
+        after_path.write_text(json.dumps(after), encoding="utf-8")
+        self._refresh_artifact_digest(capture, "state_before", before_path)
+        self._refresh_artifact_digest(capture, "state_after", after_path)
+
+    def _executed_capture(self, root: Path) -> dict:
+        """Create a complete two-context capture fixture with bound bundle members."""
         attempts = [
             {
                 "attempt_id": "attempt-1",
@@ -193,6 +275,94 @@ class LotusCaptureGateTests(unittest.TestCase):
                 },
             },
         ]
+
+        before_zip = root / "screenshots-before.zip"
+        after_zip = root / "screenshots-after.zip"
+        network_zip = root / "network-archives.zip"
+        with zipfile.ZipFile(before_zip, "w") as archive:
+            for attempt in attempts:
+                archive.writestr(
+                    f"{attempt['attempt_id']}/before.png",
+                    f"before-{attempt['attempt_id']}".encode(),
+                )
+        with zipfile.ZipFile(after_zip, "w") as archive:
+            for attempt in attempts:
+                archive.writestr(
+                    f"{attempt['attempt_id']}/after_currency.png",
+                    f"after-currency-{attempt['attempt_id']}".encode(),
+                )
+                archive.writestr(
+                    f"{attempt['attempt_id']}/after_history.png",
+                    f"after-history-{attempt['attempt_id']}".encode(),
+                )
+        with zipfile.ZipFile(network_zip, "w") as archive:
+            for attempt in attempts:
+                archive.writestr(
+                    f"{attempt['attempt_id']}/network.har",
+                    json.dumps({"attempt_id": attempt["attempt_id"]}),
+                )
+
+        before_states_path = root / "states-before.json"
+        after_states_path = root / "states-after.json"
+        before_states_path.write_text(
+            json.dumps(
+                [
+                    {"attempt_id": attempt["attempt_id"], **attempt["state_before"]}
+                    for attempt in attempts
+                ]
+            ),
+            encoding="utf-8",
+        )
+        after_states_path.write_text(
+            json.dumps(
+                [
+                    {"attempt_id": attempt["attempt_id"], **attempt["state_after"]}
+                    for attempt in attempts
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        trace_path = root / "transitions.ttrace.jsonl"
+        trace_records = []
+        for attempt in attempts:
+            attempt_id = attempt["attempt_id"]
+            trace_records.extend(
+                [
+                    {
+                        "id": f"{attempt_id}-sense",
+                        "type": "sense",
+                        "attempt_id": attempt_id,
+                        "context_id": attempt["context_id"],
+                    },
+                    {
+                        "id": f"{attempt_id}-transition",
+                        "type": "transition",
+                        "attempt_id": attempt_id,
+                    },
+                    {
+                        "id": f"{attempt_id}-commit",
+                        "type": "commit",
+                        "attempt_id": attempt_id,
+                    },
+                ]
+            )
+        trace_path.write_text(
+            "".join(json.dumps(record, sort_keys=True) + "\n" for record in trace_records),
+            encoding="utf-8",
+        )
+
+        artifacts = []
+        for role, path in (
+            ("screenshot_before", before_zip),
+            ("screenshot_after", after_zip),
+            ("network_archive", network_zip),
+            ("state_before", before_states_path),
+            ("state_after", after_states_path),
+            ("transition_trace", trace_path),
+        ):
+            artifacts.append({"role": role, "path": path.name, "sha256": digest(path)})
+
         return {
             "capture_version": "lqa-lotus-browser-capture/0.1",
             "run_id": "ABNB-RUN-002",
