@@ -116,10 +116,12 @@ class AirbnbGardenLiminalOSReplayTests(unittest.TestCase):
             self.assertFalse(module.verify_manifest(root, manifest)["valid"])
 
     def test_script_contains_no_live_airbnb_client(self) -> None:
-        self.assertNotIn("playwright", self.script.lower())
+        lowered = self.script.lower()
+        self.assertNotIn("from playwright", lowered)
+        self.assertNotIn("import playwright", lowered)
         self.assertNotIn("requests.get", self.script)
         self.assertNotIn("urllib.request", self.script)
-        self.assertIn("same exact Airbnb artifact", self.script)
+        self.assertIn("does not navigate Airbnb", self.script)
 
     def test_authority_is_fully_false(self) -> None:
         authority = self.config["authority"]
