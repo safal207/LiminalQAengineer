@@ -7,6 +7,12 @@ on:
     paths:
       - scripts/airbnb_readonly_probe.py
       - .github/workflows/airbnb-readonly-docker-probe.yml
+  pull_request:
+    branches:
+      - agent/lotus-evidence-vertical-slice
+    paths:
+      - scripts/airbnb_readonly_probe.py
+      - .github/workflows/airbnb-readonly-docker-probe.yml
   workflow_dispatch:
 
 permissions:
