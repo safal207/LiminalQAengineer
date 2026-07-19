@@ -94,7 +94,12 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          cd vendor/GardenLiminal
+          garden_build_root="$RUNNER_TEMP/GardenLiminal"
+          rm -rf "$garden_build_root"
+          cp -a "$GITHUB_WORKSPACE/vendor/GardenLiminal" "$garden_build_root"
+          test "$(git -C "$garden_build_root" rev-parse HEAD)" = "$GARDEN_SHA"
+          echo "GARDEN_BUILD_ROOT=$garden_build_root" >> "$GITHUB_ENV"
+          cd "$garden_build_root"
 
           set +e
           cargo build --release > "$GITHUB_WORKSPACE/reports/garden/build.log" 2>&1
@@ -161,7 +166,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          binary="$GITHUB_WORKSPACE/vendor/GardenLiminal/target/release/gl"
+          binary="$GARDEN_BUILD_ROOT/target/release/gl"
           seed="$GITHUB_WORKSPACE/reports/garden/abnb-replay-seed.yaml"
 
           if [ -x "$binary" ]; then
