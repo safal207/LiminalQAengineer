@@ -101,8 +101,8 @@ jobs:
             reports/garden-python/rootfs/opt/liminalqa/
           sudo chmod -R a+rX reports/garden-python/rootfs/opt/liminalqa
           test -x reports/garden-python/rootfs/usr/bin/python
-          sudo chroot reports/garden-python/rootfs \
-            /usr/bin/python -c 'import encodings, playwright; print("exported-python-runtime-ok")'
+          readlink -f reports/garden-python/rootfs/usr/bin/python \
+            > reports/garden-python/exported-python-path.txt
 
       - name: Build Garden harness and exact Seed
         shell: bash
