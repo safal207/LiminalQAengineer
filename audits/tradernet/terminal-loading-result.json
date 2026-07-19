@@ -1,0 +1,140 @@
+{
+  "schema_version": "liminalqa-terminal-loading-causal-result-v2",
+  "target_url": "https://tradernet.ru/terminal",
+  "overall_verdict": "WARN",
+  "confidence": "MEDIUM_FOR_REPRODUCED_ASSETS_LOW_FOR_LATENCY",
+  "confirmed_findings": [
+    {
+      "id": "mobile-hidden-onboarding-image",
+      "verdict": "CONFIRMED",
+      "severity": "MEDIUM_PERFORMANCE",
+      "profile": "mobile_4g",
+      "resource": "https://tradernet.ru/images/2022/authorization/onboarding.light.2x.png",
+      "http_status": 200,
+      "encoded_bytes": 346800,
+      "natural_size": "870x870",
+      "rendered_size": "0x0",
+      "visible": false,
+      "in_viewport": false,
+      "share_of_total_mobile_transfer_percent": 12.84,
+      "causal_reading": "The responsive mobile login layout gives the illustration zero rendered size, but the browser still selects and downloads the complete 2x resource."
+    },
+    {
+      "id": "missing-onboarding-image-request",
+      "verdict": "CONFIRMED",
+      "severity": "LOW",
+      "profiles": [
+        "desktop_broadband",
+        "mobile_4g"
+      ],
+      "resource": "https://tradernet.ru/images/2022/authorization/onboarding.png",
+      "http_status": 404,
+      "user_visible_breakage": false,
+      "causal_reading": "Both public login navigations issue a first-party request for a missing image while the responsive light image still renders."
+    }
+  ],
+  "observed_loading": {
+    "desktop_broadband": {
+      "http_status": 200,
+      "final_url": "https://tradernet.ru/terminal?site_lang=ru",
+      "state": "AUTH_WALL",
+      "first_useful_ui_ms": 3216,
+      "fcp_ms": 3196,
+      "lcp_ms": 3620,
+      "load_event_ms": 4357.8,
+      "total_requests": 72,
+      "total_encoded_bytes": 2463450,
+      "script_requests": 55,
+      "script_encoded_bytes": 1580814,
+      "long_task_count": 8,
+      "long_task_total_ms": 1043
+    },
+    "mobile_4g": {
+      "http_status": 200,
+      "final_url": "https://tradernet.ru/terminal?site_lang=ru",
+      "state": "AUTH_WALL",
+      "first_useful_ui_ms": 3428,
+      "fcp_ms": 3428,
+      "lcp_ms": 3692,
+      "load_event_ms": 6699.3,
+      "total_requests": 73,
+      "total_encoded_bytes": 2700887,
+      "script_requests": 56,
+      "script_encoded_bytes": 1579829,
+      "long_task_count": 4,
+      "long_task_total_ms": 562
+    }
+  },
+  "not_defects": [
+    {
+      "id": "unauthenticated-login-wall",
+      "reason": "The public terminal entry consistently returns an authentication page on both profiles; no device routing divergence was observed."
+    },
+    {
+      "id": "no-market-websocket-before-authentication",
+      "reason": "No trading WebSocket connection is expected on the unauthenticated login page."
+    },
+    {
+      "id": "aborted-google-analytics-collect",
+      "reason": "The aborted third-party analytics request is not a first-party terminal dependency."
+    }
+  ],
+  "candidates_requiring_follow_up": [
+    {
+      "id": "desktop-require-is-not-defined",
+      "signal": "ReferenceError: require is not defined",
+      "profile": "desktop_broadband",
+      "reproduced_in_fresh_run": true,
+      "current_user_impact": "NOT_ESTABLISHED",
+      "next_experiment": "Repeat three cold desktop runs and correlate the exception with auth widget initialization and user interactions."
+    },
+    {
+      "id": "heavy-auth-bootstrap",
+      "signal": "Approximately 1.58 MB of JavaScript across 55-56 script requests for the public login state.",
+      "current_user_impact": "DIRECTIONAL_LATENCY_SIGNAL",
+      "next_experiment": "Run three same-profile cold loads and attribute long tasks to exact bundles before filing a stable performance defect."
+    },
+    {
+      "id": "blocked-yandex-websocket",
+      "signal": "CSP blocks wss://mc.yandex.com/solid.ws",
+      "current_user_impact": "LIKELY_TELEMETRY_ONLY",
+      "next_experiment": "Confirm whether any product feature depends on the blocked connection before reporting."
+    }
+  ],
+  "evidence": [
+    {
+      "run_id": 29686656138,
+      "head_sha": "57f5b11039eaab422f0727cb501750c896ae9892",
+      "artifact": "tradernet-public-terminal-loading-29686656138",
+      "artifact_sha256": "1417ea68a65edf369acc4f6888f5abab74ee19058fd087e651fef884d1d11d0e",
+      "result_sha256": "3729be3ddf837a00f03b7c7fd4c011f48795cbabe3dd97581d68ed6a56bedc84"
+    },
+    {
+      "run_id": 29686656131,
+      "head_sha": "57f5b11039eaab422f0727cb501750c896ae9892",
+      "artifact": "tradernet-terminal-mobile-image-29686656131",
+      "artifact_sha256": "89f6f576f7413af3882baa4df0f0d175847f1120b17468afa53aba7818d34ec8",
+      "result_sha256": "b47e0e6d086bb56a70c01a0335084fc9c83dd656d4185e5d105a520cc28ae245"
+    }
+  ],
+  "truth_boundary": [
+    "The two asset findings are reproduced observations on public unauthenticated pages.",
+    "One cold loading run per profile remains directional and is not a stable latency percentile.",
+    "The desktop exception is not promoted to a defect without user-impact evidence.",
+    "Third-party telemetry failures are not classified as first-party product failures."
+  ],
+  "safety_boundary": {
+    "public_page_only": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "portfolio_access": false,
+    "personal_data_access": false,
+    "financial_operations": false,
+    "order_entry": false,
+    "market_depth_subscription": false,
+    "form_submission": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "schema_version": "liminalqa-public-terminal-loading-v1",
+  "name": "Tradernet public terminal loading audit",
+  "target_url": "https://tradernet.ru/terminal",
+  "observation_ms": 30000,
+  "profiles": [
+    {
+      "id": "desktop_broadband",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "network": {
+        "latency_ms": 40,
+        "download_bytes_per_second": 1250000,
+        "upload_bytes_per_second": 625000,
+        "connection_type": "ethernet"
+      },
+      "cpu_throttling_rate": 1
+    },
+    {
+      "id": "mobile_4g",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {
+        "width": 412,
+        "height": 823,
+        "deviceScaleFactor": 2.625,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "network": {
+        "latency_ms": 85,
+        "download_bytes_per_second": 500000,
+        "upload_bytes_per_second": 187500,
+        "connection_type": "cellular4g"
+      },
+      "cpu_throttling_rate": 2
+    }
+  ],
+  "boundaries": {
+    "public_page_only": true,
+    "one_navigation_per_profile": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "portfolio_access": false,
+    "personal_data_access": false,
+    "financial_operations": false,
+    "order_entry": false,
+    "market_depth_subscription": false,
+    "form_submission": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false
+  },
+  "limitations": [
+    "The audit observes only resources and connections naturally initiated by the public terminal page.",
+    "An authentication wall is classified as product behavior, not automatically as a defect.",
+    "Market-data liveness is not inferred outside an active trading session.",
+    "One cold run per profile is diagnostic evidence and must be repeated before making a stable latency claim."
+  ]
+}
