@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GARDEN_SHA: 6c30422d0492ec312a35624322f90a7761419655
+  GARDEN_SHA: 4fd36bc2748c6f5c48b3f6967072d09ee478699f
 
 jobs:
   lifecycle:
@@ -228,7 +228,7 @@ jobs:
 
           result = {
               'schema_version': 'garden-layered-lifecycle-capability-v0.1',
-              'garden_commit': '6c30422d0492ec312a35624322f90a7761419655',
+              'garden_commit': '4fd36bc2748c6f5c48b3f6967072d09ee478699f',
               'classification': (
                   'LAYERED_ISOLATION_CONFIRMED'
                   if confirmed
