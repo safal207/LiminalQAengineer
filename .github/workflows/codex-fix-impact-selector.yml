@@ -1,17 +1,16 @@
 name: Codex fix Impact Selector
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/impact-selector-mvp
-    paths:
-      - .github/workflows/codex-fix-impact-selector.yml
+      - main
 
 permissions:
   contents: write
 
 jobs:
   fix:
+    if: github.head_ref == 'agent/impact-selector-mvp'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +19,8 @@ jobs:
           fetch-depth: 0
 
       - name: Apply fail-closed rule hardening
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
 
           path = Path("liminalqa-runner/src/impact.rs")
@@ -78,6 +77,7 @@ jobs:
               raise SystemExit("test module closing brace not found")
           text = text[:index] + test + text[index:]
           path.write_text(text, encoding="utf-8")
+          PY
 
       - name: Format and validate
         run: |
