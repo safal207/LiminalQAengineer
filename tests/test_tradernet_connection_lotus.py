@@ -61,6 +61,26 @@ class TradernetConnectionLotusContractTest(unittest.TestCase):
             reproduction["identical_response_sha256"],
             "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         )
+        self.assertEqual(
+            reproduction["encoded_transfer_bytes_per_request_range"], [3463, 3465]
+        )
+
+    def test_settings_post_remains_observation_not_defect(self) -> None:
+        packet = load_packet()
+        finding = next(
+            item
+            for item in packet["findings"]
+            if item["id"] == "TRADERNET-PUBLIC-SETTINGS-POST-001"
+        )
+        observed = finding["observed_only"]
+
+        self.assertEqual(finding["status"], "NEEDS_EVIDENCE")
+        self.assertEqual(finding["severity"], "UNASSIGNED")
+        self.assertEqual(observed["matching_rounds"], 3)
+        self.assertEqual(observed["request_body_bytes_min"], 33187)
+        self.assertEqual(observed["request_body_bytes_max"], 33404)
+        self.assertEqual(observed["http_status"], 200)
+        self.assertEqual(observed["response_bytes"], 1)
 
     def test_lotus_and_authority_boundaries_remain_bounded(self) -> None:
         packet = load_packet()
@@ -99,9 +119,9 @@ class TradernetConnectionLotusContractTest(unittest.TestCase):
             evidence["connection-lifecycle"],
             {
                 "id": "connection-lifecycle",
-                "run_id": 29666251111,
-                "head_sha": "4d58d54db49a8ef43260c7f5c4a2ac683c8e865f",
-                "artifact_sha256": "65fc7473982cca5ea2071b7219390b70824fb3613b8f1d59e32c918f71d7ca67",
+                "run_id": 29687311888,
+                "head_sha": "89a13d3e98f811f07f56543265ca1a8399f79c65",
+                "artifact_sha256": "9641cb67da53d947cf107d6ba0cb37eec2ee3fcc7f79c8f734a0d6948f1c953d",
                 "result": "NO_FIRST_PARTY_WEBSOCKET_OBSERVED",
             },
         )
@@ -109,9 +129,9 @@ class TradernetConnectionLotusContractTest(unittest.TestCase):
             evidence["duplicate-settings"],
             {
                 "id": "duplicate-settings",
-                "run_id": 29666496587,
-                "head_sha": "6d22575cf4cca307508614d1eb6c6bfd3e5ee62d",
-                "artifact_sha256": "20f5d9fd464b63a1f65a54636129ccdb7c16b0a801ea9557efc1791a39b55088",
+                "run_id": 29687311871,
+                "head_sha": "89a13d3e98f811f07f56543265ca1a8399f79c65",
+                "artifact_sha256": "0b7fb1232f828e72870951ebb44c5b4b6953a84d7fe5e3b93ab9a1b38c94ecb8",
                 "result": "CONFIRMED_REDUNDANT_DUPLICATE_REQUEST",
             },
         )
