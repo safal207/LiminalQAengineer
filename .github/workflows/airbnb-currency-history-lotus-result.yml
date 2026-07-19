@@ -1,0 +1,44 @@
+name: Airbnb Currency History Lotus Result
+
+on:
+  push:
+    branches:
+      - agent/airbnb-currency-history-lotus-result-v0-1
+    paths:
+      - audits/lotus/airbnb/airbnb-currency-history-result-v0.1.json
+      - docs/audits/AIRBNB_CURRENCY_HISTORY_LOTUS_RESULT.md
+      - tests/test_airbnb_currency_history_lotus.py
+      - .github/workflows/airbnb-currency-history-lotus-result.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - audits/lotus/airbnb/airbnb-currency-history-result-v0.1.json
+      - docs/audits/AIRBNB_CURRENCY_HISTORY_LOTUS_RESULT.md
+      - tests/test_airbnb_currency_history_lotus.py
+      - .github/workflows/airbnb-currency-history-lotus-result.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-result:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact branch state
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run result contract tests
+        run: python -m unittest tests/test_airbnb_currency_history_lotus.py -v
+
+      - name: Print packet identity
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          path = Path('audits/lotus/airbnb/airbnb-currency-history-result-v0.1.json')
+          print('packet_sha256=' + hashlib.sha256(path.read_bytes()).hexdigest())
+          PY
