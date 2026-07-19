@@ -9,7 +9,7 @@ on:
       - scripts/codex_pr54_hardening.py
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   harden:
@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: agent/tradernet-lighthouse-audit
-          persist-credentials: false
+          fetch-depth: 0
 
       - name: Apply verified Codex fixes
         shell: bash
@@ -39,29 +39,22 @@ jobs:
           node --check scripts/tradernet_hero_preload_experiment_cdp.mjs
           python3 -m json.tool audits/lighthouse/tradernet/domains.json >/dev/null
 
-      - name: Package validated files
+      - name: Commit validated non-workflow files
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/pr54-hardened
-          while IFS= read -r file; do
-            mkdir -p "/tmp/pr54-hardened/$(dirname "${file}")"
-            cp "${file}" "/tmp/pr54-hardened/${file}"
-          done <<'FILES'
-          .github/workflows/tradernet-domain-portfolio.yml
-          .github/workflows/tradernet-lighthouse.yml
-          .github/workflows/tradernet-hero-preload-counterfactual.yml
-          .github/workflows/tradernet-hero-preload-desktop-counterfactual.yml
-          scripts/lighthouse_to_liminalqa.py
-          scripts/tradernet_desktop_hero_result.py
-          scripts/tradernet_hero_preload_experiment_cdp.mjs
-          docs/audits/TRADERNET_LIGHTHOUSE.md
-          FILES
-
-      - name: Upload validated hardening artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codex-pr54-hardened-files-${{ github.run_id }}
-          path: /tmp/pr54-hardened/
-          if-no-files-found: error
-          retention-days: 7
+          git checkout HEAD -- \
+            .github/workflows/tradernet-domain-portfolio.yml \
+            .github/workflows/tradernet-lighthouse.yml \
+            .github/workflows/tradernet-hero-preload-counterfactual.yml \
+            .github/workflows/tradernet-hero-preload-desktop-counterfactual.yml
+          git config user.name "Codex"
+          git config user.email "codex@users.noreply.github.com"
+          git rm scripts/codex_pr54_hardening.py
+          git add \
+            scripts/lighthouse_to_liminalqa.py \
+            scripts/tradernet_desktop_hero_result.py \
+            scripts/tradernet_hero_preload_experiment_cdp.mjs \
+            docs/audits/TRADERNET_LIGHTHOUSE.md
+          git commit -m "fix: harden Tradernet audit evidence contracts"
+          git push origin HEAD:agent/tradernet-lighthouse-audit
