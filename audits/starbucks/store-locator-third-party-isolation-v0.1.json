@@ -1,0 +1,64 @@
+{
+  "schema_version": "liminalqa-starbucks-store-locator-host-isolation-v0.1",
+  "target": {
+    "id": "store-locator-mobile",
+    "url": "https://www.starbucks.com/store-locator",
+    "expected_terms": ["store", "location"]
+  },
+  "profile": {
+    "id": "mobile",
+    "user_agent": "Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36",
+    "viewport": {"width": 390, "height": 844, "deviceScaleFactor": 1, "isMobile": true, "hasTouch": true}
+  },
+  "inventory_rounds": 3,
+  "isolation_rounds": 3,
+  "max_candidate_hosts": 8,
+  "minimum_inventory_presence_rounds": 2,
+  "timings_ms": {"settle_after_domcontentloaded": 4500},
+  "thresholds": {
+    "meaningful_main_landmarks": 1,
+    "meaningful_visible_inputs": 1,
+    "supported_failure_rounds": 3,
+    "neutral_rounds": 3
+  },
+  "boundaries": {
+    "public_page_only": true,
+    "browser_navigation_only": true,
+    "one_active_page_at_a_time": true,
+    "sequential_contexts_only": true,
+    "cache_disabled": true,
+    "service_workers_bypassed": true,
+    "authentication": false,
+    "account_creation": false,
+    "form_submission": false,
+    "orders_or_payments": false,
+    "gift_card_balance_check": false,
+    "rewards_mutation": false,
+    "direct_application_api_calls": false,
+    "credential_validation": false,
+    "token_requests": false,
+    "crawling": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "raw_request_headers_storage": false,
+    "raw_response_headers_storage": false,
+    "raw_request_body_storage": false,
+    "raw_response_body_storage": false,
+    "cookies_storage": false,
+    "web_storage_capture": false,
+    "form_value_storage": false,
+    "console_text_storage": false,
+    "page_error_text_storage": false
+  },
+  "authority": {
+    "mode": "audit_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}
