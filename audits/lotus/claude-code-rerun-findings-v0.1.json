@@ -1,0 +1,97 @@
+{
+  "schema_version": "liminalqa-lotus-findings-v0.1",
+  "packet_id": "lotus-qa-claude-code-rerun-2026-07-19-v0.1",
+  "repository": "safal207/LiminalQAengineer",
+  "source_branch": "agent/claude-code-exact-rerun-v0-1",
+  "scope": "passive exact Claude Code rerun evidence from workflow run 29666017830; supersedes the prior NO_LCP result only as current measurement state",
+  "findings": [
+    {
+      "id": "CLAUDE-CODE-DEVTOOLS-PERFORMANCE-001",
+      "title": "Claude Code has repeatable mobile-lab performance delay under exact DevTools throttling",
+      "domain": "claude",
+      "surface": "https://claude.com/product/claude-code",
+      "claim_kind": "observation",
+      "claim": "Across three exact DevTools-throttled mobile runs, the Claude Code product page produced valid LCP in 3/3 runs with median Performance 35, median LCP 7.30 seconds, and median TBT 2.29 seconds.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "observed",
+        "exact_head_sha": "fab4cd94d237628b57abac6e74049c1c13c57756",
+        "artifact_sha256": "f281d9d0787d0e5d9565d9f42d7677a586f739a8f89cd1ae556d9a1f954d1682",
+        "result_sha256": "79e1089146aa66a2beef0e8daf069191424ff211498877db9bc0e9f9cc1dcaf9",
+        "source_path": "workflow artifact claude-code-exact-rerun-29666017830/claude-code-exact-rerun-result.json",
+        "supersedes_finding_id": "CLAUDE-CODE-PERFORMANCE-ZERO-001",
+        "measurement": {
+          "profile": "mobile 390x844 DPR1, DevTools throttling, RTT 150 ms, throughput 1638.4 Kbps, CPU slowdown 4x",
+          "runs": 3,
+          "valid_lcp_runs": 3,
+          "no_lcp_runs": 0,
+          "runtime_error_runs": 0,
+          "median_performance_score": 35,
+          "median_lcp_ms": 7298.523,
+          "median_tbt_ms": 2294.328,
+          "lcp_range_ms": [
+            6462.916,
+            7588.306
+          ]
+        },
+        "run_metrics": [
+          {
+            "run": 1,
+            "performance_score": 32,
+            "fcp_ms": 6462.916,
+            "lcp_ms": 6462.916,
+            "tbt_ms": 3427.375,
+            "raw_report_sha256": "dd89a3552ce87aa73ce0138bdf8f63809d36b11b04ecd8a9efdfb443048dab8d"
+          },
+          {
+            "run": 2,
+            "performance_score": 35,
+            "fcp_ms": 5590.291,
+            "lcp_ms": 7588.306,
+            "tbt_ms": 2277.130999999992,
+            "raw_report_sha256": "d0a85dcfc14a770b1e7db911046d1c9663b32143a6c59400df16c0408e20c7e3"
+          },
+          {
+            "run": 3,
+            "performance_score": 35,
+            "fcp_ms": 5695.692,
+            "lcp_ms": 7298.523,
+            "tbt_ms": 2294.3279999999986,
+            "raw_report_sha256": "075c509b670a03c25e36db720a103b94e5b492d8c149bec51994443cad89359d"
+          }
+        ]
+      },
+      "causal_memory": {
+        "canonical_id": "claude.product.claude-code.mobile-lab-performance",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "Claude Code public product page",
+        "state_scope": "three exact DevTools-throttled mobile runs; laboratory evidence, not field telemetry",
+        "time_scope": "workflow runs 29665084768 and 29666017830",
+        "recurrence": "repeated",
+        "human_review": "pending",
+        "supersedes_canonical_id": "claude.product.claude-code.lighthouse-no-lcp"
+      },
+      "user_control": {
+        "evidence_level": "inferred",
+        "state_visibility": "degraded",
+        "timeliness": "degraded",
+        "action_reversibility": "n_a",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "A visitor waits roughly 6.46 to 7.59 seconds for the largest visible content in this bounded profile, without a clear loading explanation."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Create a dedicated Claude Code public-page performance budget, reduce main-thread blocking, and prioritize the stable LCP path identified by exact trace inspection.",
+      "regression_test": "Repeat three exact DevTools-throttled mobile runs and require 3/3 valid LCP measurements with median LCP and TBT below the agreed budgets.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_RECURRING",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    }
+  ]
+}
