@@ -49,9 +49,15 @@ jobs:
             .boundaries.one_navigation_per_profile == true and
             .boundaries.authenticated_testing == false and
             .boundaries.direct_api_testing == false and
+            .boundaries.portfolio_access == false and
+            .boundaries.personal_data_access == false and
             .boundaries.form_submission == false and
             .boundaries.financial_operations == false and
-            .boundaries.load_testing == false
+            .boundaries.order_entry == false and
+            .boundaries.market_depth_subscription == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false
           ' audits/tradernet/terminal-loading-public.json >/dev/null
 
       - name: Install pinned browser driver
