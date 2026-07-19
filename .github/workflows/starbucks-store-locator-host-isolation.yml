@@ -1,0 +1,140 @@
+name: Starbucks Store Locator Third-Party Host Isolation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/starbucks-store-locator-host-isolation-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-host-isolation.yml
+      - audits/starbucks/store-locator-third-party-isolation-v0.1.json
+      - scripts/starbucks_store_locator_host_isolation.mjs
+      - tests/test_starbucks_store_locator_host_isolation_contract.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_HOST_ISOLATION.md
+  pull_request:
+    branches:
+      - agent/starbucks-route-resilience-matrix-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-host-isolation.yml
+      - audits/starbucks/store-locator-third-party-isolation-v0.1.json
+      - scripts/starbucks_store_locator_host_isolation.mjs
+      - tests/test_starbucks_store_locator_host_isolation_contract.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_HOST_ISOLATION.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starbucks-store-locator-host-isolation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolate:
+    name: Inventory and isolate third-party script hosts
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate experiment and safety boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/starbucks/store-locator-third-party-isolation-v0.1.json"
+          python3 -m json.tool "${config}" >/dev/null
+          python3 -m unittest tests/test_starbucks_store_locator_host_isolation_contract.py -v
+          jq -e '
+            .target.url == "https://www.starbucks.com/store-locator" and
+            .profile.id == "mobile" and
+            .inventory_rounds == 3 and
+            .isolation_rounds == 3 and
+            .max_candidate_hosts <= 8 and
+            .minimum_inventory_presence_rounds >= 2 and
+            .boundaries.public_page_only == true and
+            .boundaries.browser_navigation_only == true and
+            .boundaries.sequential_contexts_only == true and
+            .boundaries.cache_disabled == true and
+            .boundaries.service_workers_bypassed == true and
+            .boundaries.authentication == false and
+            .boundaries.form_submission == false and
+            .boundaries.direct_application_api_calls == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.raw_request_headers_storage == false and
+            .boundaries.raw_response_headers_storage == false and
+            .boundaries.raw_request_body_storage == false and
+            .boundaries.raw_response_body_storage == false and
+            .boundaries.cookies_storage == false and
+            .boundaries.web_storage_capture == false and
+            .boundaries.console_text_storage == false and
+            .authority.execution == false and
+            .authority.external_submission == false and
+            .authority.merge == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate probe and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/starbucks_store_locator_host_isolation.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run bounded host-isolation experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/starbucks-store-locator-host-isolation
+          node scripts/starbucks_store_locator_host_isolation.mjs \
+            --config audits/starbucks/store-locator-third-party-isolation-v0.1.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/starbucks-store-locator-host-isolation
+          cat reports/starbucks-store-locator-host-isolation/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate result shape, privacy and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          aggregate="reports/starbucks-store-locator-host-isolation/aggregate.json"
+          jq -e '
+            .schema_version == "liminalqa-starbucks-store-locator-host-isolation-result-v0.1" and
+            (.inventory.rounds | length) == 3 and
+            (.inventory.candidate_hosts | length) >= 1 and
+            (.inventory.candidate_hosts | length) <= 8 and
+            (.cells | length) == (.inventory.candidate_hosts | length) and
+            .total_navigations == (3 + ((.inventory.candidate_hosts | length) * 9)) and
+            .boundaries.authentication == false and
+            .boundaries.direct_application_api_calls == false and
+            .boundaries.raw_request_headers_storage == false and
+            .boundaries.raw_response_headers_storage == false and
+            .boundaries.raw_request_body_storage == false and
+            .boundaries.raw_response_body_storage == false and
+            .boundaries.cookies_storage == false and
+            .boundaries.web_storage_capture == false and
+            .boundaries.console_text_storage == false and
+            .authority.mode == "audit_only" and
+            .authority.execution == false and
+            .authority.external_submission == false and
+            .authority.merge == false
+          ' "${aggregate}" >/dev/null
+          ! grep -R -E 'authorization:|cookie:|set-cookie:|request_body|response_body|localStorage|sessionStorage' reports/starbucks-store-locator-host-isolation --exclude='*.png'
+          sha256sum "${aggregate}" reports/starbucks-store-locator-host-isolation/summary.md > reports/starbucks-store-locator-host-isolation/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starbucks-store-locator-host-isolation-${{ github.run_id }}
+          path: reports/starbucks-store-locator-host-isolation/
+          if-no-files-found: error
+          retention-days: 14
