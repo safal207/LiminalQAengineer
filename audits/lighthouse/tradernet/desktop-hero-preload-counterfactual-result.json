@@ -6,45 +6,67 @@
   "viewport": "1440x900",
   "exact_lcp_resource": "https://tradernet.ru/images/2022/invest/hero.light.1x.webp",
   "evidence": {
-    "workflow_run": 29662406306,
-    "exact_head": "4b7f2a1946987dcb62c8e8b4086a0728a3f38aac",
-    "artifact": "tradernet-desktop-hero-preload-counterfactual-29662406306",
-    "artifact_sha256": "2541c133fde90ef9722015ef85b769276016e9370d337a0a7837532f125fd142",
+    "workflow_run": 29685227556,
+    "exact_head": "c8c8708eedbe8130adfa71e25a448d4fd5484f6c",
+    "artifact": "tradernet-desktop-hero-preload-counterfactual-29685227556",
+    "artifact_sha256": "ba6c75465b7290d6e7be2b7f0fa0b3a85e72a8720c4e0732cf47f556d5be6b18",
+    "result_sha256": "3146db898650011c2cd0788cfda75a7258023976060c17c96696eb035d5cc3bf",
     "baseline_runs": 3,
-    "treatment_runs": 3
+    "treatment_runs": 3,
+    "treatment_exact_document_interceptions": [
+      1,
+      1,
+      1
+    ]
   },
   "verdict": "NO_ADDITIONAL_EFFECT",
   "confidence": "MEDIUM",
   "observed_facts": {
-    "baseline_hero_initiator_type": "link",
+    "baseline_hero_initiator_types": [
+      "link"
+    ],
     "baseline_medians": {
-      "hero_request_start_ms": 683.1,
-      "hero_response_end_ms": 1168.8,
-      "largest_contentful_paint_ms": 2284.0,
-      "first_contentful_paint_ms": 2284.0,
-      "hero_load_to_lcp_gap_ms": 1239.2,
-      "long_task_total_ms": 90.0,
+      "hero_request_start_ms": 748.6,
+      "hero_response_end_ms": 1138.1,
+      "largest_contentful_paint_ms": 2356.0,
+      "first_contentful_paint_ms": 2356.0,
+      "hero_load_to_lcp_gap_ms": 1244.8,
+      "long_task_total_ms": 89.0,
       "script_transfer_bytes": 1278079,
       "script_request_count": 55
     },
     "extra_preload_medians": {
-      "hero_request_start_ms": 772.0,
-      "hero_response_end_ms": 1227.2,
-      "largest_contentful_paint_ms": 2504.0,
-      "first_contentful_paint_ms": 2504.0,
-      "hero_load_to_lcp_gap_ms": 1296.8,
-      "long_task_total_ms": 96.0,
+      "hero_request_start_ms": 790.2,
+      "hero_response_end_ms": 1182.3,
+      "largest_contentful_paint_ms": 2448.0,
+      "first_contentful_paint_ms": 2448.0,
+      "hero_load_to_lcp_gap_ms": 1229.7,
+      "long_task_total_ms": 93.0,
       "script_transfer_bytes": 1278079,
       "script_request_count": 55
+    },
+    "effects": {
+      "hero_request_start_ms": 41.6,
+      "hero_response_end_ms": 44.2,
+      "largest_contentful_paint_ms": 92.0,
+      "first_contentful_paint_ms": 92.0,
+      "hero_load_to_lcp_gap_ms": -15.1,
+      "long_task_total_ms": 4.0,
+      "script_transfer_bytes": 0,
+      "script_request_count": 0
     }
   },
   "causal_reading": {
     "supported": [
-      "The desktop baseline already schedules the exact LCP image through a link resource hint.",
-      "Adding another preload does not materially advance the request or improve LCP.",
-      "The mobile late-discovery cause does not reproduce under this desktop profile."
+      "All three baseline runs scheduled the exact desktop LCP image with initiator type link.",
+      "All three treatment runs modified exactly one main document and preserved the exact LCP resource identity.",
+      "Adding another preload did not materially advance the request or improve LCP under this desktop profile."
     ],
-    "remaining_hypothesis": "The approximately 1.24 second gap between hero response completion and LCP is more consistent with render, style, visibility, or runtime timing than missing preload."
+    "not_supported": [
+      "Missing desktop preload as the dominant cause of the observed desktop LCP.",
+      "A claim that the additional preload harms production performance; the small unfavorable delta may be run-to-run noise."
+    ],
+    "remaining_hypothesis": "The median 1.245 second gap between hero response completion and LCP is more consistent with render, style, visibility, or runtime timing than missing preload."
   },
-  "boundary": "Public-page browser-local QA experiment only; no authentication, API calls, financial operations, fuzzing, load testing, or server-state changes."
+  "boundary": "Public-page browser-local QA experiment only; no authentication, API calls, financial operations, fuzzing, load testing, or server-state changes. Three alternating runs per variant provide directional evidence, not field-performance certainty."
 }
