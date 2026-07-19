@@ -16,13 +16,22 @@ The initial target is the public Tradernet website. This is a QA and usability a
 
 ## Allowed targets
 
-The policy currently permits only:
+The single-page workflow currently permits these exact choices:
 
 - `https://tradernet.ru/`
 - `https://tradernet.ru/ideas/`
 - `https://tradernet.ru/terminal`
 
-The workflow rejects non-HTTPS origins, custom ports, credentials, query strings, fragments, and paths outside the allowlist.
+The bounded portfolio workflow separately reads six exact targets from `audits/lighthouse/tradernet/domains.json`:
+
+- `https://tradernet.ru/`
+- `https://tradernet.com/`
+- `https://rc.tradernet.com/faq/13096-how-to-open-an-account-as-an-individual?site_lang=en`
+- `https://translate.tradernet.com/`
+- `https://tradernet.global/`
+- `https://tradernet.am/`
+
+The single-page validator rejects query strings and fragments. The portfolio accepts a query string only when it is part of an exact inventory URL; arbitrary origins, credentials, ports, paths, fragments, and parameters remain outside scope.
 
 ## Safety boundary
 

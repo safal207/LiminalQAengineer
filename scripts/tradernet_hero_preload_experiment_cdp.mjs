@@ -162,7 +162,7 @@ async function installPerformanceObservers(page) {
 }
 
 async function enableResponseStagePreload(client, targetUrl, heroUrl) {
-  const state = { fulfilled: 0, error: null };
+  const state = { fulfilled: 0, skippedTargetDocuments: 0, error: null };
   const target = new URL(targetUrl);
   await client.send("Fetch.enable", {
     patterns: [
@@ -177,7 +177,8 @@ async function enableResponseStagePreload(client, targetUrl, heroUrl) {
   client.on("Fetch.requestPaused", async (event) => {
     try {
       const isTarget = event.request.url === targetUrl && Number.isInteger(event.responseStatusCode);
-      if (!isTarget) {
+      if (!isTarget || state.fulfilled >= 1) {
+        if (isTarget) state.skippedTargetDocuments += 1;
         await client.send("Fetch.continueRequest", { requestId: event.requestId });
         return;
       }
@@ -446,6 +447,16 @@ async function main() {
         !Number.isFinite(run.metrics.hero_request_start_ms)
     );
     if (invalid.length > 0) throw new Error(`${variant} produced ${invalid.length} invalid runs`);
+    const wrongHeroIdentity = runs.filter(
+      (run) =>
+        run.metrics.lcp_entry?.url !== experiment.hero_url ||
+        run.metrics.hero_entry?.name !== experiment.hero_url
+    );
+    if (wrongHeroIdentity.length > 0) {
+      throw new Error(
+        `${variant} produced ${wrongHeroIdentity.length} runs where the configured hero was not both the timed resource and LCP resource`
+      );
+    }
     if (
       variant === "hero_preload" &&
       runs.some(

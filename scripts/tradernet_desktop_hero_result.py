@@ -77,8 +77,10 @@ def validate_runs(
         injection = run.get("injection", {})
         if injection.get("error"):
             raise ValueError(f"Treatment round {run.get('round')} injection failed")
-        if int(injection.get("fulfilled_documents", 0)) < 1:
-            raise ValueError(f"Treatment round {run.get('round')} did not intercept a document")
+        if int(injection.get("fulfilled_documents", 0)) != 1:
+            raise ValueError(
+                f"Treatment round {run.get('round')} must intercept exactly one document"
+            )
         if not run.get("metrics", {}).get("preload_present"):
             raise ValueError(f"Treatment round {run.get('round')} has no preload in the final DOM")
 
@@ -155,8 +157,15 @@ def main() -> None:
         - treatment_summary["largest_contentful_paint_ms"]
     )
     baseline_initiators = sorted(
-        {run["metrics"]["hero_entry"].get("initiatorType") for run in baseline}
+        {
+            value
+            for run in baseline
+            if isinstance(
+                value := run["metrics"]["hero_entry"].get("initiatorType"), str
+            )
+        }
     )
+    all_baseline_initiators_are_links = baseline_initiators == ["link"]
 
     if hero_start_gain >= 500 and lcp_gain >= 500:
         verdict = "SUPPORTED"
@@ -164,7 +173,11 @@ def main() -> None:
             f"The extra preload starts the desktop hero {rounded(hero_start_gain)} ms earlier and "
             f"improves LCP by {rounded(lcp_gain)} ms. Late discovery is material on desktop."
         )
-    elif abs(hero_start_gain) < 300 and abs(lcp_gain) < 300:
+    elif (
+        abs(hero_start_gain) < 300
+        and abs(lcp_gain) < 300
+        and all_baseline_initiators_are_links
+    ):
         verdict = "NO_ADDITIONAL_EFFECT"
         interpretation = (
             "The desktop baseline already initiates the exact LCP hero through a link resource hint. "

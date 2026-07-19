@@ -165,7 +165,9 @@ def build_packet(policy: dict[str, Any], report: dict[str, Any], report_path: Pa
         "verdict": verdict,
         "severity": severity,
         "merge_policy": "WARN" if verdict == "WARN" else "PASS",
-        "confidence": "HIGH",
+        "confidence": "LOW"
+        if int(policy.get("number_of_runs", 1)) <= 1
+        else "MEDIUM",
         "categories": category_results,
         "core_web_metrics": {
             "first_contentful_paint": metric_value(audits, "first-contentful-paint"),
