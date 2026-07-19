@@ -10,16 +10,16 @@
   "evidence": [
     {
       "id": "connection-lifecycle",
-      "run_id": 29666251111,
-      "head_sha": "4d58d54db49a8ef43260c7f5c4a2ac683c8e865f",
-      "artifact_sha256": "65fc7473982cca5ea2071b7219390b70824fb3613b8f1d59e32c918f71d7ca67",
+      "run_id": 29687311888,
+      "head_sha": "89a13d3e98f811f07f56543265ca1a8399f79c65",
+      "artifact_sha256": "9641cb67da53d947cf107d6ba0cb37eec2ee3fcc7f79c8f734a0d6948f1c953d",
       "result": "NO_FIRST_PARTY_WEBSOCKET_OBSERVED"
     },
     {
       "id": "duplicate-settings",
-      "run_id": 29666496587,
-      "head_sha": "6d22575cf4cca307508614d1eb6c6bfd3e5ee62d",
-      "artifact_sha256": "20f5d9fd464b63a1f65a54636129ccdb7c16b0a801ea9557efc1791a39b55088",
+      "run_id": 29687311871,
+      "head_sha": "89a13d3e98f811f07f56543265ca1a8399f79c65",
+      "artifact_sha256": "0b7fb1232f828e72870951ebb44c5b4b6953a84d7fe5e3b93ab9a1b38c94ecb8",
       "result": "CONFIRMED_REDUNDANT_DUPLICATE_REQUEST"
     }
   ],
@@ -39,7 +39,10 @@
         "http_200": true,
         "identical_response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "response_bytes": 2,
-        "encoded_transfer_bytes_per_request": 3463,
+        "encoded_transfer_bytes_per_request_range": [
+          3463,
+          3465
+        ],
         "resource_types": [
           "Fetch",
           "XHR"
@@ -73,15 +76,18 @@
     },
     {
       "id": "TRADERNET-PUBLIC-SETTINGS-POST-001",
-      "claim": "The natural 33,404-byte settings POST on public chart startup is unnecessary or mutates state incorrectly.",
+      "claim": "The natural settings POST on public chart startup is unnecessary or mutates state incorrectly.",
       "status": "NEEDS_EVIDENCE",
       "severity": "UNASSIGNED",
       "confidence": 25,
       "observed_only": {
         "matching_rounds": 3,
         "method": "POST",
-        "request_body_bytes": 33404,
-        "http_status": 200
+        "request_body_bytes_min": 33187,
+        "request_body_bytes_max": 33404,
+        "http_status": 200,
+        "identical_response_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "response_bytes": 1
       },
       "required_evidence": "Establish product intent, session state, payload semantics, repeated-navigation behavior, and measurable user or backend cost before assigning a defect. Raw request bodies were not retained."
     }
