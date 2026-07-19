@@ -1,0 +1,143 @@
+name: Starbucks Store Locator xg4ken Control
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/starbucks-xg4ken-control-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-xg4ken-control.yml
+      - audits/starbucks/store-locator-xg4ken-control-v0.1.json
+      - scripts/starbucks_store_locator_xg4ken_control.mjs
+      - tests/test_starbucks_store_locator_xg4ken_control_contract.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_XG4KEN_CONTROL.md
+  pull_request:
+    branches:
+      - agent/starbucks-store-locator-host-isolation-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-xg4ken-control.yml
+      - audits/starbucks/store-locator-xg4ken-control-v0.1.json
+      - scripts/starbucks_store_locator_xg4ken_control.mjs
+      - tests/test_starbucks_store_locator_xg4ken_control_contract.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_XG4KEN_CONTROL.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starbucks-xg4ken-control-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Three-round exact-host control
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate experiment and safety boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/starbucks/store-locator-xg4ken-control-v0.1.json"
+          python3 -m json.tool "${config}" >/dev/null
+          python3 -m unittest tests/test_starbucks_store_locator_xg4ken_control_contract.py -v
+          jq -e '
+            .target.url == "https://www.starbucks.com/store-locator" and
+            .blocked_host == "resources.xg4ken.com" and
+            .rounds == 3 and
+            .thresholds.required_rounds == 3 and
+            .boundaries.maximum_navigations == 9 and
+            .boundaries.public_page_only == true and
+            .boundaries.browser_navigation_only == true and
+            .boundaries.one_active_page_at_a_time == true and
+            .boundaries.sequential_contexts_only == true and
+            .boundaries.cache_disabled == true and
+            .boundaries.service_workers_bypassed == true and
+            .boundaries.authentication == false and
+            .boundaries.account_creation == false and
+            .boundaries.form_submission == false and
+            .boundaries.orders_or_payments == false and
+            .boundaries.direct_application_api_calls == false and
+            .boundaries.credential_validation == false and
+            .boundaries.token_requests == false and
+            .boundaries.crawling == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.raw_request_headers_storage == false and
+            .boundaries.raw_response_headers_storage == false and
+            .boundaries.raw_request_body_storage == false and
+            .boundaries.raw_response_body_storage == false and
+            .boundaries.cookies_storage == false and
+            .boundaries.web_storage_capture == false and
+            .boundaries.form_value_storage == false and
+            .boundaries.console_text_storage == false and
+            .boundaries.page_error_text_storage == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate probe and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/starbucks_store_locator_xg4ken_control.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run bounded xg4ken control
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/starbucks-xg4ken-control
+          node scripts/starbucks_store_locator_xg4ken_control.mjs \
+            --config audits/starbucks/store-locator-xg4ken-control-v0.1.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/starbucks-xg4ken-control
+          cat reports/starbucks-xg4ken-control/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate result shape, privacy and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/starbucks-xg4ken-control/aggregate.json"
+          jq -e '
+            .schema_version == "liminalqa-starbucks-store-locator-xg4ken-control-result-v0.1" and
+            .blocked_host == "resources.xg4ken.com" and
+            .profile == "mobile" and
+            .total_navigations == 9 and
+            (.rounds | length) == 3 and
+            .classification.rounds == 3 and
+            (.classification.verdict == "SUPPORTED_HOST_DEPENDENCY" or .classification.verdict == "NEUTRAL_UNDER_BOUNDED_TEST" or .classification.verdict == "NEEDS_EVIDENCE") and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.external_submission == false and
+            .authority.deployment == false and
+            .authority.merge == false and
+            (.result_sha256 | length) == 64
+          ' "${result}" >/dev/null
+          ! grep -R -E 'authorization:|cookie:|set-cookie:|request_body|response_body|payloadData|localStorage|sessionStorage' reports/starbucks-xg4ken-control --exclude='*.png'
+          sha256sum reports/starbucks-xg4ken-control/aggregate.json reports/starbucks-xg4ken-control/summary.md > reports/starbucks-xg4ken-control/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starbucks-xg4ken-control-${{ github.run_id }}
+          path: reports/starbucks-xg4ken-control/
+          if-no-files-found: error
+          retention-days: 14
