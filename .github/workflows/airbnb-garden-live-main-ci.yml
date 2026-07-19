@@ -1,0 +1,146 @@
+name: Airbnb Garden Live Main CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/airbnb-garden-live-main-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airbnb-garden-live-main-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 6eda85415feae21af117aa09125dcc88a1a3f9c1
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+
+jobs:
+  node-spawn:
+    name: Node spawn under fixed Garden seccomp
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+      - name: Build Garden and diagnostic rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/main-ci/{rootfs,garden-image,probe-image}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+          build_root="$RUNNER_TEMP/GardenLiminal-main-ci"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release
+          cargo test
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/main-ci/garden-image/gl"
+          cd "$GITHUB_WORKSPACE"
+          cat > reports/main-ci/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+          docker build -t garden-main-ci-rootfs:${GITHUB_SHA} reports/main-ci/probe-image
+          id="$(docker create garden-main-ci-rootfs:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/main-ci/rootfs.tar
+          sudo tar -xf reports/main-ci/rootfs.tar -C reports/main-ci/rootfs
+          browser="$(find reports/main-ci/rootfs/opt/liminal-playwright -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          test -n "$browser"
+          browser_inside="/${browser#reports/main-ci/rootfs/}"
+          sudo mkdir -p reports/main-ci/rootfs/opt/diagnostic
+          cat > /tmp/node-spawn.js <<'JS'
+          const { spawnSync } = require('child_process');
+          const fs = require('fs');
+          const browser = fs.readFileSync('/opt/diagnostic/browser-path.txt', 'utf8').trim();
+          const result = spawnSync(browser, ['--version'], { encoding: 'utf8' });
+          console.log(JSON.stringify({status: result.status, error: result.error?.message || null, stdout: result.stdout, stderr: result.stderr}));
+          process.exit(result.status === 0 ? 0 : 1);
+          JS
+          sudo cp /tmp/node-spawn.js reports/main-ci/rootfs/opt/diagnostic/node-spawn.js
+          printf '%s\n' "$browser_inside" | sudo tee reports/main-ci/rootfs/opt/diagnostic/browser-path.txt >/dev/null
+          node_inside="$(find reports/main-ci/rootfs/ms-playwright reports/main-ci/rootfs/opt/liminal-playwright -type f -path '*/node' -perm -111 -print -quit || true)"
+          if [ -z "$node_inside" ]; then
+            node_inside="reports/main-ci/rootfs/usr/bin/node"
+          fi
+          test -e "$node_inside" || test -L "$node_inside"
+          printf '/%s\n' "${node_inside#reports/main-ci/rootfs/}" > reports/main-ci/node-path.txt
+      - name: Build harness and run Node child process
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/main-ci/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libseccomp2 ca-certificates && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-main-ci:${GITHUB_SHA} reports/main-ci/garden-image
+          node="$(cat reports/main-ci/node-path.txt)"
+          cat > reports/main-ci/seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: node-browser-spawn
+            id: node-browser-spawn-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - ${node}
+              - /opt/diagnostic/node-spawn.js
+            env:
+              - HOME=/tmp
+            cwd: /
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: node-spawn
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+          docker run --rm --privileged --pids-limit 128 --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/main-ci/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/main-ci/seed.yaml:/work/seed.yaml:ro" \
+            garden-main-ci:${GITHUB_SHA} run -f /work/seed.yaml --store mem \
+            2>&1 | tee reports/main-ci/run.log
+          grep -q '"event":"PROCESS_EXIT"' reports/main-ci/run.log
+          grep -q '"code":0' reports/main-ci/run.log
+      - name: Remove rootfs and upload evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/main-ci/rootfs
+          rm -f reports/main-ci/rootfs.tar
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-node-spawn-main-ci-${{ github.run_id }}
+          path: reports/main-ci/
+          if-no-files-found: error
+          retention-days: 14
