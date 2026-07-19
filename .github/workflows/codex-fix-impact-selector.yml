@@ -1,0 +1,96 @@
+name: Codex fix Impact Selector
+
+on:
+  push:
+    branches:
+      - agent/impact-selector-mvp
+    paths:
+      - .github/workflows/codex-fix-impact-selector.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/impact-selector-mvp
+          fetch-depth: 0
+
+      - name: Apply fail-closed rule hardening
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("liminalqa-runner/src/impact.rs")
+          text = path.read_text(encoding="utf-8")
+
+          old = '''            Self::PathPrefix(prefix) => path.starts_with(&normalize_path(prefix)).then_some(1.0),
+            Self::PathContains(fragment) => path.contains(&normalize_path(fragment)).then_some(0.8),
+'''
+          new = '''            Self::PathPrefix(prefix) => {
+                let prefix = normalize_path(prefix);
+                (!prefix.is_empty() && path.starts_with(&prefix)).then_some(1.0)
+            }
+            Self::PathContains(fragment) => {
+                let fragment = normalize_path(fragment);
+                (!fragment.is_empty() && path.contains(&fragment)).then_some(0.8)
+            }
+'''
+          if old not in text:
+              raise SystemExit("expected ImpactRule match block not found")
+          text = text.replace(old, new, 1)
+
+          test = '''
+
+    #[test]
+    fn empty_rules_do_not_match_every_path_or_suppress_fallback() {
+        let catalog = vec![
+            descriptor(
+                "invalid_prefix",
+                vec![ImpactRule::PathPrefix("   ".to_string())],
+                Criticality::Critical,
+                false,
+            ),
+            descriptor(
+                "invalid_contains",
+                vec![ImpactRule::PathContains(String::new())],
+                Criticality::Critical,
+                false,
+            ),
+            descriptor("safe_smoke", Vec::new(), Criticality::High, true),
+        ];
+
+        let plan = ImpactSelector::default()
+            .select(&["services/auth/src/token.rs".to_string()], &catalog);
+
+        assert!(plan.fallback_used);
+        assert_eq!(plan.selected.len(), 1);
+        assert_eq!(plan.selected[0].name, "safe_smoke");
+        assert!(plan.selected[0].path_matches.is_empty());
+    }
+'''
+          marker = "\n}\n"
+          index = text.rfind(marker)
+          if index < 0:
+              raise SystemExit("test module closing brace not found")
+          text = text[:index] + test + text[index:]
+          path.write_text(text, encoding="utf-8")
+
+      - name: Format and validate
+        run: |
+          cargo fmt --all
+          cargo test -p liminalqa-runner
+          cargo clippy -p liminalqa-runner --all-targets -- -D warnings
+          cargo run -p liminalqa-runner --example impact_selector >/tmp/impact-selector.json
+
+      - name: Commit verified fix and remove temporary workflow
+        run: |
+          rm .github/workflows/codex-fix-impact-selector.yml
+          git config user.name "Codex"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add liminalqa-runner/src/impact.rs .github/workflows/codex-fix-impact-selector.yml
+          git commit -m "fix: reject empty Impact Selector rules"
+          git push origin HEAD:agent/impact-selector-mvp
