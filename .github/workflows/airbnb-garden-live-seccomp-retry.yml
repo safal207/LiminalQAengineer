@@ -1,0 +1,280 @@
+name: Airbnb Garden Live Seccomp Retry
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/airbnb-garden-liminalos-comparison-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-live-seccomp-retry.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airbnb-garden-live-seccomp-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: ed4cc030398fee4f1a0fa015a4bd7badc7e87c7c
+  PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
+
+jobs:
+  live:
+    name: Garden seccomp live read-only probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout comparison branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact Garden and probe sources
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Checkout exact Airbnb runner
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ env.PROBE_SHA }}
+          path: vendor/airbnb-probe
+          persist-credentials: false
+
+      - name: Verify pins and prepare directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          test "$(git -C vendor/airbnb-probe rev-parse HEAD)" = "$PROBE_SHA"
+          for name in \
+            airbnb_readonly_probe.py \
+            airbnb_readonly_probe_guard.py \
+            airbnb_readonly_discovered_dates_probe.py \
+            airbnb_readonly_discovered_dates_probe_v4.py; do
+            test -f "vendor/airbnb-probe/scripts/$name"
+          done
+          mkdir -p reports/garden-live-retry/{rootfs,garden-image,probe-image,evidence}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+
+      - name: Build and test exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_root="$RUNNER_TEMP/GardenLiminal-live-retry"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/garden-live-retry/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/garden-live-retry/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/garden-live-retry/garden-image/gl"
+
+      - name: Build and export pinned Playwright rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$PLAYWRIGHT_IMAGE"
+          docker image inspect "$PLAYWRIGHT_IMAGE" --format '{{json .RepoDigests}}' \
+            > reports/garden-live-retry/playwright-image-digests.json
+          cat > reports/garden-live-retry/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN python -m pip install --no-cache-dir playwright==1.60.0
+          DOCKERFILE
+          docker build -t garden-airbnb-probe:${GITHUB_SHA} \
+            reports/garden-live-retry/probe-image \
+            2>&1 | tee reports/garden-live-retry/probe-image-build.log
+          id="$(docker create garden-airbnb-probe:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/garden-live-retry/rootfs.tar
+          sudo tar -xf reports/garden-live-retry/rootfs.tar \
+            -C reports/garden-live-retry/rootfs
+          sudo mkdir -p \
+            reports/garden-live-retry/rootfs/opt/liminalqa \
+            reports/garden-live-retry/rootfs/evidence
+          sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py \
+            reports/garden-live-retry/rootfs/opt/liminalqa/
+          sudo chmod -R a+rX reports/garden-live-retry/rootfs/opt/liminalqa
+
+      - name: Build Garden harness and Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/garden-live-retry/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-airbnb-seccomp:${GITHUB_SHA} \
+            reports/garden-live-retry/garden-image \
+            2>&1 | tee reports/garden-live-retry/garden-image-build.log
+          cat > reports/garden-live-retry/seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: airbnb-readonly-playwright
+            id: airbnb-readonly-playwright-seccomp-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - /usr/bin/python3
+              - /opt/liminalqa/airbnb_readonly_discovered_dates_probe_v4.py
+              - --listing-url
+              - ${LISTING_URL}
+              - --output-root
+              - /evidence/ABNB-GARDEN-ANTALYA
+            env:
+              - PYTHONPATH=/opt/liminalqa
+              - HOME=/tmp
+              - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+              - PYTHONUNBUFFERED=1
+            cwd: /opt/liminalqa
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: airbnb-garden
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+          docker run --rm --network none \
+            -v "$GITHUB_WORKSPACE/reports/garden-live-retry/seed.yaml:/work/seed.yaml:ro" \
+            garden-airbnb-seccomp:${GITHUB_SHA} inspect -f /work/seed.yaml \
+            2>&1 | tee reports/garden-live-retry/inspect.log
+
+      - name: Execute read-only probe inside Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          name="garden-airbnb-seccomp-${GITHUB_RUN_ID}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          set +e
+          timeout 900 docker run \
+            --name "$name" \
+            --privileged \
+            --cpus 1.50 \
+            --memory 2g \
+            --pids-limit 512 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/garden-live-retry/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/garden-live-retry/seed.yaml:/work/seed.yaml:ro" \
+            garden-airbnb-seccomp:${GITHUB_SHA} \
+            run -f /work/seed.yaml --store mem \
+            > reports/garden-live-retry/run.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/garden-live-retry/run.exit
+          docker inspect "$name" --format '{{json .HostConfig}}' \
+            > reports/garden-live-retry/docker-host-config.json
+          docker rm -f "$name" >/dev/null
+          tail -200 reports/garden-live-retry/run.log
+
+      - name: Extract and classify evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source=reports/garden-live-retry/rootfs/evidence/ABNB-GARDEN-ANTALYA
+          if [ -d "$source" ]; then
+            sudo cp -a "$source" reports/garden-live-retry/evidence/
+            sudo chown -R "$(id -u):$(id -g)" reports/garden-live-retry/evidence
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('reports/garden-live-retry')
+          code = int((root / 'run.exit').read_text().strip())
+          host = json.loads((root / 'docker-host-config.json').read_text())
+          records = []
+          for line in (root / 'run.log').read_text(errors='replace').splitlines():
+              try:
+                  item = json.loads(line)
+              except Exception:
+                  continue
+              if isinstance(item, dict) and item.get('event'):
+                  records.append(item)
+          events = [item['event'] for item in records]
+          required = ['RUN_CREATED','SEED_LOADED','NS_CREATED','MOUNT_DONE','CAPS_DROPPED','SECCOMP_ENABLED','PROCESS_START','PROCESS_EXIT']
+          probe_paths = list((root / 'evidence').rglob('probe-result.json'))
+          probe = json.loads(probe_paths[0].read_text()) if len(probe_paths) == 1 else None
+          limits = {
+              'nano_cpus': host.get('NanoCpus'),
+              'memory_bytes': host.get('Memory'),
+              'pids_limit': host.get('PidsLimit'),
+          }
+          expected = {'nano_cpus':1500000000,'memory_bytes':2147483648,'pids_limit':512}
+          safe = bool(probe) and probe.get('confirmed_defect') is False and probe.get('payment_submitted') is False and probe.get('reservation_created') is False
+          exit_zero = any(item.get('event') == 'PROCESS_EXIT' and item.get('code') == 0 for item in records)
+          confirmed = code == 0 and not [x for x in required if x not in events] and exit_zero and limits == expected and safe
+          result = {
+              'schema_version': 'airbnb-garden-live-seccomp-retry-v0.1',
+              'garden_commit': 'ed4cc030398fee4f1a0fa015a4bd7badc7e87c7c',
+              'probe_commit': 'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
+              'docker_exit_code': code,
+              'garden_events': events,
+              'missing_events': [x for x in required if x not in events],
+              'garden_process_exit_zero': exit_zero,
+              'outer_limits': {'configured': limits, 'expected': expected, 'matches': limits == expected},
+              'probe_present': probe is not None,
+              'probe_summary': None if probe is None else {
+                  'classifier_revision': probe.get('classifier_revision'),
+                  'outcomes': probe.get('outcomes'),
+                  'normalized_signatures': probe.get('normalized_signatures'),
+                  'evidence_grade': probe.get('evidence_grade'),
+                  'confirmed_defect': probe.get('confirmed_defect'),
+                  'payment_submitted': probe.get('payment_submitted'),
+                  'reservation_created': probe.get('reservation_created'),
+                  'reload_outcome': (probe.get('reload_probe') or {}).get('outcome'),
+              },
+              'safe_readonly_probe': safe,
+              'live_garden_probe_confirmed': confirmed,
+              'authority': {'mode':'audit_only','external_submission':False,'merge':False},
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if not confirmed:
+              raise SystemExit(1)
+          PY
+
+      - name: Remove disposable rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/garden-live-retry/rootfs
+          rm -f reports/garden-live-retry/rootfs.tar
+          find reports/garden-live-retry -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum \
+            > reports/garden-live-retry/SHA256SUMS.txt
+
+      - name: Upload exact retry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airbnb-garden-live-seccomp-${{ github.run_id }}
+          path: reports/garden-live-retry/
+          if-no-files-found: error
+          retention-days: 14
