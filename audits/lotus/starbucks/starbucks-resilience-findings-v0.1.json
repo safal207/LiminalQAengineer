@@ -1,0 +1,121 @@
+{
+  "schema_version": "liminalqa-lotus-findings-v0.1",
+  "packet_id": "starbucks-route-resilience-2026-07-19-v0.1",
+  "repository": "safal207/LiminalQAengineer",
+  "source_branch": "agent/starbucks-route-resilience-matrix-v0-1",
+  "scope": "bounded public-browser Starbucks route resilience counterfactual with exact workflow and artifact evidence",
+  "findings": [
+    {
+      "id": "SBX-WEB-FIRST-PARTY-JS-SILENT-SHELL-001",
+      "title": "First-party JavaScript loss silently removes route-specific content",
+      "domain": "starbucks-web",
+      "surface": "menu, store locator, sign-in, rewards, and gift routes on desktop and mobile",
+      "claim_kind": "cross_surface_resilience_contract",
+      "claim": "In 30/30 first-party-script-block treatments, the tested route lost its visible main landmark, route identity, and inputs while retaining only a generic shell or cookie surface; no JavaScript-loss explanation or route-specific recovery guidance appeared, and all contexts recovered after scripts were restored.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "counterfactual_supported",
+        "source_path": "audits/starbucks/route-resilience-result-v0.1.json",
+        "exact_head_sha": "1f7d330df7018ed28ee500a04ff7dcbaa0b21c28",
+        "workflow_run_id": "29667373889",
+        "artifact_id": "8436241393",
+        "artifact_digest": "sha256:4fd8eb493d0a20b66d5d0f3a794ed597bf92c7a831366edf987dfa3470376a88",
+        "aggregate_file_sha256": "cd2dde59145998b5c555ffbe07f73031e9d5e8d978bc116212f644d54cc7470a",
+        "counterfactual": {
+          "status": "SUPPORTED",
+          "baseline_valid_pairs": 30,
+          "first_party_treatment_pairs": 30,
+          "recovery_restored_pairs": 30,
+          "isolated_supported_cells": 9,
+          "confounded_cells": 1
+        }
+      },
+      "causal_memory": {
+        "canonical_id": "starbucks.web.first-party-javascript.silent-route-shell-loss",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "five critical public Starbucks routes across desktop and mobile",
+        "state_scope": "baseline, third-party control, first-party script loss, generic shell visibility, and recovery",
+        "time_scope": "workflow run 29667373889 on exact head 1f7d330df7018ed28ee500a04ff7dcbaa0b21c28",
+        "recurrence": "cross_surface",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "observed",
+        "state_visibility": "hidden",
+        "timeliness": "degraded",
+        "action_reversibility": "possible",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "A visitor sees a plausible generic shell or cookie dialog but loses the route-specific task without being told that first-party application code failed or how to recover."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Render a route-specific server fallback or a visible accessible failure state that names the unavailable task, preserves safe read-only context where possible, and offers retry or support guidance.",
+      "regression_test": "For each critical route and supported breakpoint, block first-party scripts with cache and service workers bypassed and assert a visible main landmark, route identity, explicit failure explanation, and recovery action.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_RECURRING",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    },
+    {
+      "id": "SBX-STORE-LOCATOR-MOBILE-THIRD-PARTY-ERROR-001",
+      "title": "Mobile store locator crashes to a generic error when third-party scripts are unavailable",
+      "domain": "starbucks-web",
+      "surface": "mobile public store locator",
+      "claim_kind": "third_party_dependency_resilience",
+      "claim": "Blocking all third-party scripts produced the same generic error-and-refresh screen in the mobile store locator in 3/3 fresh contexts, while the desktop store locator retained route identity in 3/3 equivalent controls.",
+      "evidence": {
+        "state": "exact",
+        "bounded": true,
+        "replayable": true,
+        "claim_support": "counterfactual_supported",
+        "source_path": "audits/starbucks/route-resilience-result-v0.1.json",
+        "exact_head_sha": "1f7d330df7018ed28ee500a04ff7dcbaa0b21c28",
+        "workflow_run_id": "29667373889",
+        "artifact_id": "8436241393",
+        "artifact_digest": "sha256:4fd8eb493d0a20b66d5d0f3a794ed597bf92c7a831366edf987dfa3470376a88",
+        "counterfactual": {
+          "status": "SUPPORTED",
+          "mobile_error_rounds": 3,
+          "desktop_control_valid_rounds": 3,
+          "blocked_third_party_scripts_per_mobile_round": 5,
+          "provider_identity": "UNKNOWN"
+        },
+        "text_sha256": "931f63535bd8f5f6913bfd86815073908bfd1e8a85b2c055683770de327b2047",
+        "screenshot_sha256": "ce119f88b6aed4acab25b0ae03912158e697122ae12752cf601de4791e0e6fc1"
+      },
+      "causal_memory": {
+        "canonical_id": "starbucks.store-locator.mobile.third-party-script-generic-error",
+        "repository_scope": "safal207/LiminalQAengineer",
+        "surface_scope": "mobile Starbucks store locator",
+        "state_scope": "third-party script availability, generic error boundary, route identity, and recovery",
+        "time_scope": "three fresh mobile contexts in workflow run 29667373889",
+        "recurrence": "repeated",
+        "human_review": "pending"
+      },
+      "user_control": {
+        "evidence_level": "observed",
+        "state_visibility": "degraded",
+        "timeliness": "clear",
+        "action_reversibility": "possible",
+        "duplicate_action_risk": "none",
+        "error_explainability": "absent",
+        "live_historical_clarity": "n_a",
+        "user_effect": "The mobile visitor loses store search and receives only a generic application error with refresh guidance; the failed dependency and alternative store-finding path are not explained."
+      },
+      "severity_candidate": "P2",
+      "minimal_fix": "Isolate optional third-party failures, preserve a basic location/search fallback, and show a specific degraded-state message with retry and alternative store-finding guidance.",
+      "regression_test": "On the mobile profile, block each third-party script host separately and assert that the store locator preserves route identity or emits a dependency-specific accessible fallback rather than a generic application crash.",
+      "expected": {
+        "pythia": "ALLOW",
+        "cml": "PROPOSED_RECURRING",
+        "ls": "MEDIUM",
+        "unified": "CONFIRMED"
+      }
+    }
+  ]
+}
