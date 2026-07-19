@@ -48,8 +48,14 @@ impl ImpactRule {
     fn match_strength(&self, changed_path: &str) -> Option<f64> {
         let path = normalize_path(changed_path);
         match self {
-            Self::PathPrefix(prefix) => path.starts_with(&normalize_path(prefix)).then_some(1.0),
-            Self::PathContains(fragment) => path.contains(&normalize_path(fragment)).then_some(0.8),
+            Self::PathPrefix(prefix) => {
+                let prefix = normalize_path(prefix);
+                (!prefix.is_empty() && path.starts_with(&prefix)).then_some(1.0)
+            }
+            Self::PathContains(fragment) => {
+                let fragment = normalize_path(fragment);
+                (!fragment.is_empty() && path.contains(&fragment)).then_some(0.8)
+            }
             Self::Extension(extension) => {
                 let extension = extension
                     .trim()
@@ -418,5 +424,32 @@ mod tests {
 
         assert_eq!(plan.selected[0].name, "critical_auth");
         assert!(plan.selected[0].risk_score > plan.selected[1].risk_score);
+    }
+
+    #[test]
+    fn empty_rules_do_not_match_every_path_or_suppress_fallback() {
+        let catalog = vec![
+            descriptor(
+                "invalid_prefix",
+                vec![ImpactRule::PathPrefix("   ".to_string())],
+                Criticality::Critical,
+                false,
+            ),
+            descriptor(
+                "invalid_contains",
+                vec![ImpactRule::PathContains(String::new())],
+                Criticality::Critical,
+                false,
+            ),
+            descriptor("safe_smoke", Vec::new(), Criticality::High, true),
+        ];
+
+        let plan = ImpactSelector::default()
+            .select(&["services/auth/src/token.rs".to_string()], &catalog);
+
+        assert!(plan.fallback_used);
+        assert_eq!(plan.selected.len(), 1);
+        assert_eq!(plan.selected[0].name, "safe_smoke");
+        assert!(plan.selected[0].path_matches.is_empty());
     }
 }
