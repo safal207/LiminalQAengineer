@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Checkout exact workflow revision
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Validate bounded inventory
         id: matrix
@@ -63,7 +65,9 @@ jobs:
             .boundaries.financial_operations == false and
             .boundaries.fuzzing == false and
             .boundaries.load_testing == false and
-            ([.targets[].url | startswith("https://")] | all)
+            ([.targets[].url | startswith("https://")] | all) and
+            ([.targets[].slug | test("^[a-z0-9][a-z0-9_-]{0,63}$")] | all) and
+            ([.targets[].slug] as $slugs | ($slugs | length) == ($slugs | unique | length))
           ' "${inventory}" >/dev/null
 
           matrix="$(jq -c '{include: [.targets[] | {slug: .slug, url: .url}]}' "${inventory}")"
@@ -82,19 +86,23 @@ jobs:
     env:
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
+      TARGET_SLUG: ${{ matrix.slug }}
       LIGHTHOUSE_TARGET_URL: ${{ matrix.url }}
 
     steps:
       - name: Checkout exact workflow revision
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Confirm exact inventory membership
         shell: bash
         run: |
           set -euo pipefail
+          [[ "${TARGET_SLUG}" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]] || { echo "Unsafe target slug" >&2; exit 1; }
           jq -e \
-            --arg slug "${{ matrix.slug }}" \
-            --arg url "${{ matrix.url }}" \
+            --arg slug "${TARGET_SLUG}" \
+            --arg url "${LIGHTHOUSE_TARGET_URL}" \
             '.targets[] | select(.slug == $slug and .url == $url)' \
             audits/lighthouse/tradernet/domains.json >/dev/null
 
@@ -114,7 +122,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .lighthouseci reports/lighthouse reports/domain
-          mkdir -p "reports/domain/${{ matrix.slug }}"
+          mkdir -p "reports/domain/${TARGET_SLUG}"
           npx --yes @lhci/cli@0.15.1 autorun \
             --config=audits/lighthouse/tradernet/lighthouserc.cjs
 
@@ -122,7 +130,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          output="reports/domain/${{ matrix.slug }}"
+          output="reports/domain/${TARGET_SLUG}"
           python3 scripts/lighthouse_to_liminalqa.py report \
             --policy audits/lighthouse/tradernet/policy.json \
             --input-dir .lighthouseci \
@@ -153,6 +161,8 @@ jobs:
     steps:
       - name: Checkout exact workflow revision
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Download completed domain packets
         uses: actions/download-artifact@v4
