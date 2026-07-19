@@ -1,0 +1,137 @@
+name: Starbucks Store Locator Host Lotus Packet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/starbucks-store-locator-host-isolation-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-host-lotus.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/starbucks/store-locator-host-isolation-evidence-v0.1.json
+      - audits/lotus/starbucks/store-locator-host-isolation-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_starbucks_store_locator_host_lotus.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_HOST_ISOLATION_RESULT.md
+  pull_request:
+    branches:
+      - agent/starbucks-route-resilience-matrix-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-host-lotus.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/lotus/starbucks/store-locator-host-isolation-evidence-v0.1.json
+      - audits/lotus/starbucks/store-locator-host-isolation-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_starbucks_store_locator_host_lotus.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_HOST_ISOLATION_RESULT.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starbucks-store-locator-host-lotus-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify exact Store Locator host evidence and Lotus memory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate exact evidence and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool audits/lotus/starbucks/store-locator-host-isolation-evidence-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/starbucks/store-locator-host-isolation-findings-v0.1.json >/dev/null
+          python3 -m py_compile scripts/lotus_qa_decision_packet.py scripts/lotus_liminaldb_memory.py tests/test_starbucks_store_locator_host_lotus.py
+          python3 -m unittest tests/test_starbucks_store_locator_host_lotus.py -v
+
+      - name: Generate Lotus packet and LiminalDB memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/starbucks-store-locator-host-lotus
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings audits/lotus/starbucks/store-locator-host-isolation-findings-v0.1.json \
+            --output-dir reports/starbucks-store-locator-host-lotus
+          python3 scripts/lotus_liminaldb_memory.py export \
+            --packet reports/starbucks-store-locator-host-lotus/lotus-decision-packet.json \
+            --observed-at "$(git show -s --format=%cI HEAD)" \
+            --source-commit "$(git rev-parse HEAD)" \
+            --output reports/starbucks-store-locator-host-lotus/liminaldb-events.jsonl
+          python3 scripts/lotus_liminaldb_memory.py compare \
+            --events reports/starbucks-store-locator-host-lotus/liminaldb-events.jsonl \
+            --output reports/starbucks-store-locator-host-lotus/liminaldb-transitions.json
+
+      - name: Validate decisions, evidence pins, memory, and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="audits/lotus/starbucks/store-locator-host-isolation-evidence-v0.1.json"
+          packet="reports/starbucks-store-locator-host-lotus/lotus-decision-packet.json"
+          jq -e '
+            .source.run_id == 29676480938 and
+            .source.exact_head_sha == "33608dcdc0f9854afab19a111469fd870e8037bd" and
+            .source.artifact_id == 8439113486 and
+            .source.artifact_digest == "sha256:8168beee4862a4514c9411954a4200e668eec7a46009a047b6e70760e6c0005e" and
+            .source.result_sha256 == "527c7e3bc98c50f88027846eb726df38f91f990c9956d717f9f72ed7663a1b61" and
+            .maps_googleapis_result.verdict == "SUPPORTED_HOST_DEPENDENCY" and
+            .maps_googleapis_result.generic_error_rounds == 3 and
+            .maps_googleapis_result.route_identity_lost_rounds == 3 and
+            .maps_googleapis_result.recovery_meaningful_rounds == 3 and
+            (.neutral_controls | length) == 7 and
+            .inventory.stable_hosts_seen["resources.xg4ken.com"].isolated == false
+          ' "${evidence}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-lotus-decision-packet-v0.1" and
+            .summary.finding_count == 3 and
+            .summary.pythia_verdicts.ALLOW == 1 and
+            .summary.pythia_verdicts.BLOCK == 1 and
+            .summary.pythia_verdicts.ESCALATE == 1 and
+            .summary.decision_statuses.CONFIRMED == 1 and
+            .summary.decision_statuses.BLOCKED == 1 and
+            .summary.decision_statuses.NEEDS_EVIDENCE == 1 and
+            .summary.user_control_risks.MEDIUM == 1 and
+            .summary.user_control_risks.NONE == 1 and
+            .summary.user_control_risks.UNKNOWN == 1 and
+            .summary.durable_memory_count == 0 and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.deployment == false and
+            .authority.merge == false and
+            (.findings[] | select(.finding_id == "SBX-STORE-MAPS-SCRIPT-DEPENDENCY-001") | .decision.status) == "CONFIRMED" and
+            (.findings[] | select(.finding_id == "SBX-STORE-MAPS-SCRIPT-DEPENDENCY-001") | .decision.severity) == "P2" and
+            (.findings[] | select(.finding_id == "SBX-STORE-ANY-THIRD-PARTY-CRASH-HYPOTHESIS-001") | .decision.status) == "BLOCKED" and
+            (.findings[] | select(.finding_id == "SBX-STORE-XG4KEN-UNTESTED-001") | .decision.status) == "NEEDS_EVIDENCE"
+          ' "${packet}" >/dev/null
+          jq -s -e '
+            length == 3 and
+            ([.[].id] | unique | length) == 3 and
+            ([.[].details.adapter.write_mode] | all(. == "artifact_only")) and
+            ([.[].details.finding.durable_memory] | all(. == false)) and
+            ([.[].details.authority.execution] | all(. == false)) and
+            ([.[].details.authority.merge] | all(. == false))
+          ' reports/starbucks-store-locator-host-lotus/liminaldb-events.jsonl >/dev/null
+          jq -e '
+            .schema_version == "liminaldb-lotus-compare-v0.1" and
+            .event_count == 3 and
+            .canonical_finding_count == 3 and
+            .transition_count == 0
+          ' reports/starbucks-store-locator-host-lotus/liminaldb-transitions.json >/dev/null
+          sha256sum "${evidence}" "${packet}" reports/starbucks-store-locator-host-lotus/liminaldb-events.jsonl reports/starbucks-store-locator-host-lotus/liminaldb-transitions.json > reports/starbucks-store-locator-host-lotus/SHA256SUMS.txt
+          cat reports/starbucks-store-locator-host-lotus/lotus-decision-packet.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact Lotus artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: starbucks-store-locator-host-lotus-${{ github.run_id }}
+          path: reports/starbucks-store-locator-host-lotus/
+          if-no-files-found: error
+          retention-days: 14
