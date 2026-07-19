@@ -214,6 +214,8 @@ class LotusPlaywrightCaptureTests(unittest.TestCase):
                     "type": "sense",
                     "ts": f"2026-07-19T{minute}:00+03:00",
                     "thread_id": runner.RUN_ID,
+                    "attempt_id": attempt_id,
+                    "context_id": context_id,
                 }
             )
             + "\n",
