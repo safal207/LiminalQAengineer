@@ -81,7 +81,7 @@ async function navigate(browser, cfg, label, blockedHost, dir) {
   const state = await page.evaluate((terms) => {
     const visible = (e) => { const s = getComputedStyle(e), r = e.getBoundingClientRect(); return s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0 && r.width > 0 && r.height > 0; };
     const text = document.body?.innerText || '', low = text.toLowerCase();
-    const hay = `${location.pathname} ${document.title} ${text}`.toLowerCase();
+    const hay = `${document.title} ${text}`.toLowerCase();
     const matched = terms.filter((t) => hay.includes(t.toLowerCase()));
     return {
       final_url: `${location.protocol}//${location.host}${location.pathname}`,
