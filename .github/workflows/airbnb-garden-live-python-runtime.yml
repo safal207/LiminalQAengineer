@@ -100,8 +100,8 @@ jobs:
           sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py \
             reports/garden-python/rootfs/opt/liminalqa/
           sudo chmod -R a+rX reports/garden-python/rootfs/opt/liminalqa
-          test -x reports/garden-python/rootfs/usr/bin/python
-          stat -c '%F %a %n' reports/garden-python/rootfs/usr/bin/python \
+          test -e reports/garden-python/rootfs/usr/bin/python
+          ls -ld reports/garden-python/rootfs/usr/bin/python \
             > reports/garden-python/exported-python-path.txt
 
       - name: Build Garden harness and exact Seed
