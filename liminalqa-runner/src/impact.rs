@@ -444,8 +444,8 @@ mod tests {
             descriptor("safe_smoke", Vec::new(), Criticality::High, true),
         ];
 
-        let plan = ImpactSelector::default()
-            .select(&["services/auth/src/token.rs".to_string()], &catalog);
+        let plan =
+            ImpactSelector::default().select(&["services/auth/src/token.rs".to_string()], &catalog);
 
         assert!(plan.fallback_used);
         assert_eq!(plan.selected.len(), 1);
