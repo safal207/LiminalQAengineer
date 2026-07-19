@@ -96,12 +96,25 @@ jobs:
           trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
           docker export "$id" -o reports/garden-python/rootfs.tar
           sudo tar -xf reports/garden-python/rootfs.tar -C reports/garden-python/rootfs
+
+          # The Microsoft Playwright image keeps browser binaries in /ms-playwright,
+          # which may be backed by an image volume and therefore omitted by docker export.
+          # Copy the exact browser bundle explicitly into the Garden rootfs.
+          sudo mkdir -p reports/garden-python/rootfs/ms-playwright
+          sudo docker cp "$id:/ms-playwright/." \
+            reports/garden-python/rootfs/ms-playwright/
+
           sudo mkdir -p reports/garden-python/rootfs/opt/liminalqa reports/garden-python/rootfs/evidence
           sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py \
             reports/garden-python/rootfs/opt/liminalqa/
           sudo chmod -R a+rX reports/garden-python/rootfs/opt/liminalqa
           ls -ld reports/garden-python/rootfs/usr/bin/python \
             > reports/garden-python/exported-python-path.txt
+          browser_path="$(find reports/garden-python/rootfs/ms-playwright \
+            -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          test -n "$browser_path"
+          printf '%s\n' "$browser_path" \
+            > reports/garden-python/exported-browser-path.txt
 
       - name: Build Garden harness and exact Seed
         shell: bash
