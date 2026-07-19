@@ -1,0 +1,63 @@
+{
+  "schema_version": "liminalqa-starbucks-store-locator-xg4ken-evidence-v0.1",
+  "observation_date": "2026-07-19",
+  "source": {
+    "workflow": "Starbucks Store Locator xg4ken Control",
+    "workflow_run_id": "29677168104",
+    "exact_head_sha": "86c9e6613aee666d5433386b5384a642d6b3e168",
+    "artifact_id": "8439296088",
+    "artifact_digest": "sha256:77fc768bafbb39cc3e9aeb013e12a3b03257195428c53cb28f750edd7ffbb293",
+    "aggregate_file_sha256": "c05878f7f52fc3a92c58828695d4dff5a54ec077a9eddb63486a7e14ebd76421",
+    "result_sha256": "a5ab902a4b9a53125ba08293cce1755750c58fc53ba7810efaf3adebba0e6509"
+  },
+  "scope": {
+    "target": "https://www.starbucks.com/store-locator",
+    "profile": "mobile-390x844",
+    "blocked_host": "resources.xg4ken.com",
+    "rounds": 3,
+    "navigations": 9,
+    "authentication": false,
+    "form_submission": false,
+    "direct_application_api_calls": false,
+    "load_testing": false,
+    "active_security_testing": false
+  },
+  "classification": {
+    "verdict": "NEUTRAL_UNDER_BOUNDED_TEST",
+    "baseline_host_observed": 3,
+    "baseline_meaningful": 3,
+    "treatment_host_blocked": 3,
+    "treatment_generic_error": 0,
+    "treatment_route_identity_lost": 0,
+    "treatment_meaningful": 3,
+    "recovery_meaningful": 3
+  },
+  "stable_visible_state": {
+    "text_sha256": "fe643216022aea97ae630ffd3a1f8a23702c897d905e17979c39e975f1cda7c6",
+    "screenshot_sha256": "4cdc9a88ba64a712ca1d3f140c7b62182d73c091f2b8d1b60a6cc72212c1eb93",
+    "visible_inputs": 3,
+    "main_landmarks": 1,
+    "visible_links": 8,
+    "visible_buttons": 9,
+    "ax_node_count": 300,
+    "identical_across_baseline_treatment_recovery": true,
+    "identical_across_all_three_rounds": true
+  },
+  "privacy": {
+    "raw_request_headers_stored": false,
+    "raw_response_headers_stored": false,
+    "raw_request_bodies_stored": false,
+    "raw_response_bodies_stored": false,
+    "cookies_stored": false,
+    "web_storage_captured": false,
+    "form_values_stored": false,
+    "console_text_stored": false,
+    "page_error_text_stored": false
+  },
+  "supersession": {
+    "supersedes_finding_id": "SBX-STORE-XG4KEN-UNTESTED-001",
+    "prior_state": "NEEDS_EVIDENCE",
+    "new_state": "CONFIRMED_NEUTRAL_CONTROL",
+    "reason": "The exact host was naturally requested, blocked, and recovered in three fresh contexts while the visible and accessibility state remained identical."
+  }
+}

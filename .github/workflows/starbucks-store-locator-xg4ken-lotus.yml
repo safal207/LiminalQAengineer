@@ -1,0 +1,124 @@
+name: Starbucks Store Locator xg4ken Lotus Packet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/starbucks-xg4ken-control-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-xg4ken-lotus.yml
+      - audits/lotus/starbucks/store-locator-xg4ken-evidence-v0.1.json
+      - audits/lotus/starbucks/store-locator-xg4ken-findings-v0.1.json
+      - tests/test_starbucks_store_locator_xg4ken_lotus.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_XG4KEN_RESULT.md
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+  pull_request:
+    branches:
+      - agent/starbucks-store-locator-host-isolation-v0-1
+    paths:
+      - .github/workflows/starbucks-store-locator-xg4ken-lotus.yml
+      - audits/lotus/starbucks/store-locator-xg4ken-evidence-v0.1.json
+      - audits/lotus/starbucks/store-locator-xg4ken-findings-v0.1.json
+      - tests/test_starbucks_store_locator_xg4ken_lotus.py
+      - docs/audits/STARBUCKS_STORE_LOCATOR_XG4KEN_RESULT.md
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starbucks-xg4ken-lotus-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify exact xg4ken evidence and Lotus memory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate committed evidence and source material
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool audits/lotus/starbucks/store-locator-xg4ken-evidence-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/starbucks/store-locator-xg4ken-findings-v0.1.json >/dev/null
+          python3 -m py_compile scripts/lotus_qa_decision_packet.py scripts/lotus_liminaldb_memory.py tests/test_starbucks_store_locator_xg4ken_lotus.py
+
+      - name: Run xg4ken Lotus tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_starbucks_store_locator_xg4ken_lotus.py -v
+
+      - name: Generate Lotus packet and LiminalDB memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/starbucks-xg4ken-lotus
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings audits/lotus/starbucks/store-locator-xg4ken-findings-v0.1.json \
+            --output-dir reports/starbucks-xg4ken-lotus
+          python3 scripts/lotus_liminaldb_memory.py export \
+            --packet reports/starbucks-xg4ken-lotus/lotus-decision-packet.json \
+            --observed-at "$(git show -s --format=%cI HEAD)" \
+            --source-commit "$(git rev-parse HEAD)" \
+            --output reports/starbucks-xg4ken-lotus/liminaldb-events.jsonl
+          python3 scripts/lotus_liminaldb_memory.py compare \
+            --events reports/starbucks-xg4ken-lotus/liminaldb-events.jsonl \
+            --output reports/starbucks-xg4ken-lotus/liminaldb-transitions.json
+
+      - name: Validate decisions, memory and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          packet="reports/starbucks-xg4ken-lotus/lotus-decision-packet.json"
+          jq -e '
+            .summary.finding_count == 2 and
+            .summary.pythia_verdicts.ALLOW == 1 and
+            .summary.pythia_verdicts.BLOCK == 1 and
+            .summary.decision_statuses.CONFIRMED == 1 and
+            .summary.decision_statuses.BLOCKED == 1 and
+            .summary.user_control_risks.NONE == 2 and
+            .summary.durable_memory_count == 0 and
+            (.findings[] | select(.finding_id == "SBX-STORE-XG4KEN-NEUTRAL-001") | .decision.status) == "CONFIRMED" and
+            (.findings[] | select(.finding_id == "SBX-STORE-XG4KEN-NEUTRAL-001") | .causal_memory.status) == "PROPOSED_RECURRING" and
+            (.findings[] | select(.finding_id == "SBX-STORE-XG4KEN-CRASH-HYPOTHESIS-001") | .decision.status) == "BLOCKED" and
+            (.findings[] | select(.finding_id == "SBX-STORE-XG4KEN-CRASH-HYPOTHESIS-001") | .causal_memory.status) == "NEGATIVE_CAUSAL_MEMORY" and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.deployment == false and
+            .authority.merge == false
+          ' "${packet}" >/dev/null
+          jq -s -e '
+            length == 2 and
+            ([.[].details.adapter.write_mode] | all(. == "artifact_only")) and
+            ([.[].details.finding.durable_memory] | all(. == false)) and
+            ([.[].details.authority.execution] | all(. == false)) and
+            ([.[].details.authority.merge] | all(. == false))
+          ' reports/starbucks-xg4ken-lotus/liminaldb-events.jsonl >/dev/null
+          jq -e '
+            .event_count == 2 and
+            .canonical_finding_count == 2 and
+            .transition_count == 0
+          ' reports/starbucks-xg4ken-lotus/liminaldb-transitions.json >/dev/null
+          sha256sum reports/starbucks-xg4ken-lotus/* > reports/starbucks-xg4ken-lotus/SHA256SUMS.txt
+          cat reports/starbucks-xg4ken-lotus/lotus-decision-packet.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact Lotus artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: starbucks-xg4ken-lotus-${{ github.run_id }}
+          path: reports/starbucks-xg4ken-lotus/
+          if-no-files-found: error
+          retention-days: 14
