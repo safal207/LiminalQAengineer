@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394?check_in=2026-09-15&check_out=2026-09-17&guests=1&adults=1
+  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1
   OUTPUT_ROOT: artifacts/ABNB-RUN-002-DOCKER
 
 jobs:
