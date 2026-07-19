@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout exact workflow revision
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Validate exact experiment boundary
         shell: bash
@@ -95,17 +97,10 @@ jobs:
           set -euo pipefail
           rm -rf reports/hero-preload-desktop
 
-          # The shared collector has a deliberately stricter mobile-era check that
-          # rejects repeated response-stage document events. Preserve all six raw
-          # runs and let the desktop-specific aggregator validate the final DOM,
-          # exact LCP resource and at-least-one successful interception.
-          set +e
           node scripts/tradernet_hero_preload_experiment_cdp.mjs \
             --experiment audits/lighthouse/tradernet/hero-preload-desktop-experiment.json \
             --chrome "${{ steps.runtime.outputs.chrome }}" \
             --output-dir reports/hero-preload-desktop
-          collector_status=$?
-          set -e
 
           for variant in baseline hero_preload; do
             for round in 1 2 3; do
@@ -118,7 +113,6 @@ jobs:
             --output-dir reports/hero-preload-desktop/result \
             --experiment audits/lighthouse/tradernet/hero-preload-desktop-experiment.json
 
-          echo "Shared collector exit status: ${collector_status}" >> "${GITHUB_STEP_SUMMARY}"
           cat reports/hero-preload-desktop/result/desktop-hero-preload-summary.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload exact desktop experiment evidence
