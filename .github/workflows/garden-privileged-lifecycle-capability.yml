@@ -1,4 +1,4 @@
-name: Garden Privileged Lifecycle Capability
+name: Garden Layered Lifecycle Capability
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: garden-privileged-lifecycle-${{ github.ref }}
+  group: garden-layered-lifecycle-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -25,7 +25,7 @@ env:
 
 jobs:
   lifecycle:
-    name: Complete Garden Seed lifecycle inside privileged Docker
+    name: Docker limits outside, Garden isolation inside
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -48,7 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
-          mkdir -p reports/garden-privileged/rootfs reports/garden-privileged/image
+          mkdir -p reports/garden-layered/rootfs reports/garden-layered/image
           sudo apt-get update -qq
           sudo apt-get install -y -qq libseccomp-dev pkg-config
 
@@ -56,15 +56,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          build_root="$RUNNER_TEMP/GardenLiminal-privileged"
+          build_root="$RUNNER_TEMP/GardenLiminal-layered"
           rm -rf "$build_root"
           cp -a "$GITHUB_WORKSPACE/vendor/GardenLiminal" "$build_root"
           test "$(git -C "$build_root" rev-parse HEAD)" = "$GARDEN_SHA"
           echo "GARDEN_BUILD_ROOT=$build_root" >> "$GITHUB_ENV"
           cd "$build_root"
-          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/garden-privileged/cargo-build.log"
-          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/garden-privileged/cargo-test.log"
-          cp target/release/gl "$GITHUB_WORKSPACE/reports/garden-privileged/image/gl"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/garden-layered/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/garden-layered/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/garden-layered/image/gl"
 
       - name: Export a minimal Alpine root filesystem
         shell: bash
@@ -72,16 +72,16 @@ jobs:
           set -euo pipefail
           container_id="$(docker create alpine:3.20 /bin/true)"
           trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
-          docker export "$container_id" -o reports/garden-privileged/alpine-rootfs.tar
-          sudo tar -xf reports/garden-privileged/alpine-rootfs.tar \
-            -C reports/garden-privileged/rootfs
-          test -x reports/garden-privileged/rootfs/bin/true
+          docker export "$container_id" -o reports/garden-layered/alpine-rootfs.tar
+          sudo tar -xf reports/garden-layered/alpine-rootfs.tar \
+            -C reports/garden-layered/rootfs
+          test -x reports/garden-layered/rootfs/bin/true
 
-      - name: Build the privileged Garden harness image
+      - name: Build the Garden harness image
         shell: bash
         run: |
           set -euo pipefail
-          cat > reports/garden-privileged/image/Dockerfile <<'DOCKERFILE'
+          cat > reports/garden-layered/image/Dockerfile <<'DOCKERFILE'
           FROM ubuntu:24.04
           RUN apt-get update \
               && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -92,33 +92,26 @@ jobs:
           ENTRYPOINT ["/opt/garden/gl"]
           DOCKERFILE
           docker build \
-            --tag garden-lifecycle:${GITHUB_SHA} \
-            reports/garden-privileged/image \
-            2>&1 | tee reports/garden-privileged/docker-build.log
+            --tag garden-layered:${GITHUB_SHA} \
+            reports/garden-layered/image \
+            2>&1 | tee reports/garden-layered/docker-build.log
 
-      - name: Prepare exact privileged Seed
+      - name: Prepare layered Seed without native Garden cgroups
         shell: bash
         run: |
           set -euo pipefail
-          cat > reports/garden-privileged/seed.yaml <<'YAML'
+          cat > reports/garden-layered/seed.yaml <<'YAML'
           apiVersion: v0
           kind: Seed
           meta:
-            name: github-privileged-lifecycle
-            id: github-privileged-lifecycle-001
+            name: github-layered-lifecycle
+            id: github-layered-lifecycle-001
           rootfs:
             path: /work/rootfs
           entrypoint:
             cmd: ["/bin/true"]
-            env: ["GARDEN_BENCHMARK=privileged-lifecycle"]
+            env: ["GARDEN_BENCHMARK=layered-lifecycle"]
             cwd: "/"
-          limits:
-            cpu:
-              shares: 128
-            memory:
-              max: "128Mi"
-            pids:
-              max: 32
           security:
             hostname: "garden-ci"
             drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
@@ -136,35 +129,45 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm --network none \
-            -v "$GITHUB_WORKSPACE/reports/garden-privileged/seed.yaml:/work/seed.yaml:ro" \
-            garden-lifecycle:${GITHUB_SHA} \
+            -v "$GITHUB_WORKSPACE/reports/garden-layered/seed.yaml:/work/seed.yaml:ro" \
+            garden-layered:${GITHUB_SHA} \
             inspect -f /work/seed.yaml \
-            2>&1 | tee reports/garden-privileged/inspect.log
+            2>&1 | tee reports/garden-layered/inspect.log
 
-      - name: Run the complete lifecycle with writable host cgroups
+      - name: Run Docker cgroup envelope and Garden lifecycle
         shell: bash
         run: |
           set -uo pipefail
+          container_name="garden-layered-${GITHUB_RUN_ID}"
+          docker rm -f "$container_name" >/dev/null 2>&1 || true
+
           set +e
-          timeout 60 docker run --rm \
+          timeout 60 docker run \
+            --name "$container_name" \
             --privileged \
             --network none \
-            --cgroupns=host \
-            --userns=host \
+            --cpus 0.50 \
+            --memory 256m \
+            --pids-limit 64 \
             --security-opt seccomp=unconfined \
             --security-opt apparmor=unconfined \
-            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-            -v "$GITHUB_WORKSPACE/reports/garden-privileged/rootfs:/work/rootfs:rw" \
-            -v "$GITHUB_WORKSPACE/reports/garden-privileged/seed.yaml:/work/seed.yaml:ro" \
-            garden-lifecycle:${GITHUB_SHA} \
+            -v "$GITHUB_WORKSPACE/reports/garden-layered/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/garden-layered/seed.yaml:/work/seed.yaml:ro" \
+            garden-layered:${GITHUB_SHA} \
             run -f /work/seed.yaml --store mem \
-            > reports/garden-privileged/run.log 2>&1
+            > reports/garden-layered/run.log 2>&1
           code=$?
           set -e
-          echo "$code" > reports/garden-privileged/run.exit
-          cat reports/garden-privileged/run.log
 
-      - name: Validate complete structured lifecycle
+          echo "$code" > reports/garden-layered/run.exit
+          docker inspect "$container_name" > reports/garden-layered/docker-inspect.json
+          docker inspect "$container_name" \
+            --format '{{json .HostConfig}}' \
+            > reports/garden-layered/docker-host-config.json
+          docker rm -f "$container_name" >/dev/null
+          cat reports/garden-layered/run.log
+
+      - name: Validate layered resource and isolation evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -172,8 +175,10 @@ jobs:
           import json
           from pathlib import Path
 
-          root = Path('reports/garden-privileged')
+          root = Path('reports/garden-layered')
           exit_code = int((root / 'run.exit').read_text().strip())
+          host_config = json.loads((root / 'docker-host-config.json').read_text())
+
           records = []
           for raw in (root / 'run.log').read_text(errors='replace').splitlines():
               raw = raw.strip()
@@ -192,7 +197,6 @@ jobs:
               'SEED_LOADED',
               'NS_CREATED',
               'MOUNT_DONE',
-              'CGROUP_APPLIED',
               'CAPS_DROPPED',
               'SECCOMP_ENABLED',
               'PROCESS_START',
@@ -201,21 +205,57 @@ jobs:
           missing = [event for event in required if event not in events]
           exits = [item for item in records if item.get('event') == 'PROCESS_EXIT']
           process_exit_zero = any(item.get('code') == 0 for item in exits)
+          garden_cgroup_event_absent = 'CGROUP_APPLIED' not in events
+
+          outer_limits = {
+              'nano_cpus': host_config.get('NanoCpus'),
+              'memory_bytes': host_config.get('Memory'),
+              'pids_limit': host_config.get('PidsLimit'),
+          }
+          outer_limits_match = outer_limits == {
+              'nano_cpus': 500_000_000,
+              'memory_bytes': 268_435_456,
+              'pids_limit': 64,
+          }
+
+          confirmed = (
+              exit_code == 0
+              and not missing
+              and process_exit_zero
+              and garden_cgroup_event_absent
+              and outer_limits_match
+          )
 
           result = {
-              'schema_version': 'garden-privileged-lifecycle-capability-v0.1',
+              'schema_version': 'garden-layered-lifecycle-capability-v0.1',
               'garden_commit': '6c30422d0492ec312a35624322f90a7761419655',
+              'classification': (
+                  'LAYERED_ISOLATION_CONFIRMED'
+                  if confirmed
+                  else 'LAYERED_ISOLATION_NOT_CONFIRMED'
+              ),
               'docker_exit_code': exit_code,
               'events': events,
-              'required_events': required,
-              'missing_events': missing,
+              'required_garden_events': required,
+              'missing_garden_events': missing,
               'process_exit_zero': process_exit_zero,
-              'full_lifecycle_confirmed': exit_code == 0 and not missing and process_exit_zero,
-              'environment': {
-                  'runner': 'github-hosted-ubuntu',
-                  'harness': 'privileged Docker, host cgroup namespace, writable /sys/fs/cgroup',
-                  'network_during_seed_run': False,
+              'native_garden_cgroups_requested': False,
+              'garden_cgroup_event_absent': garden_cgroup_event_absent,
+              'outer_docker_cgroup_envelope': {
+                  'configured': outer_limits,
+                  'expected': {
+                      'nano_cpus': 500_000_000,
+                      'memory_bytes': 268_435_456,
+                      'pids_limit': 64,
+                  },
+                  'matches': outer_limits_match,
               },
+              'layered_isolation_confirmed': confirmed,
+              'truth_boundary': [
+                  'Docker, not GardenLiminal, enforces CPU, memory, and PID limits in this hosted-runner fallback.',
+                  'GardenLiminal remains responsible for namespaces, mounts, capability dropping, seccomp, process start, and process exit evidence.',
+                  'This capability run performs no Airbnb navigation and confirms no product defect.',
+              ],
               'authority': {
                   'mode': 'capability_probe_only',
                   'airbnb_navigation': False,
@@ -226,7 +266,7 @@ jobs:
           }
           (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
           print(json.dumps(result, indent=2))
-          if not result['full_lifecycle_confirmed']:
+          if not confirmed:
               raise SystemExit(1)
           PY
 
@@ -234,24 +274,24 @@ jobs:
         if: always()
         shell: bash
         run: |
-          sudo rm -rf reports/garden-privileged/rootfs
-          rm -f reports/garden-privileged/alpine-rootfs.tar
+          sudo rm -rf reports/garden-layered/rootfs
+          rm -f reports/garden-layered/alpine-rootfs.tar
 
       - name: Build evidence manifest
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          find reports/garden-privileged -type f ! -name SHA256SUMS.txt -print0 \
+          find reports/garden-layered -type f ! -name SHA256SUMS.txt -print0 \
             | sort -z \
             | xargs -0 sha256sum \
-            > reports/garden-privileged/SHA256SUMS.txt
+            > reports/garden-layered/SHA256SUMS.txt
 
-      - name: Upload lifecycle evidence
+      - name: Upload layered lifecycle evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: garden-privileged-lifecycle-${{ github.run_id }}
-          path: reports/garden-privileged/
+          name: garden-layered-lifecycle-${{ github.run_id }}
+          path: reports/garden-layered/
           if-no-files-found: error
           retention-days: 14
