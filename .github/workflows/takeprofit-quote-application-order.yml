@@ -1,0 +1,116 @@
+name: TakeProfit Quote Application Order
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-quote-application-order-v0-1
+    paths:
+      - .github/workflows/takeprofit-quote-application-order.yml
+      - audits/browser/takeprofit/quote-application-order.json
+      - scripts/takeprofit_quote_application_order.mjs
+  pull_request:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-quote-application-order.yml
+      - audits/browser/takeprofit/quote-application-order.json
+      - scripts/takeprofit_quote_application_order.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-quote-application-order-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application-order:
+    name: Three-round quote ordering experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/takeprofit/quote-application-order.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .target_url == "https://takeprofit.com/indicator/atr-super-trend-multi-source-57" and
+            .expected_symbol == "BTC/USDT" and
+            .quote_url_fragment == "QuoteApi/ListQuotes" and
+            .rounds == 3 and
+            .held_non_empty_quote_number == 2 and
+            .hold_ms >= 90000 and .hold_ms <= 120000 and
+            .minimum_freshness_boundary_ms >= 70000 and
+            .boundaries.public_page_only == true and
+            .boundaries.naturally_initiated_quote_responses_only == true and
+            .boundaries.browser_local_response_delay_only == true and
+            .boundaries.response_bodies_retained_in_artifact_only == true and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.vulnerability_claim == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser evidence dependencies
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0 pngjs@7.0.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --check scripts/takeprofit_quote_application_order.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run three-round application-order experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/takeprofit-quote-application-order
+          node scripts/takeprofit_quote_application_order.mjs \
+            --config audits/browser/takeprofit/quote-application-order.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/takeprofit-quote-application-order
+          cat reports/takeprofit-quote-application-order/quote-application-order-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate evidence packet boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/takeprofit-quote-application-order/quote-application-order-result.json"
+          jq -e '
+            .schema_version == "liminalqa-takeprofit-quote-application-order-result-v1" and
+            (.rounds | length) == 3 and
+            .boundaries.public_page_only == true and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false and
+            ([.rounds[].held_response.hold_duration_ms] | all(. >= 90000)) and
+            ([.rounds[].application_outcome] | all(type == "string"))
+          ' "${result}" >/dev/null
+          sha256sum "${result}" > reports/takeprofit-quote-application-order/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-quote-application-order-${{ github.run_id }}
+          path: reports/takeprofit-quote-application-order/
+          if-no-files-found: error
+          retention-days: 14

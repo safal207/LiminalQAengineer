@@ -1,0 +1,95 @@
+{
+  "schema_version": "liminalqa-takeprofit-quote-visible-dependency-evidence-v1",
+  "run": {
+    "workflow_run_id": 29666238811,
+    "exact_head_sha": "18d703929c31d53789814890a3565550283d5120",
+    "artifact_id": 8435839001,
+    "artifact_digest": "sha256:6900d32df4805706dc1ec8cc9d19f409e079c9ebbde6b907fce20d0534328838",
+    "raw_result_sha256": "sha256:cd57984cc134fd4ea99861e0640388fc712795eac4f86e637dd766fdbead0838",
+    "runner_evidence_sha256": "d0fc1572b64d5c53ddaf7f60226f6ede2e232ba7af1c18727cc72ca33d8a62bf"
+  },
+  "target": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "counterfactual": {
+    "baseline": "Allow naturally initiated ListQuotes requests.",
+    "treatment": "Block only naturally initiated ListQuotes requests in the browser.",
+    "pairs": 3,
+    "observation_ms_per_variant": 20000
+  },
+  "pairs": [
+    {
+      "pair": 1,
+      "baseline_quote_responses": 2,
+      "treatment_blocked_requests": 1,
+      "body_text_same": true,
+      "chart_visible_in_treatment": true,
+      "material_changed_pixels": 621,
+      "chart_changed_ratio": 0.0032142857142857142
+    },
+    {
+      "pair": 2,
+      "baseline_quote_responses": 1,
+      "treatment_blocked_requests": 2,
+      "body_text_same": true,
+      "chart_visible_in_treatment": true,
+      "material_changed_pixels": 621,
+      "chart_changed_ratio": 0.0032142857142857142
+    },
+    {
+      "pair": 3,
+      "baseline_quote_responses": 1,
+      "treatment_blocked_requests": 2,
+      "body_text_same": true,
+      "chart_visible_in_treatment": true,
+      "material_changed_pixels": 621,
+      "chart_changed_ratio": 0.0032142857142857142
+    }
+  ],
+  "stable_visual_hashes": {
+    "baseline_chart_sha256": "72402381f037ca7afec422a9d8dcaa1cced117742811f8f63c195c289b9ffc79",
+    "treatment_chart_sha256": "005ab2fd1bed42c57fcf678afa196dc38a71f203ed4609b8daf42450c5e0eaa1"
+  },
+  "manual_diff_review": {
+    "raw_different_pixel_count": 678,
+    "difference_bbox": {
+      "x_min": 148,
+      "y_min": 8,
+      "x_max": 193,
+      "y_max": 27
+    },
+    "baseline_state": "A small green connectivity or live-signal icon is visible immediately after BYBIT.",
+    "treatment_state": "The green signal icon disappears and the 1h control shifts left; candles, indicator lines, price labels, and body text remain unchanged.",
+    "freshness_or_error_text": []
+  },
+  "finding": {
+    "id": "TP-QUOTE-STATUS-07",
+    "title": "Quote connectivity loss is communicated only by disappearance of a small icon",
+    "status": "CONFIRMED_PUBLIC_SURFACE",
+    "severity_candidate": "P2",
+    "confidence": "HIGH",
+    "observation": "Blocking current quote requests removes the small green status icon in 3 of 3 paired runs while the chart remains fully visible and no textual stale, delayed, offline, or error state appears.",
+    "user_risk": "A user may continue reading a plausible chart without noticing that the current-quote connection is unavailable, especially when the icon is small, icon-only, or not visually inspected.",
+    "minimal_fix": "Keep the last chart visible if desired, but add an explicit Delayed, Offline, Snapshot, or Last updated label with a timestamp and accessible text.",
+    "regression_test": "Block ListQuotes in a browser-local test and require a visible and accessible freshness state while preserving the historical chart."
+  },
+  "rejected_or_refined_hypotheses": {
+    "quote_polling_is_visibly_unused": "REJECTED_BECAUSE_STATUS_ICON_DEPENDS_ON_QUOTES",
+    "quote_payload_updates_visible_candles": "NOT_SUPPORTED_ON_THIS_PUBLIC_SURFACE",
+    "visible_price_rollback": "NOT_CONFIRMED",
+    "steady_state_out_of_order_polling": "NOT_REPRODUCED"
+  },
+  "lotus": {
+    "pythia": "ALLOW_BOUNDED_STATUS_VISIBILITY_CLAIM",
+    "cml": "LINK_TO_STATIC_CHART_AND_QUOTE_TRANSPORT_WITHOUT_SHARED_ROOT_CAUSE",
+    "ls": "INFORMED_CONTROL_REDUCED",
+    "authority": "AUDIT_ONLY"
+  },
+  "boundaries": {
+    "public_page_only": true,
+    "naturally_initiated_requests_only": true,
+    "browser_local_request_block_only": true,
+    "direct_api_testing": false,
+    "authenticated_testing": false,
+    "financial_operations": false,
+    "security_claim": false
+  }
+}

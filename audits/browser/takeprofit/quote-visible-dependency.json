@@ -1,0 +1,34 @@
+{
+  "schema_version": "liminalqa-takeprofit-quote-visible-dependency-v1",
+  "name": "TakeProfit public quote visible-dependency counterfactual",
+  "target_url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "expected_symbol": "BTC/USDT",
+  "quote_url_fragment": "QuoteApi/ListQuotes",
+  "pairs": 3,
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 1,
+    "isMobile": true,
+    "hasTouch": true
+  },
+  "navigation_timeout_ms": 90000,
+  "bootstrap_timeout_ms": 90000,
+  "observation_ms": 20000,
+  "visual_threshold": {
+    "channel_delta": 12,
+    "changed_ratio": 0.0005
+  },
+  "boundaries": {
+    "public_page_only": true,
+    "naturally_initiated_requests_only": true,
+    "browser_local_request_block_only": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  }
+}

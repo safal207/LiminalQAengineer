@@ -1,0 +1,47 @@
+{
+  "schema_version": "liminalqa-takeprofit-quote-application-order-v1",
+  "name": "TakeProfit public quote application-order and freshness experiment",
+  "target_url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "expected_symbol": "BTC/USDT",
+  "quote_url_fragment": "QuoteApi/ListQuotes",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 1,
+    "isMobile": true,
+    "hasTouch": true
+  },
+  "rounds": 3,
+  "navigation_timeout_ms": 90000,
+  "bootstrap_timeout_ms": 120000,
+  "expected_quote_cadence_ms": 70000,
+  "held_non_empty_quote_number": 2,
+  "hold_ms": 90000,
+  "minimum_freshness_boundary_ms": 70000,
+  "state_sample_interval_ms": 1000,
+  "render_settle_ms": 2000,
+  "post_release_capture_delays_ms": [250, 1500, 5000],
+  "visual_threshold": {
+    "channel_delta": 12,
+    "changed_ratio": 0.0005
+  },
+  "boundaries": {
+    "public_page_only": true,
+    "naturally_initiated_quote_responses_only": true,
+    "browser_local_response_delay_only": true,
+    "response_bodies_retained_in_artifact_only": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "limitations": [
+    "The canvas probe observes numeric text rendering and chart-crop pixels on one public indicator page.",
+    "A no-visible-rollback result does not prove the authenticated workspace uses the same ordering guard.",
+    "Raw public quote response bodies are retained only in the exact workflow artifact for later schema-aware review.",
+    "ChartStore validation correlation is not treated as a confirmed shared root cause."
+  ]
+}

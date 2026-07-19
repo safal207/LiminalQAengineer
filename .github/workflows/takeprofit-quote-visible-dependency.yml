@@ -1,0 +1,111 @@
+name: TakeProfit Quote Visible Dependency
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-quote-application-order-v0-1
+    paths:
+      - .github/workflows/takeprofit-quote-visible-dependency.yml
+      - audits/browser/takeprofit/quote-visible-dependency.json
+      - scripts/takeprofit_quote_dependency_counterfactual.mjs
+  pull_request:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-quote-visible-dependency.yml
+      - audits/browser/takeprofit/quote-visible-dependency.json
+      - scripts/takeprofit_quote_dependency_counterfactual.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-quote-visible-dependency-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  counterfactual:
+    name: Three paired quote-block runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded counterfactual
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/takeprofit/quote-visible-dependency.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .target_url == "https://takeprofit.com/indicator/atr-super-trend-multi-source-57" and
+            .expected_symbol == "BTC/USDT" and
+            .quote_url_fragment == "QuoteApi/ListQuotes" and
+            .pairs == 3 and
+            .observation_ms <= 30000 and
+            .boundaries.public_page_only == true and
+            .boundaries.naturally_initiated_requests_only == true and
+            .boundaries.browser_local_request_block_only == true and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.vulnerability_claim == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser evidence dependencies
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0 pngjs@7.0.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/takeprofit_quote_dependency_counterfactual.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run paired counterfactual
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/takeprofit-quote-visible-dependency
+          node scripts/takeprofit_quote_dependency_counterfactual.mjs \
+            --config audits/browser/takeprofit/quote-visible-dependency.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/takeprofit-quote-visible-dependency
+          cat reports/takeprofit-quote-visible-dependency/quote-visible-dependency-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/takeprofit-quote-visible-dependency/quote-visible-dependency-result.json"
+          jq -e '
+            .schema_version == "liminalqa-takeprofit-quote-visible-dependency-result-v1" and
+            (.pairs | length) == 3 and
+            ([.pairs[].baseline_quote_responses] | all(. > 0)) and
+            ([.pairs[].treatment_blocked_quote_requests] | all(. > 0)) and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false
+          ' "${result}" >/dev/null
+          sha256sum "${result}" > reports/takeprofit-quote-visible-dependency/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-quote-visible-dependency-${{ github.run_id }}
+          path: reports/takeprofit-quote-visible-dependency/
+          if-no-files-found: error
+          retention-days: 14
