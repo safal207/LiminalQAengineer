@@ -200,7 +200,7 @@ def render(packet: dict[str, Any]) -> str:
         "",
         "## Median mobile metrics",
         "",
-        "| Metric | Root with redirect | Direct Russian URL | Direct − root | Improvement |",
+        "| Metric | Root with redirect | Direct Russian URL | Direct - root | Improvement |",
         "|---|---:|---:|---:|---:|",
     ]
     labels = {
