@@ -109,6 +109,24 @@ jobs:
             reports/airbnb-live/rootfs/opt/liminalqa/
           sudo chmod -R a+rX reports/airbnb-live/rootfs/opt/liminalqa
 
+          # docker export omits the runtime-provided /dev device mounts. Node's
+          # child_process uses /dev/null for Playwright's ignored stdio, and an
+          # absent device is reported misleadingly as browser-path ENOENT.
+          dev=reports/airbnb-live/rootfs/dev
+          sudo mkdir -p "$dev" "$dev/pts" "$dev/shm"
+          for entry in null zero random urandom; do
+            sudo rm -f "$dev/$entry"
+          done
+          sudo mknod -m 666 "$dev/null" c 1 3
+          sudo mknod -m 666 "$dev/zero" c 1 5
+          sudo mknod -m 666 "$dev/random" c 1 8
+          sudo mknod -m 666 "$dev/urandom" c 1 9
+          sudo ln -sfn /proc/self/fd "$dev/fd"
+          sudo ln -sfn /proc/self/fd/0 "$dev/stdin"
+          sudo ln -sfn /proc/self/fd/1 "$dev/stdout"
+          sudo ln -sfn /proc/self/fd/2 "$dev/stderr"
+          find "$dev" -maxdepth 1 -ls > reports/airbnb-live/minimal-dev.txt
+
           browser="$(find reports/airbnb-live/rootfs/opt/liminal-playwright \
             -type f -name chrome-headless-shell -perm -111 -print -quit)"
           node="$(find reports/airbnb-live/rootfs/usr/local/lib \
@@ -284,10 +302,11 @@ jobs:
               safe,
           ])
           result = {
-              'schema_version': 'airbnb-garden-live-ci-v0.1',
+              'schema_version': 'airbnb-garden-live-ci-v0.2',
               'garden_commit': '6eda85415feae21af117aa09125dcc88a1a3f9c1',
               'probe_commit': 'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
               'target': 'https://www.airbnb.com/rooms/1418689551881927394',
+              'minimal_dev_provided': True,
               'garden_run_exit': run_code,
               'garden_events': events,
               'missing_garden_events': [event for event in required if event not in events],
