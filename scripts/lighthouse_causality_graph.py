@@ -1,119 +1,672 @@
 #!/usr/bin/env python3
-"""Build a bounded LiminalQA space-time causal graph from one Lighthouse run."""
-import argparse, hashlib, json
+"""Build a bounded, evidence-derived space-time causal graph from one Lighthouse report."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+
+THRESHOLDS = {
+    "performance": 65,
+    "accessibility": 85,
+    "best-practices": 85,
+    "seo": 85,
+}
 
 
-def load(p):
-    d=json.loads(Path(p).read_text(encoding='utf-8'))
-    if not isinstance(d,dict): raise ValueError('JSON object required')
-    return d
+def load_json(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path}: expected a JSON object")
+    return value
 
 
-def find_report(folder):
-    for pat in ('lhr-*.json','*.report.json','*.json'):
-        for p in sorted(Path(folder).glob(pat)):
-            try: d=load(p)
-            except Exception: continue
-            if isinstance(d.get('audits'),dict) and isinstance(d.get('categories'),dict): return p,d
-    raise FileNotFoundError('No Lighthouse report')
+def find_report(folder: Path) -> tuple[Path, dict[str, Any]]:
+    for pattern in ("lhr-*.json", "*.report.json", "*.json"):
+        for path in sorted(folder.glob(pattern)):
+            try:
+                report = load_json(path)
+            except (OSError, json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(report.get("audits"), dict) and isinstance(
+                report.get("categories"), dict
+            ):
+                return path, report
+    raise FileNotFoundError("No Lighthouse report found")
 
 
-def audit(d,k): return d.get('audits',{}).get(k,{})
-def rows(d,k):
-    v=audit(d,k).get('details',{}).get('items',[])
-    return [x for x in v if isinstance(x,dict)] if isinstance(v,list) else []
-def num(d,k):
-    v=audit(d,k).get('numericValue')
-    return round(float(v),3) if isinstance(v,(int,float)) else None
-def req(d,frag): return next((x for x in rows(d,'network-requests') if frag in str(x.get('url',''))),None)
-def tm(r,k):
-    v=r.get(k) if r else None
-    return round(float(v),1) if isinstance(v,(int,float)) else None
+def audit(report: dict[str, Any], audit_id: str) -> dict[str, Any]:
+    value = report.get("audits", {}).get(audit_id, {})
+    return value if isinstance(value, dict) else {}
 
-def nested(d,k):
-    out=[]
-    for block in rows(d,k):
-        if block.get('type')=='table' and isinstance(block.get('items'),list): out += [x for x in block['items'] if isinstance(x,dict)]
-    return out
 
-def lcp_node(d): return next((x for x in rows(d,'lcp-phases-insight') if x.get('type')=='node'),{})
-def phases(d,legacy=False):
-    out={}; key='largest-contentful-paint-element' if legacy else 'lcp-phases-insight'
-    for x in nested(d,key):
-        name=x.get('phase') or x.get('label'); value=x.get('timing') if legacy else x.get('duration')
-        if isinstance(name,str) and isinstance(value,(int,float)): out[name]=round(float(value),1)
-    return out
+def rows(report: dict[str, Any], audit_id: str) -> list[dict[str, Any]]:
+    details = audit(report, audit_id).get("details", {})
+    items = details.get("items", []) if isinstance(details, dict) else []
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
-def checks(d):
-    b=next((x for x in rows(d,'lcp-discovery-insight') if x.get('type')=='checklist'),{})
-    raw=b.get('items',{}) if isinstance(b,dict) else {}
-    return {k:bool(v.get('value')) for k,v in raw.items() if isinstance(v,dict)}
-def resource(d):
-    return {x.get('resourceType'):{'requests':x.get('requestCount'),'kib':round(float(x.get('transferSize') or 0)/1024,1)} for x in rows(d,'resource-summary') if isinstance(x.get('resourceType'),str)}
-def error(d):
-    for x in rows(d,'errors-in-console'):
-        if 'require is not defined' in str(x.get('description')): return x.get('description')
+
+def numeric_audit(report: dict[str, Any], audit_id: str) -> float | None:
+    value = audit(report, audit_id).get("numericValue")
+    return round(float(value), 3) if isinstance(value, (int, float)) else None
+
+
+def numeric(value: Any, digits: int = 1) -> float | None:
+    return round(float(value), digits) if isinstance(value, (int, float)) else None
+
+
+def request(report: dict[str, Any], predicate) -> dict[str, Any] | None:
+    return next(
+        (item for item in rows(report, "network-requests") if predicate(item)),
+        None,
+    )
+
+
+def request_time(item: dict[str, Any] | None, key: str) -> float | None:
+    return numeric(item.get(key) if item else None)
+
+
+def nested_rows(report: dict[str, Any], audit_id: str) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for block in rows(report, audit_id):
+        items = block.get("items")
+        if block.get("type") == "table" and isinstance(items, list):
+            result.extend(item for item in items if isinstance(item, dict))
+    return result
+
+
+def lcp_phases(report: dict[str, Any]) -> dict[str, float]:
+    result: dict[str, float] = {}
+    for item in nested_rows(report, "lcp-phases-insight"):
+        name = item.get("phase")
+        value = item.get("duration")
+        if isinstance(name, str) and isinstance(value, (int, float)):
+            result[name] = round(float(value), 1)
+    return result
+
+
+def lcp_checks(report: dict[str, Any]) -> dict[str, bool]:
+    checklist = next(
+        (
+            item
+            for item in rows(report, "lcp-discovery-insight")
+            if item.get("type") == "checklist"
+        ),
+        {},
+    )
+    raw = checklist.get("items", {}) if isinstance(checklist, dict) else {}
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        key: bool(value.get("value"))
+        for key, value in raw.items()
+        if isinstance(value, dict)
+    }
+
+
+def category_score(report: dict[str, Any], category_id: str) -> int | None:
+    category = report.get("categories", {}).get(category_id)
+    if not isinstance(category, dict):
+        return None
+    value = category.get("score")
+    if not isinstance(value, (int, float)):
+        return None
+    return round(float(value) * 100)
+
+
+def resource_summary(report: dict[str, Any]) -> dict[str, dict[str, float | int | None]]:
+    result: dict[str, dict[str, float | int | None]] = {}
+    for item in rows(report, "resource-summary"):
+        kind = item.get("resourceType")
+        if not isinstance(kind, str):
+            continue
+        transfer = item.get("transferSize")
+        result[kind] = {
+            "requests": item.get("requestCount")
+            if isinstance(item.get("requestCount"), int)
+            else None,
+            "transfer_kib": round(float(transfer) / 1024, 1)
+            if isinstance(transfer, (int, float))
+            else None,
+        }
+    return result
+
+
+def unused_javascript(report: dict[str, Any]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for item in rows(report, "unused-javascript"):
+        total = item.get("totalBytes")
+        wasted = item.get("wastedBytes")
+        if not isinstance(total, (int, float)) or not isinstance(wasted, (int, float)):
+            continue
+        result.append(
+            {
+                "url": item.get("url"),
+                "wasted_kib": round(float(wasted) / 1024, 1),
+                "wasted_percent": round(100 * float(wasted) / float(total), 1)
+                if total
+                else 0.0,
+            }
+        )
+    return sorted(result, key=lambda item: item["wasted_kib"], reverse=True)[:8]
+
+
+def console_error(report: dict[str, Any]) -> str | None:
+    for item in rows(report, "errors-in-console"):
+        description = item.get("description")
+        if isinstance(description, str) and description.strip():
+            return description.strip()
     return None
 
-def contrast(d):
-    return [{'label':n.get('nodeLabel'),'selector':n.get('selector'),'explanation':n.get('explanation')} for x in rows(d,'color-contrast') if isinstance((n:=x.get('node')),dict)]
-def shifts(d):
-    out=[]
-    for x in rows(d,'layout-shifts'):
-        causes=[]; sub=x.get('subItems',{})
-        for y in sub.get('items',[]) if isinstance(sub,dict) else []:
-            extra=y.get('extra',{}) if isinstance(y.get('extra'),dict) else {}
-            causes.append({'cause':y.get('cause'),'node':extra.get('nodeLabel'),'url':extra.get('value')})
-        out.append({'score':x.get('score'),'causes':causes})
-    return out
 
-def unused(d):
-    out=[]
-    for x in rows(d,'unused-javascript'):
-        t,w=x.get('totalBytes'),x.get('wastedBytes')
-        if isinstance(t,(int,float)) and isinstance(w,(int,float)): out.append({'url':x.get('url'),'wasted_kib':round(w/1024,1),'wasted_percent':round(100*w/t,1) if t else 0})
-    return sorted(out,key=lambda x:x['wasted_kib'],reverse=True)[:8]
+def contrast_failures(report: dict[str, Any]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for item in rows(report, "color-contrast"):
+        node = item.get("node")
+        if isinstance(node, dict):
+            result.append(
+                {
+                    "label": node.get("nodeLabel"),
+                    "selector": node.get("selector"),
+                    "explanation": node.get("explanation"),
+                }
+            )
+    return result
 
-def build(path,d):
-    root=req(d,'https://tradernet.ru/'); doc=next((x for x in rows(d,'network-requests') if x.get('mimeType')=='text/html' and x.get('statusCode')==200),None)
-    mobile=req(d,'hero.mobile.light.2x.webp'); desktop=req(d,'/hero.light.2x.webp'); font=req(d,'Inter-roman.var.woff2'); lc=lcp_node(d); ph=phases(d); old=phases(d,True); ck=checks(d); rs=resource(d)
-    dbg=audit(d,'document-latency-insight').get('details',{}).get('debugData',{}); dbg=dbg if isinstance(dbg,dict) else {}
-    score=lambda k:round(d['categories'][k]['score']*100)
-    nodes=[
-      {'id':'navigation','space':'user','time_ms':0,'state':'observed','label':'Public mobile navigation'},
-      {'id':'redirect','space':'edge','time_ms':{'start':tm(root,'networkRequestTime'),'end':tm(root,'networkEndTime')},'state':'observed','label':'Language redirect','metrics':{'observed_ms':dbg.get('redirectDuration'),'modelled_savings_ms':num(d,'redirects')}},
-      {'id':'document','space':'origin','time_ms':{'start':tm(doc,'networkRequestTime'),'end':tm(doc,'networkEndTime')},'state':'observed','label':'Final HTML','metrics':{'server_response_ms':num(d,'server-response-time')}},
-      {'id':'css','space':'document_head','time_ms':986,'state':'observed','label':'Render-blocking CSS','metrics':{'modelled_savings_ms':num(d,'render-blocking-resources')}},
-      {'id':'runtime','space':'main_thread','time_ms':990,'state':'observed','label':'RequireJS + app bootstrap','metrics':{'main_thread_ms':num(d,'mainthread-work-breakdown'),'js_execution_ms':num(d,'bootup-time')}},
-      {'id':'lcp_discovery','space':'document_to_media','time_ms':tm(desktop,'networkRequestTime'),'state':'observed','label':'LCP not initially discoverable','metrics':{'discoverable':ck.get('requestDiscoverable'),'fetchpriority_high':ck.get('priorityHinted'),'observed_delay_ms':ph.get('resourceLoadDelay'),'simulated_delay_ms':old.get('Load Delay')}},
-      {'id':'hero_dupe','space':'responsive_media','time_ms':{'mobile':tm(mobile,'networkRequestTime'),'desktop':tm(desktop,'networkRequestTime')},'state':'observed','label':'Both hero variants transferred'},
-      {'id':'hydration','space':'hydration_boundary','time_ms':tm(desktop,'networkRequestTime'),'state':'hypothesis','confidence':'MEDIUM','label':'Client reconciliation may replace hero'},
-      {'id':'lcp','space':'above_fold','time_ms':num(d,'largest-contentful-paint'),'state':'observed','label':'Late largest content','metrics':{'lcp_ms':num(d,'largest-contentful-paint'),'fcp_ms':num(d,'first-contentful-paint'),'element':lc.get('nodeLabel'),'selector':lc.get('selector')}},
-      {'id':'js','space':'network_runtime','time_ms':{'start':985,'end':12740},'state':'observed','label':'JavaScript overdelivery','metrics':{'requests':rs.get('script',{}).get('requests'),'transfer_kib':rs.get('script',{}).get('kib'),'unused_savings_ms':num(d,'unused-javascript'),'top_unused':unused(d)}},
-      {'id':'require_error','space':'document_runtime','time_ms':tm(doc,'networkEndTime'),'state':'observed' if error(d) else 'not_observed','label':'require is not defined','metrics':{'description':error(d)}},
-      {'id':'layout','space':'below_fold','time_ms':tm(font,'networkRequestTime'),'state':'observed','label':'Unsized media + font shift content','metrics':{'cls':num(d,'cumulative-layout-shift'),'shifts':shifts(d)}},
-      {'id':'contrast','space':'above_fold','time_ms':num(d,'first-contentful-paint'),'state':'observed','label':'Hero copy + CTA contrast failures','metrics':{'elements':contrast(d)}},
-      {'id':'decision','space':'quality_gate','time_ms':num(d,'largest-contentful-paint'),'state':'derived','label':'LiminalQA WARN','metrics':{'performance':score('performance'),'accessibility':score('accessibility'),'best_practices':score('best-practices'),'seo':score('seo')}}]
-    edges=[['navigation','redirect','triggers','observed'],['redirect','document','delays','observed'],['document','css','discovers','observed'],['css','lcp','delays_render','derived'],['document','runtime','starts','observed'],['runtime','lcp_discovery','gates_discovery','derived'],['lcp_discovery','lcp','dominates','derived'],['hero_dupe','hydration','supports','derived'],['hydration','lcp_discovery','may_explain','hypothesis'],['runtime','js','loads','observed'],['js','decision','reduces_responsiveness','derived'],['require_error','decision','lowers_best_practices','derived'],['layout','decision','degrades_stability','derived'],['contrast','decision','degrades_accessibility','derived'],['lcp','decision','drives_warning','derived']]
-    ranking=[
-      [1,'Late LCP discovery','CONFIRMED','Not in initial request graph; no fetchpriority=high; 83% simulated LCP phase.','Put the responsive LCP image in initial HTML and rerun 3 times.'],
-      [2,'JavaScript overdelivery','CONFIRMED','55 scripts, ~1.53 MiB, ~965 KiB estimated unused.','Compare against a landing-only bundle.'],
-      [3,'Language redirect','CONFIRMED','489 ms observed; ~1.1 s modelled savings.','Serve/link directly to canonical language URL.'],
-      [4,'Responsive hero reconciliation','PARTLY CONFIRMED','Both variants load; later desktop asset is LCP on mobile.','Capture DOM mutations and initiators.'],
-      [5,'Render-blocking CSS','CONFIRMED','Two critical stylesheets; ~509 ms modelled savings.','Inline critical CSS and defer the rest.'],
-      [6,'Image dimensions and font timing','CONFIRMED','Two shifts tied to unsized subhero and font.','Add dimensions/aspect-ratio; test font-display.'],
-      [7,'RequireJS ordering race','HYPOTHESIS','Inline code reports require undefined.','Inspect source order and add a runtime guard test.']]
-    return {'schema_version':'liminalqa-space-time-causality-v1','target':d.get('finalUrl'),'guidance':'Readable, stable primary mobile content should appear quickly without runtime errors.','axes':{'space':['edge','origin','document_head','main_thread','responsive_media','viewport','quality_gate'],'valid_time':'navigation-relative milliseconds','transaction_time':'Lighthouse fetch and graph generation','note':'Observed trace and simulated mobile metrics are kept separate.'},'run_count':1,'evidence':{'file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'fetch_time':d.get('fetchTime'),'lighthouse_version':d.get('lighthouseVersion')},'dominant_path':['navigation','redirect','document','runtime','lcp_discovery','lcp','decision'],'nodes':nodes,'edges':[{'from':a,'to':b,'relation':r,'state':s} for a,b,r,s in edges],'ranked_causes':[{'rank':r,'cause':c,'status':s,'why':w,'next_test':n} for r,c,s,w,n in ranking],'boundaries':{'active_security_testing':False,'authenticated_testing':False,'financial_operations':False,'vulnerability_claim':False,'temporal_stability_proven':False},'generated_at':datetime.now(timezone.utc).isoformat()}
 
-def get(g,i): return next(x for x in g['nodes'] if x['id']==i)
-def render(g):
-    l=get(g,'lcp')['metrics']; j=get(g,'js')['metrics']; e=g['evidence']; c=get(g,'contrast')['metrics']['elements']; er=get(g,'require_error')['metrics']['description'] or 'not captured'
-    lines=['# LiminalQA · Tradernet space-time causality graph','',f"**Target:** `{g['target']}`  ",f"**Evidence SHA-256:** `{e['sha256']}`  ",f"**Runs:** {g['run_count']}",'','```mermaid','flowchart LR','  A["navigation"] --> B["redirect +489 ms"] --> C["final HTML ~1.09 s"]','  C --> D["render-blocking CSS ~509 ms"] --> G["LCP 10.9 s"]','  C --> E["RequireJS + app bootstrap"] --> F["LCP not initially discoverable"] --> G','  E --> J["55 scripts / ~1.53 MiB / ~965 KiB unused"] --> Q["LiminalQA WARN"]','  M["mobile hero early"] --> N["desktop hero later"]','  N -. possible reconciliation .-> F','  U["unsized subhero + font"] --> V["CLS 0.141"] --> Q','  W["low contrast copy + CTA"] --> Q','  R["require is not defined"] --> Q','  G --> Q','```','','## Dominant path','','`navigation → redirect → HTML → runtime bootstrap → late LCP discovery → LCP 10.9 s → WARN`','','## Ranked causes','','| Rank | Cause | Status | Why | Next test |','|---:|---|---|---|---|']
-    for x in g['ranked_causes']: lines.append(f"| {x['rank']} | {x['cause']} | {x['status']} | {x['why']} | {x['next_test']} |")
-    lines += ['','## Space map','','| Layer | Problem | Effect |','|---|---|---|','| Edge | Language redirect | Delays every cold visit |','| Document | Blocking CSS | Delays visual construction |','| Runtime | Broad bundles + RequireJS | Transfer and CPU waste |','| Responsive media | Both hero variants load | Extra bytes; possible late reconciliation |','| Above fold | Late hero + contrast failures | Slow and less readable first impression |','| Below fold | Unsized image + font | Layout shifts |','','## Time facts','','| Event | Time | Class |','|---|---:|---|','| Redirect completes | ~489 ms | observed |','| Final HTML completes | ~1,089 ms | observed |','| Mobile hero begins | ~987 ms | observed |','| Desktop/LCP hero begins | ~2,099 ms | observed |','| Font begins | ~2,111 ms | observed |','| LCP | ~10,866 ms | simulated mobile metric |','','## Concrete defects','',f'- Runtime: `{er.replace(chr(10)," ")}`',f'- Contrast failures: **{len(c)}** elements, including the primary CTA.',f'- Scripts: **{j["requests"]}** requests, **{j["transfer_kib"]} KiB**, ~965 KiB estimated unused.','- Both mobile and desktop hero variants transfer in one mobile navigation.','','## Proven vs hypothesis','','**Confirmed:** redirect, non-initial LCP discovery, duplicate hero transfer, unused JS, blocking CSS, runtime error, layout causes, contrast failures.','','**Hypotheses:** hydration replaces the hero; RequireJS error breaks a visible action; timing is stable across days/regions/runs.','','## Reflection','','The server is not the main bottleneck in this trace. Highest leverage: remove the redirect, expose the correct responsive LCP image in initial HTML, and avoid bootstrapping the broad trading application before landing content stabilizes.','','> Passive public-page evidence only. No authentication, trades, fuzzing, load testing, private data, or vulnerability claim.','']
-    return '\n'.join(lines)
-def main():
-    p=argparse.ArgumentParser(); p.add_argument('--input-dir',required=True); p.add_argument('--output-dir',required=True); a=p.parse_args(); path,d=find_report(a.input_dir); g=build(path,d); out=Path(a.output_dir); out.mkdir(parents=True,exist_ok=True); (out/'causality-graph.json').write_text(json.dumps(g,ensure_ascii=False,indent=2)+'\n',encoding='utf-8'); (out/'causality-graph.md').write_text(render(g),encoding='utf-8')
-if __name__=='__main__': main()
+def layout_shifts(report: dict[str, Any]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for item in rows(report, "layout-shifts"):
+        result.append(
+            {
+                "score": numeric(item.get("score"), 4),
+                "causes": item.get("subItems", {}).get("items", [])
+                if isinstance(item.get("subItems"), dict)
+                else [],
+            }
+        )
+    return result
+
+
+def add_node(
+    nodes: list[dict[str, Any]],
+    *,
+    node_id: str,
+    space: str,
+    state: str,
+    label: str,
+    time_ms: Any = None,
+    metrics: dict[str, Any] | None = None,
+) -> None:
+    node = {
+        "id": node_id,
+        "space": space,
+        "state": state,
+        "label": label,
+    }
+    if time_ms is not None:
+        node["time_ms"] = time_ms
+    if metrics:
+        node["metrics"] = metrics
+    nodes.append(node)
+
+
+def build(report_path: Path, report: dict[str, Any]) -> dict[str, Any]:
+    final_url = str(report.get("finalUrl") or report.get("requestedUrl") or "")
+    origin = ""
+    try:
+        origin = final_url.split("/", 3)[0] + "//" + final_url.split("/", 3)[2]
+    except IndexError:
+        origin = ""
+
+    root = request(report, lambda item: item.get("url") == final_url)
+    if root is None and origin:
+        root = request(report, lambda item: str(item.get("url", "")).startswith(origin))
+    document = request(
+        report,
+        lambda item: item.get("mimeType") == "text/html"
+        and item.get("statusCode") == 200,
+    )
+    mobile_hero = request(
+        report, lambda item: "hero.mobile" in str(item.get("url", ""))
+    )
+    desktop_hero = request(
+        report,
+        lambda item: "/hero.light" in str(item.get("url", ""))
+        and "hero.mobile" not in str(item.get("url", "")),
+    )
+    font = request(report, lambda item: str(item.get("url", "")).endswith(".woff2"))
+
+    debug_data = audit(report, "document-latency-insight").get("details", {})
+    debug_data = (
+        debug_data.get("debugData", {}) if isinstance(debug_data, dict) else {}
+    )
+    if not isinstance(debug_data, dict):
+        debug_data = {}
+
+    redirect_observed = numeric(debug_data.get("redirectDuration"))
+    redirect_savings = numeric_audit(report, "redirects")
+    css_savings = numeric_audit(report, "render-blocking-resources")
+    main_thread_ms = numeric_audit(report, "mainthread-work-breakdown")
+    js_execution_ms = numeric_audit(report, "bootup-time")
+    lcp_ms = numeric_audit(report, "largest-contentful-paint")
+    fcp_ms = numeric_audit(report, "first-contentful-paint")
+    cls = numeric_audit(report, "cumulative-layout-shift")
+    phases = lcp_phases(report)
+    checks = lcp_checks(report)
+    resources = resource_summary(report)
+    scripts = resources.get("script", {})
+    top_unused = unused_javascript(report)
+    unused_kib = round(sum(item["wasted_kib"] for item in top_unused), 1)
+    error = console_error(report)
+    contrast = contrast_failures(report)
+    shifts = layout_shifts(report)
+
+    scores = {
+        category_id: category_score(report, category_id)
+        for category_id in THRESHOLDS
+    }
+    known_scores = {
+        category_id: score for category_id, score in scores.items() if score is not None
+    }
+    failed = [
+        category_id
+        for category_id, score in known_scores.items()
+        if score < THRESHOLDS[category_id]
+    ]
+    verdict = "WARN" if failed or len(known_scores) != len(THRESHOLDS) else "PASS"
+
+    nodes: list[dict[str, Any]] = []
+    add_node(
+        nodes,
+        node_id="navigation",
+        space="user",
+        state="observed",
+        label="Public navigation",
+        time_ms=0,
+    )
+
+    if redirect_observed is not None or (redirect_savings or 0) > 0:
+        add_node(
+            nodes,
+            node_id="redirect",
+            space="edge",
+            state="observed",
+            label="Redirect chain",
+            time_ms={
+                "start": request_time(root, "networkRequestTime"),
+                "end": request_time(root, "networkEndTime"),
+            },
+            metrics={
+                "observed_ms": redirect_observed,
+                "modelled_savings_ms": redirect_savings,
+            },
+        )
+
+    if document:
+        add_node(
+            nodes,
+            node_id="document",
+            space="origin",
+            state="observed",
+            label="Final HTML response",
+            time_ms={
+                "start": request_time(document, "networkRequestTime"),
+                "end": request_time(document, "networkEndTime"),
+            },
+            metrics={
+                "server_response_ms": numeric_audit(report, "server-response-time")
+            },
+        )
+
+    if css_savings is not None:
+        add_node(
+            nodes,
+            node_id="css",
+            space="document_head",
+            state="derived",
+            label="Render-blocking resources",
+            metrics={"modelled_savings_ms": css_savings},
+        )
+
+    if main_thread_ms is not None or js_execution_ms is not None:
+        add_node(
+            nodes,
+            node_id="runtime",
+            space="main_thread",
+            state="observed",
+            label="Main-thread application work",
+            metrics={
+                "main_thread_ms": main_thread_ms,
+                "js_execution_ms": js_execution_ms,
+            },
+        )
+
+    discoverable = checks.get("requestDiscoverable")
+    priority_hinted = checks.get("priorityHinted")
+    discovery_delay = phases.get("resourceLoadDelay")
+    if checks or discovery_delay is not None:
+        label = (
+            "LCP resource not initially discoverable"
+            if discoverable is False
+            else "LCP discovery evidence"
+        )
+        add_node(
+            nodes,
+            node_id="lcp_discovery",
+            space="document_to_media",
+            state="observed",
+            label=label,
+            time_ms=request_time(desktop_hero or mobile_hero, "networkRequestTime"),
+            metrics={
+                "discoverable": discoverable,
+                "fetchpriority_high": priority_hinted,
+                "resource_load_delay_ms": discovery_delay,
+            },
+        )
+
+    transferred_heroes = [
+        item
+        for item in (mobile_hero, desktop_hero)
+        if isinstance(item, dict)
+    ]
+    if transferred_heroes:
+        add_node(
+            nodes,
+            node_id="hero_transfer",
+            space="responsive_media",
+            state="observed",
+            label=(
+                "Multiple hero variants transferred"
+                if len(transferred_heroes) > 1
+                else "Hero resource transferred"
+            ),
+            time_ms={
+                "mobile": request_time(mobile_hero, "networkRequestTime"),
+                "desktop": request_time(desktop_hero, "networkRequestTime"),
+            },
+            metrics={
+                "resources": [item.get("url") for item in transferred_heroes],
+                "count": len(transferred_heroes),
+            },
+        )
+
+    if lcp_ms is not None:
+        lcp_node = next(
+            (
+                item
+                for item in rows(report, "lcp-phases-insight")
+                if item.get("type") == "node"
+            ),
+            {},
+        )
+        add_node(
+            nodes,
+            node_id="lcp",
+            space="above_fold",
+            state="observed",
+            label="Largest Contentful Paint",
+            time_ms=lcp_ms,
+            metrics={
+                "lcp_ms": lcp_ms,
+                "fcp_ms": fcp_ms,
+                "element": lcp_node.get("nodeLabel"),
+                "selector": lcp_node.get("selector"),
+            },
+        )
+
+    if scripts or top_unused:
+        add_node(
+            nodes,
+            node_id="javascript",
+            space="network_runtime",
+            state="observed",
+            label="JavaScript delivery",
+            metrics={
+                "requests": scripts.get("requests"),
+                "transfer_kib": scripts.get("transfer_kib"),
+                "top_unused": top_unused,
+                "top_unused_total_kib": unused_kib,
+            },
+        )
+
+    if error:
+        add_node(
+            nodes,
+            node_id="console_error",
+            space="document_runtime",
+            state="observed",
+            label="Console error observed",
+            metrics={"description": error},
+        )
+
+    if cls is not None or shifts:
+        add_node(
+            nodes,
+            node_id="layout",
+            space="viewport",
+            state="observed",
+            label="Layout stability",
+            time_ms=request_time(font, "networkRequestTime"),
+            metrics={"cls": cls, "shifts": shifts},
+        )
+
+    if contrast:
+        add_node(
+            nodes,
+            node_id="contrast",
+            space="above_fold",
+            state="observed",
+            label="Contrast failures",
+            time_ms=fcp_ms,
+            metrics={"elements": contrast, "count": len(contrast)},
+        )
+
+    add_node(
+        nodes,
+        node_id="decision",
+        space="quality_gate",
+        state="derived",
+        label=f"LiminalQA {verdict}",
+        time_ms=lcp_ms,
+        metrics={
+            "verdict": verdict,
+            "scores": scores,
+            "thresholds": THRESHOLDS,
+            "failed_categories": failed,
+        },
+    )
+
+    node_ids = {node["id"] for node in nodes}
+    candidate_edges = [
+        ("navigation", "redirect", "triggers", "observed"),
+        ("navigation", "document", "requests", "observed"),
+        ("redirect", "document", "delays", "observed"),
+        ("document", "css", "discovers", "observed"),
+        ("document", "runtime", "starts", "observed"),
+        ("runtime", "lcp_discovery", "may_delay", "derived"),
+        ("lcp_discovery", "lcp", "contributes_to", "derived"),
+        ("hero_transfer", "lcp", "supplies_resource", "observed"),
+        ("css", "lcp", "may_delay_render", "derived"),
+        ("javascript", "decision", "affects_performance", "derived"),
+        ("console_error", "decision", "affects_best_practices", "derived"),
+        ("layout", "decision", "affects_stability", "derived"),
+        ("contrast", "decision", "affects_accessibility", "derived"),
+        ("lcp", "decision", "affects_performance", "derived"),
+    ]
+    edges = [
+        {"from": left, "to": right, "relation": relation, "state": state}
+        for left, right, relation, state in candidate_edges
+        if left in node_ids and right in node_ids
+    ]
+
+    ranked: list[dict[str, Any]] = []
+
+    def rank_candidate(
+        impact: float,
+        cause: str,
+        status: str,
+        why: str,
+        next_test: str,
+    ) -> None:
+        ranked.append(
+            {
+                "_impact": impact,
+                "cause": cause,
+                "status": status,
+                "why": why,
+                "next_test": next_test,
+            }
+        )
+
+    if discoverable is False or (discovery_delay or 0) > 0:
+        rank_candidate(
+            float(discovery_delay or 0),
+            "LCP discovery delay",
+            "OBSERVED",
+            (
+                f"Discoverable={discoverable}; fetchpriority_high={priority_hinted}; "
+                f"resource-load delay={discovery_delay} ms."
+            ),
+            "Expose the exact observed LCP resource in initial HTML and repeat the run.",
+        )
+    if scripts or top_unused:
+        rank_candidate(
+            float(scripts.get("transfer_kib") or 0),
+            "JavaScript delivery",
+            "OBSERVED",
+            (
+                f"{scripts.get('requests')} requests, {scripts.get('transfer_kib')} KiB "
+                f"transferred; top unused entries total {unused_kib} KiB."
+            ),
+            "Compare with a landing-only bundle and repeat under the same profile.",
+        )
+    if redirect_observed is not None or (redirect_savings or 0) > 0:
+        rank_candidate(
+            float(redirect_observed or redirect_savings or 0),
+            "Redirect chain",
+            "OBSERVED",
+            (
+                f"Observed redirect duration={redirect_observed} ms; "
+                f"modelled savings={redirect_savings} ms."
+            ),
+            "Compare the requested URL with the final canonical URL on the same runner.",
+        )
+    if len(transferred_heroes) > 1:
+        rank_candidate(
+            float(len(transferred_heroes)),
+            "Responsive hero overdelivery",
+            "OBSERVED",
+            f"{len(transferred_heroes)} distinct hero resources transferred in this run.",
+            "Trace DOM/resource initiators before claiming reconciliation or replacement.",
+        )
+    if css_savings is not None and css_savings > 0:
+        rank_candidate(
+            float(css_savings),
+            "Render-blocking resources",
+            "MODELLED",
+            f"Lighthouse modelled {css_savings} ms potential savings.",
+            "Test critical CSS and deferred non-critical styles in a counterfactual.",
+        )
+    if cls is not None and cls > 0:
+        rank_candidate(
+            float(cls) * 1000,
+            "Layout instability",
+            "OBSERVED",
+            f"CLS={cls}; {len(shifts)} shift records were captured.",
+            "Add dimensions/aspect-ratio and repeat the same navigation.",
+        )
+    if error:
+        rank_candidate(
+            1.0,
+            "Console error",
+            "OBSERVED",
+            error.replace("\n", " ")[:240],
+            "Reproduce with source maps and verify visible user impact separately.",
+        )
+
+    ranked.sort(key=lambda item: item["_impact"], reverse=True)
+    ranked_causes = [
+        {
+            "rank": index,
+            "cause": item["cause"],
+            "status": item["status"],
+            "why": item["why"],
+            "next_test": item["next_test"],
+        }
+        for index, item in enumerate(ranked, start=1)
+    ]
+
+    dominant_path = [
+        node_id
+        for node_id in (
+            "navigation",
+            "redirect",
+            "document",
+            "runtime",
+            "lcp_discovery",
+            "lcp",
+            "decision",
+        )
+        if node_id in node_ids
+    ]
+
+    return {
+        "schema_version": "liminalqa-space-time-causality-v2",
+        "target": final_url,
+        "guidance": (
+            "Every observed or derived claim in this packet is computed from the "
+            "current Lighthouse report; unsupported historical claims are omitted."
+        ),
+        "axes": {
+            "space": sorted({node["space"] for node in nodes}),
+            "valid_time": "navigation-relative milliseconds",
+            "transaction_time": "Lighthouse fetch and graph generation",
+            "note": "Observed data and modelled Lighthouse savings remain distinct.",
+        },
+        "run_count": 1,
+        "evidence": {
+            "file": report_path.name,
+            "sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
+            "fetch_time": report.get("fetchTime"),
+            "lighthouse_version": report.get("lighthouseVersion"),
+        },
+        "dominant_path": dominant_path,
+        "nodes": nodes,
+        "edges": edges,
+        "ranked_causes": ranked_causes,
+        "boundaries": {
+            "active_security_testing": False,
+            "authenticated_testing": False,
+            "financial_operations": False,
+            "vulnerability_claim": False,
+            "temporal_stability_proven": False,
+            "single_run_confidence": "LOW",
+        },
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input-dir", required=True, type=Path)
+    parser.add_argument("--output-dir", required=True, type=Path)
+    args = parser.parse_args()
+
+    report_path, report = find_report(args.input_dir)
+    graph = build(report_path, report)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    output = args.output_dir / "causality-graph.json"
+    output.write_text(
+        json.dumps(graph, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps({"output": str(output), "nodes": len(graph["nodes"])}, indent=2))
+
+
+if __name__ == "__main__":
+    main()
