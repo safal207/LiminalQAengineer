@@ -1,0 +1,7 @@
+{
+  "mode": "runtime_diagnostic_only",
+  "temporary_pr_to_main": true,
+  "merge_authority": false,
+  "external_submission_authority": false,
+  "deployment_authority": false
+}
