@@ -1,0 +1,146 @@
+{
+  "schema_version": "liminalqa-airbnb-currency-history-lotus-v0.1",
+  "case_id": "ABNB-CURRENCY-HISTORY-2026-07-19",
+  "source": {
+    "repository": "safal207/LiminalQAengineer",
+    "execution_pr": 77,
+    "execution_head": "404da0d714de334e18080138623370fdc32717f5",
+    "workflow_run_id": 29678020284,
+    "classifier_revision": "target-price-context-v2",
+    "mode": "public_unauthenticated_read_only_browser"
+  },
+  "authority": {
+    "mode": "audit_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "external_submission": false,
+    "merge": false
+  },
+  "summary": {
+    "listings": 3,
+    "fresh_contexts": 6,
+    "consistent_attempts": 2,
+    "inconclusive_attempts": 4,
+    "inconsistent_attempts": 0,
+    "confirmed_defects": 0,
+    "payments_submitted": 0,
+    "reservations_created": 0,
+    "decision_counts": {
+      "NO_DEFECT_OBSERVED": 1,
+      "NEEDS_EVIDENCE": 2,
+      "BLOCKED": 1
+    }
+  },
+  "findings": [
+    {
+      "id": "ABNB-ANTALYA-CURRENCY-HISTORY-NEGATIVE-CONTROL-001",
+      "title": "Antalya listing currency and browser history remained consistent",
+      "scope": "one public Antalya listing, two fresh contexts, TRY/EUR and Back/Forward",
+      "claim": "For the tested listing and dates, visible reservation-price currency followed the URL currency across TRY → EUR → Back TRY → Forward EUR in both fresh contexts.",
+      "evidence": {
+        "artifact_name": "ABNB-MATRIX-antalya-center",
+        "artifact_sha256": "55030ae08db9d7f462aec48a75ce11873deb32d4f44255ffc01c3b7b1e06ad49",
+        "probe_result_sha256": "517a50bd54dabc417c122a0d978e283df37007455c0e550dbd0823ef72164d0e",
+        "manifest_sha256": "696533d042f2ef730cdd321a59dbcff6bab07c4430f312138540c17579382efa",
+        "attempt_outcomes": [
+          "consistent",
+          "consistent"
+        ],
+        "normalized_signatures": [
+          [
+            "TRY",
+            "EUR",
+            "TRY",
+            "EUR"
+          ],
+          [
+            "TRY",
+            "EUR",
+            "TRY",
+            "EUR"
+          ]
+        ],
+        "http_4xx_5xx": 0,
+        "console_errors": 0
+      },
+      "pythia": "ALLOW_BOUNDED_NEGATIVE_RESULT",
+      "cml": "NEGATIVE_CAUSAL_MEMORY",
+      "ls": "NONE",
+      "decision": "NO_DEFECT_OBSERVED",
+      "severity": "UNASSIGNED",
+      "supersedes": "the unbounded claim that currency/history mismatch is reproduced on this exact listing and date window"
+    },
+    {
+      "id": "ABNB-ALANYA-CENTER-CURRENCY-HISTORY-001",
+      "title": "Alanya center listing could not produce a valid reservation-price context",
+      "scope": "one public Alanya center listing, two fresh contexts",
+      "claim": "The selected listing/date window did not provide a valid target reservation-price context at all checkpoints, so currency/history consistency is not adjudicated.",
+      "evidence": {
+        "artifact_name": "ABNB-MATRIX-alanya-center",
+        "artifact_sha256": "2623bb56629c88594be4dd77a450b5a828bb49c20cb0afc451a70cfdadbabd3c",
+        "probe_result_sha256": "e877618d03085afdade0ad0b13bdeb2e0a3e5ab715caa6dfc8223b8d3ae1f290",
+        "manifest_sha256": "d1b73e0d9ea86fa97c9ffba3fe850e8a76f536f463bd7d7e0fd19058204f572c",
+        "attempt_outcomes": [
+          "inconclusive",
+          "inconclusive"
+        ],
+        "reason": "listing dates unavailable or listing page missing"
+      },
+      "pythia": "ESCALATE",
+      "cml": "CONFLICT",
+      "ls": "UNKNOWN",
+      "decision": "NEEDS_EVIDENCE",
+      "severity": "UNASSIGNED",
+      "next_evidence": "Select an available date window with a visible reservation-price block, then repeat two fresh contexts."
+    },
+    {
+      "id": "ABNB-ALANYA-BEACH-CURRENCY-HISTORY-001",
+      "title": "Alanya beach listing could not produce a valid reservation-price context",
+      "scope": "one public Alanya beach listing, two fresh contexts",
+      "claim": "The selected listing/date window did not provide a valid target reservation-price context at all checkpoints, so currency/history consistency is not adjudicated.",
+      "evidence": {
+        "artifact_name": "ABNB-MATRIX-alanya-beach",
+        "artifact_sha256": "a4ff4ef98ed2db605bdfcd99297ab807b4509fc4de70106bd9ac71a94359844d",
+        "probe_result_sha256": "f495447b405e4c7e8dad7791882dc04ee4d47053234781242194d2859e52854c",
+        "manifest_sha256": "f372db095f740f98258f88645b43d69c9db7148bf1a1eeba19e69f9cf807b2e5",
+        "attempt_outcomes": [
+          "inconclusive",
+          "inconclusive"
+        ],
+        "reason": "listing dates unavailable or listing page missing"
+      },
+      "pythia": "ESCALATE",
+      "cml": "CONFLICT",
+      "ls": "UNKNOWN",
+      "decision": "NEEDS_EVIDENCE",
+      "severity": "UNASSIGNED",
+      "next_evidence": "Select an available date window with a visible reservation-price block, then repeat two fresh contexts."
+    },
+    {
+      "id": "ABNB-CURRENCY-HISTORY-CROSS-LISTING-DEFECT-001",
+      "title": "Broad cross-listing currency/history defect claim",
+      "scope": "all three matrix targets",
+      "claim": "Airbnb broadly preserves the wrong currency across browser history.",
+      "evidence": {
+        "inconsistent_attempts": 0,
+        "valid_consistent_attempts": 2,
+        "inconclusive_attempts": 4
+      },
+      "pythia": "BLOCK",
+      "cml": "NEGATIVE_CAUSAL_MEMORY",
+      "ls": "NONE",
+      "decision": "BLOCKED",
+      "severity": "UNASSIGNED",
+      "reason": "No inconsistent attempt was observed; two listings were not adjudicable."
+    }
+  ],
+  "truth_boundary": [
+    "A bounded negative result does not prove universal correctness across Airbnb listings, currencies, dates, locales, or authenticated states.",
+    "Inconclusive listings must not be counted as passes or failures.",
+    "Aborted telemetry and image-precache requests are not product defects without user-impact evidence.",
+    "No payment, reservation, host contact, form submission, login, or private data access occurred."
+  ],
+  "recommended_human_action": "Retain PR #77 as execution-only draft. Review this packet as the adjudication artifact; do not submit a defect report from the current evidence."
+}
