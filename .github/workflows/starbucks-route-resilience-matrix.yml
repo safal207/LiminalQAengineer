@@ -1,0 +1,139 @@
+name: Starbucks Public Route Resilience Matrix
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/starbucks-route-resilience-matrix-v0-1
+    paths:
+      - .github/workflows/starbucks-route-resilience-matrix.yml
+      - audits/starbucks/route-resilience-matrix-v0.1.json
+      - scripts/starbucks_route_resilience_matrix.mjs
+      - tests/test_starbucks_route_resilience_contract.py
+      - docs/audits/STARBUCKS_ROUTE_RESILIENCE_MATRIX.md
+  pull_request:
+    branches:
+      - agent/starbucks-public-lotus-audit-v0-1
+    paths:
+      - .github/workflows/starbucks-route-resilience-matrix.yml
+      - audits/starbucks/route-resilience-matrix-v0.1.json
+      - scripts/starbucks_route_resilience_matrix.mjs
+      - tests/test_starbucks_route_resilience_contract.py
+      - docs/audits/STARBUCKS_ROUTE_RESILIENCE_MATRIX.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starbucks-route-resilience-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Baseline, script controls and recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate experiment and safety boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/starbucks/route-resilience-matrix-v0.1.json"
+          python3 -m json.tool "${config}" >/dev/null
+          python3 -m py_compile tests/test_starbucks_route_resilience_contract.py
+          python3 -m unittest tests/test_starbucks_route_resilience_contract.py -v
+          jq -e '
+            .schema_version == "liminalqa-starbucks-route-resilience-config-v0.1" and
+            (.targets | length) == 5 and
+            (.profiles | length) == 2 and
+            .rounds == 3 and
+            .boundaries.maximum_parallel_pages == 1 and
+            .boundaries.maximum_total_navigations == 120 and
+            .boundaries.public_pages_only == true and
+            .boundaries.natural_browser_requests_only == true and
+            .boundaries.sequential_contexts_only == true and
+            .boundaries.authentication == false and
+            .boundaries.account_creation == false and
+            .boundaries.form_submission == false and
+            .boundaries.orders_or_payments == false and
+            .boundaries.gift_card_balance_check == false and
+            .boundaries.rewards_mutation == false and
+            .boundaries.direct_application_api_calls == false and
+            .boundaries.credential_validation == false and
+            .boundaries.token_requests == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.raw_response_body_storage == false and
+            .boundaries.request_header_storage == false and
+            .boundaries.cookie_storage == false and
+            .boundaries.local_storage_capture == false and
+            .boundaries.form_value_capture == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate probe and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/starbucks_route_resilience_matrix.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run bounded resilience matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/starbucks-route-resilience
+          node scripts/starbucks_route_resilience_matrix.mjs \
+            --config audits/starbucks/route-resilience-matrix-v0.1.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/starbucks-route-resilience
+          cat reports/starbucks-route-resilience/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate result shape, privacy and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/starbucks-route-resilience/aggregate.json"
+          jq -e '
+            .schema_version == "liminalqa-starbucks-route-resilience-result-v0.1" and
+            .total_navigations == 120 and
+            (.pairs | length) == 30 and
+            (.cells | length) == 10 and
+            .boundaries.maximum_parallel_pages == 1 and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.external_submission == false and
+            .authority.deployment == false and
+            .authority.merge == false
+          ' "${result}" >/dev/null
+          ! grep -R -I -E 'authorization:|cookie:|set-cookie:|response_body|request_headers|localStorage|sessionStorage|client_secret|clientSecret' reports/starbucks-route-resilience --exclude='*.png'
+          find reports/starbucks-route-resilience -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > reports/starbucks-route-resilience/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starbucks-route-resilience-${{ github.run_id }}
+          path: reports/starbucks-route-resilience/
+          if-no-files-found: error
+          retention-days: 14

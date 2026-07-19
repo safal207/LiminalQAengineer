@@ -1,0 +1,121 @@
+{
+  "schema_version": "liminalqa-starbucks-route-resilience-config-v0.1",
+  "targets": [
+    {
+      "id": "menu",
+      "url": "https://www.starbucks.com/menu",
+      "expected_terms": [
+        "menu",
+        "drinks",
+        "food"
+      ]
+    },
+    {
+      "id": "store-locator",
+      "url": "https://www.starbucks.com/store-locator",
+      "expected_terms": [
+        "store",
+        "location",
+        "find"
+      ]
+    },
+    {
+      "id": "sign-in",
+      "url": "https://www.starbucks.com/account/signin",
+      "expected_terms": [
+        "sign in",
+        "email",
+        "password"
+      ]
+    },
+    {
+      "id": "rewards",
+      "url": "https://www.starbucks.com/rewards",
+      "expected_terms": [
+        "rewards",
+        "stars",
+        "join"
+      ]
+    },
+    {
+      "id": "gift",
+      "url": "https://www.starbucks.com/gift",
+      "expected_terms": [
+        "gift",
+        "card",
+        "egift"
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "id": "desktop",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "cpu_throttling_rate": 1
+    },
+    {
+      "id": "mobile",
+      "user_agent": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "deviceScaleFactor": 1,
+        "isMobile": true,
+        "hasTouch": true
+      },
+      "cpu_throttling_rate": 1
+    }
+  ],
+  "rounds": 3,
+  "timings_ms": {
+    "navigation_timeout": 45000,
+    "settle": 3500,
+    "between_navigations": 750
+  },
+  "thresholds": {
+    "minimum_meaningful_text_chars": 120,
+    "minimum_ax_nodes": 8
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_browser_requests_only": true,
+    "sequential_contexts_only": true,
+    "maximum_parallel_pages": 1,
+    "maximum_total_navigations": 120,
+    "maximum_normalized_script_urls_per_phase": 40,
+    "authentication": false,
+    "account_creation": false,
+    "form_submission": false,
+    "orders_or_payments": false,
+    "gift_card_balance_check": false,
+    "rewards_mutation": false,
+    "direct_application_api_calls": false,
+    "credential_validation": false,
+    "token_requests": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "raw_response_body_storage": false,
+    "request_header_storage": false,
+    "cookie_storage": false,
+    "local_storage_capture": false,
+    "form_value_capture": false
+  },
+  "authority": {
+    "mode": "audit_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}

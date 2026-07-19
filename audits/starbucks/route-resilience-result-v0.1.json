@@ -1,0 +1,87 @@
+{
+  "schema_version": "liminalqa-starbucks-route-resilience-evidence-v0.1",
+  "observation": {
+    "observed_at_utc": "2026-07-19T00:52:33.170Z",
+    "repository": "safal207/LiminalQAengineer",
+    "head_sha": "1f7d330df7018ed28ee500a04ff7dcbaa0b21c28",
+    "workflow_run_id": 29667373889,
+    "artifact_id": 8436241393,
+    "artifact_name": "starbucks-route-resilience-29667373889",
+    "artifact_digest": "sha256:4fd8eb493d0a20b66d5d0f3a794ed597bf92c7a831366edf987dfa3470376a88",
+    "artifact_size_bytes": 41485051,
+    "artifact_file_count": 152,
+    "config_sha256": "2b3182d2196d219b7cb5d3ab93c32bdf4faafa3510f5aa34a0b0e62da7fb5325",
+    "result_internal_sha256": "d4fa1d05fc6784ea1bbbb736db7a284b1d9a2b32ef0e33ecb72f4165572620db",
+    "aggregate_file_sha256": "cd2dde59145998b5c555ffbe07f73031e9d5e8d978bc116212f644d54cc7470a",
+    "summary_file_sha256": "dbfd6747d6b4ba25ea87719ef5b81d2b29dd5b87c74a422bd5f7f543d48f1763"
+  },
+  "matrix": {
+    "routes": 5,
+    "profiles": 2,
+    "rounds_per_cell": 3,
+    "fresh_browser_contexts": 30,
+    "navigations": 120,
+    "cells": 10,
+    "supported_cells": 9,
+    "needs_evidence_cells": 1
+  },
+  "first_party_javascript_treatment": {
+    "pairs": 30,
+    "pairs_with_first_party_script_block": 30,
+    "pairs_without_main_landmark": 30,
+    "pairs_without_route_identity": 30,
+    "pairs_without_visible_inputs": 30,
+    "pairs_with_javascript_required_message": 0,
+    "pairs_with_recovery_guidance": 0,
+    "pairs_recovered_after_scripts_restored": 30,
+    "unique_treatment_screenshot_sha256": [
+      "299f062c917b790797996980b867d01f7b795ded2dd84b2f3605310ec25c3c8c",
+      "f6d383c137197d59bae66bec458d509a9fd56a199448639784a7498b6c79ac44"
+    ],
+    "interpretation": "When first-party Starbucks scripts were blocked, every tested route/profile/round lost its route-specific main content and route identity while retaining only a generic shell or cookie surface. No tested treatment displayed a JavaScript-required explanation or route-specific recovery guidance. All 30 contexts recovered after scripts were restored."
+  },
+  "cell_results": [
+    {"target_id":"menu","profile_id":"desktop","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"menu","profile_id":"mobile","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"store-locator","profile_id":"desktop","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"store-locator","profile_id":"mobile","baseline_valid":3,"third_party_control_valid":0,"first_party_terminal_state":3,"recovery_restored":3,"decision":"NEEDS_EVIDENCE"},
+    {"target_id":"sign-in","profile_id":"desktop","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"sign-in","profile_id":"mobile","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"rewards","profile_id":"desktop","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"rewards","profile_id":"mobile","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"gift","profile_id":"desktop","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"},
+    {"target_id":"gift","profile_id":"mobile","baseline_valid":3,"third_party_control_valid":3,"first_party_terminal_state":3,"recovery_restored":3,"decision":"SUPPORTED_FINDING"}
+  ],
+  "mobile_store_locator_third_party_treatment": {
+    "rounds": 3,
+    "baseline_valid": 3,
+    "third_party_scripts_blocked_per_round": 5,
+    "generic_error_screen_rounds": 3,
+    "navigation_status": 200,
+    "main_landmarks": 1,
+    "route_identity_rounds": 0,
+    "recovery_guidance_rounds": 3,
+    "recovery_restored_rounds": 3,
+    "text_sha256": "931f63535bd8f5f6913bfd86815073908bfd1e8a85b2c055683770de327b2047",
+    "screenshot_sha256": "ce119f88b6aed4acab25b0ae03912158e697122ae12752cf601de4791e0e6fc1",
+    "desktop_third_party_control_valid_rounds": 3,
+    "interpretation": "Blocking all third-party scripts produced the same generic unrecoverable-error screen in the mobile store locator in 3/3 fresh contexts, while the desktop store locator retained route identity in 3/3. The responsible third-party provider is not identified by this evidence."
+  },
+  "scope": {
+    "mode": "public_browser_counterfactual",
+    "authentication": false,
+    "form_submission": false,
+    "orders_or_payments": false,
+    "direct_application_api_calls": false,
+    "credential_validation": false,
+    "token_requests": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "raw_response_body_storage": false,
+    "request_header_storage": false,
+    "cookie_storage": false,
+    "web_storage_capture": false,
+    "form_value_capture": false
+  }
+}
