@@ -1,0 +1,285 @@
+name: Garden DNS and Live Probe
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/garden-dns-live-ci.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: garden-dns-live-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 9c43a78082d8bf943dd8d11e741b9a0c7cc61f65
+  PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
+  ROOTFS_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
+
+jobs:
+  verify:
+    name: DNS A-B and exact read-only Airbnb probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ env.PROBE_SHA }}
+          path: vendor/airbnb-probe
+          persist-credentials: false
+
+      - name: Build exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          test "$(git -C vendor/airbnb-probe rev-parse HEAD)" = "$PROBE_SHA"
+          mkdir -p reports/{rootfs,garden-image,probe-image,evidence,network-files}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+          build_root="$RUNNER_TEMP/GardenLiminal"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/garden-image/gl"
+
+      - name: Build exact Playwright rootfs with live network files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${ROOTFS_IMAGE}
+          RUN python -m pip install --no-cache-dir playwright==1.60.0
+          RUN mkdir -p /opt/liminal-playwright && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+          docker build -t garden-live-rootfs:${GITHUB_SHA} reports/probe-image \
+            2>&1 | tee reports/probe-image-build.log
+
+          export_id="$(docker create garden-live-rootfs:${GITHUB_SHA} /bin/true)"
+          source_name="network-source-${GITHUB_RUN_ID}"
+          trap 'docker rm -f "$export_id" "$source_name" >/dev/null 2>&1 || true' EXIT
+          docker export "$export_id" -o reports/rootfs.tar
+          sudo tar -xf reports/rootfs.tar -C reports/rootfs
+
+          # Docker injects these files only after a container starts.
+          docker run -d --name "$source_name" garden-live-rootfs:${GITHUB_SHA} sleep 300 >/dev/null
+          for file in resolv.conf hosts hostname; do
+            docker exec "$source_name" cat "/etc/$file" > "reports/network-files/$file"
+            test -s "reports/network-files/$file"
+            sudo cp "reports/network-files/$file" "reports/rootfs/etc/$file"
+          done
+
+          sudo mkdir -p reports/rootfs/opt/liminalqa reports/rootfs/opt/diagnostic reports/rootfs/evidence
+          sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py reports/rootfs/opt/liminalqa/
+          sudo chmod -R a+rX reports/rootfs/opt/liminalqa
+
+          dev=reports/rootfs/dev
+          sudo mkdir -p "$dev" "$dev/pts" "$dev/shm"
+          for entry in null zero random urandom; do sudo rm -f "$dev/$entry"; done
+          sudo mknod -m 666 "$dev/null" c 1 3
+          sudo mknod -m 666 "$dev/zero" c 1 5
+          sudo mknod -m 666 "$dev/random" c 1 8
+          sudo mknod -m 666 "$dev/urandom" c 1 9
+          sudo ln -sfn /proc/self/fd "$dev/fd"
+          sudo ln -sfn /proc/self/fd/0 "$dev/stdin"
+          sudo ln -sfn /proc/self/fd/1 "$dev/stdout"
+          sudo ln -sfn /proc/self/fd/2 "$dev/stderr"
+
+          cat > /tmp/dns-probe.py <<'PY'
+          import json, socket, traceback
+          from pathlib import Path
+          result = {"addresses": [], "error": None, "resolv_conf": Path('/etc/resolv.conf').read_text(errors='replace')}
+          try:
+              result["addresses"] = sorted({r[4][0] for r in socket.getaddrinfo('www.airbnb.com', 443, type=socket.SOCK_STREAM)})
+          except Exception as exc:
+              result["error"] = {"type": type(exc).__name__, "message": str(exc), "traceback": traceback.format_exc()}
+          Path('/evidence').mkdir(parents=True, exist_ok=True)
+          Path('/evidence/dns.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2), flush=True)
+          raise SystemExit(0 if result["addresses"] else 1)
+          PY
+          sudo cp /tmp/dns-probe.py reports/rootfs/opt/diagnostic/dns-probe.py
+
+      - name: DNS baseline in matching Docker namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/rootfs:/work/rootfs:rw" \
+            ubuntu:24.04 chroot /work/rootfs /usr/bin/python /opt/diagnostic/dns-probe.py \
+            2>&1 | tee reports/dns-baseline.log
+          sudo cp reports/rootfs/evidence/dns.json reports/dns-baseline.json
+          sudo rm -f reports/rootfs/evidence/dns.json
+
+      - name: Build Garden harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libseccomp2 ca-certificates && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-live:${GITHUB_SHA} reports/garden-image
+
+      - name: DNS inside Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/dns-seed.yaml <<'YAML'
+          apiVersion: v0
+          kind: Seed
+          meta: {name: garden-dns, id: garden-dns-001}
+          rootfs: {path: /work/rootfs}
+          entrypoint:
+            cmd: [/usr/bin/python, /opt/diagnostic/dns-probe.py]
+            env: [HOME=/tmp, PYTHONUNBUFFERED=1]
+            cwd: /
+          mounts:
+            - {type: proc, target: /proc}
+            - {type: tmpfs, target: /tmp}
+            - {type: tmpfs, target: /dev/shm}
+          security:
+            hostname: garden-dns
+            drop_caps: [NET_ADMIN, SYS_ADMIN]
+            seccomp_profile: default
+          user: {uid: 0, gid: 0, map_rootless: false}
+          store: {kind: mem}
+          YAML
+          docker run --rm --privileged --pids-limit 128 \
+            --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/dns-seed.yaml:/work/seed.yaml:ro" \
+            garden-live:${GITHUB_SHA} run -f /work/seed.yaml --store mem \
+            2>&1 | tee reports/dns-garden.log
+          sudo cp reports/rootfs/evidence/dns.json reports/dns-garden.json
+          sudo rm -f reports/rootfs/evidence/dns.json
+
+      - name: Run exact read-only Airbnb probe inside Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          cat > reports/live-seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta: {name: airbnb-garden-live, id: airbnb-garden-live-001}
+          rootfs: {path: /work/rootfs}
+          entrypoint:
+            cmd: [/usr/bin/python, /opt/liminalqa/airbnb_readonly_discovered_dates_probe_v4.py, --listing-url, ${LISTING_URL}, --output-root, /evidence/ABNB-GARDEN-LIVE]
+            env: [PYTHONPATH=/opt/liminalqa, HOME=/tmp, PLAYWRIGHT_BROWSERS_PATH=/opt/liminal-playwright, PYTHONUNBUFFERED=1, DEBUG=pw:browser]
+            cwd: /opt/liminalqa
+          mounts:
+            - {type: proc, target: /proc}
+            - {type: tmpfs, target: /tmp}
+            - {type: tmpfs, target: /dev/shm}
+          security:
+            hostname: airbnb-garden
+            drop_caps: [NET_ADMIN, SYS_ADMIN]
+            seccomp_profile: default
+          user: {uid: 0, gid: 0, map_rootless: false}
+          store: {kind: mem}
+          YAML
+          name="airbnb-live-${GITHUB_RUN_ID}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          set +e
+          timeout 900 docker run --name "$name" --privileged \
+            --cpus 1.50 --memory 2g --pids-limit 512 \
+            --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/live-seed.yaml:/work/seed.yaml:ro" \
+            garden-live:${GITHUB_SHA} run -f /work/seed.yaml --store mem \
+            > reports/live.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/live.exit
+          docker inspect "$name" --format '{{json .HostConfig}}' > reports/docker-host-config.json
+          docker rm -f "$name" >/dev/null
+          tail -400 reports/live.log
+
+      - name: Extract and classify exact evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir=reports/rootfs/evidence/ABNB-GARDEN-LIVE
+          if [ -d "$source_dir" ]; then
+            sudo cp -a "$source_dir" reports/evidence/
+            sudo chown -R "$(id -u):$(id -g)" reports/evidence
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('reports')
+          baseline = json.loads((root/'dns-baseline.json').read_text())
+          garden_dns = json.loads((root/'dns-garden.json').read_text())
+          run_code = int((root/'live.exit').read_text())
+          host = json.loads((root/'docker-host-config.json').read_text())
+          records=[]
+          log=(root/'live.log').read_text(errors='replace')
+          for line in log.splitlines():
+              try: item=json.loads(line)
+              except Exception: continue
+              if isinstance(item,dict) and item.get('event'): records.append(item)
+          events=[x['event'] for x in records]
+          required=['RUN_CREATED','SEED_LOADED','NS_CREATED','MOUNT_DONE','CAPS_DROPPED','SECCOMP_ENABLED','PROCESS_START','PROCESS_EXIT']
+          exit_zero=any(x.get('event')=='PROCESS_EXIT' and x.get('code')==0 for x in records)
+          paths=list((root/'evidence').rglob('probe-result.json'))
+          probe=json.loads(paths[0].read_text()) if len(paths)==1 else None
+          limits={'nano_cpus':host.get('NanoCpus'),'memory_bytes':host.get('Memory'),'pids_limit':host.get('PidsLimit')}
+          expected={'nano_cpus':1500000000,'memory_bytes':2147483648,'pids_limit':512}
+          safe=bool(probe) and probe.get('confirmed_defect') is False and probe.get('payment_submitted') is False and probe.get('reservation_created') is False
+          confirmed=bool(baseline['addresses']) and bool(garden_dns['addresses']) and run_code==0 and all(x in events for x in required) and exit_zero and limits==expected and safe
+          result={
+            'schema_version':'garden-dns-live-ci-v0.1',
+            'garden_commit':'9c43a78082d8bf943dd8d11e741b9a0c7cc61f65',
+            'probe_commit':'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
+            'dns_baseline_addresses':baseline['addresses'],
+            'dns_garden_addresses':garden_dns['addresses'],
+            'garden_events':events,
+            'garden_run_exit':run_code,
+            'outer_limits':{'configured':limits,'expected':expected,'matches':limits==expected},
+            'probe_present':probe is not None,
+            'probe_summary':None if probe is None else {k:probe.get(k) for k in ['classifier_revision','outcomes','normalized_signatures','evidence_grade','confirmed_defect','payment_submitted','reservation_created','resolved_target']},
+            'safe_readonly_probe':safe,
+            'live_garden_probe_confirmed':confirmed,
+            'authority':{'mode':'audit_only','ownership':False,'approval':False,'external_submission':False,'deployment':False,'merge':False},
+          }
+          (root/'result.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(result,indent=2))
+          if not confirmed: raise SystemExit(1)
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/rootfs
+          rm -f reports/rootfs.tar
+          find reports -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > reports/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-dns-live-${{ github.run_id }}
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14
