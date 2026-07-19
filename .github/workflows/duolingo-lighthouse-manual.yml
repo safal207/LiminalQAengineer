@@ -1,6 +1,11 @@
 name: Duolingo Lighthouse Manual Audit
 
 on:
+  push:
+    branches:
+      - agent/duolingo-lighthouse-adapter-v0-3
+    paths:
+      - .github/workflows/duolingo-lighthouse-manual.yml
   workflow_dispatch:
     inputs:
       acknowledgement:
