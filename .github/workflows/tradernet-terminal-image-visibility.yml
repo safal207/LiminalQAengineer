@@ -1,0 +1,88 @@
+name: Tradernet Terminal Mobile Image Visibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-terminal-loading-audit
+    paths:
+      - .github/workflows/tradernet-terminal-image-visibility.yml
+      - audits/tradernet/terminal-loading-public.json
+      - scripts/tradernet_terminal_image_visibility_probe.mjs
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-terminal-image-visibility.yml
+      - audits/tradernet/terminal-loading-public.json
+      - scripts/tradernet_terminal_image_visibility_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-terminal-mobile-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Passive mobile image visibility probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate exact boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .target_url == "https://tradernet.ru/terminal" and
+            (.profiles | map(select(.id == "mobile_4g")) | length) == 1 and
+            .boundaries.public_page_only == true and
+            .boundaries.one_navigation_per_profile == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.form_submission == false and
+            .boundaries.financial_operations == false and
+            .boundaries.load_testing == false
+          ' audits/tradernet/terminal-loading-public.json >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Locate Chrome and validate probe
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/tradernet_terminal_image_visibility_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Probe mobile image visibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradernet-terminal-image-visibility
+          node scripts/tradernet_terminal_image_visibility_probe.mjs \
+            --config audits/tradernet/terminal-loading-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradernet-terminal-image-visibility
+          cat reports/tradernet-terminal-image-visibility/terminal-image-visibility-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-terminal-mobile-image-${{ github.run_id }}
+          path: reports/tradernet-terminal-image-visibility/
+          if-no-files-found: error
+          retention-days: 14
