@@ -6,12 +6,14 @@ on:
       - agent/abnb-run-002-docker
     paths:
       - scripts/airbnb_readonly_probe.py
+      - scripts/airbnb_readonly_probe_guard.py
       - .github/workflows/airbnb-readonly-docker-probe.yml
   pull_request:
     branches:
       - agent/lotus-evidence-vertical-slice
     paths:
       - scripts/airbnb_readonly_probe.py
+      - scripts/airbnb_readonly_probe_guard.py
       - .github/workflows/airbnb-readonly-docker-probe.yml
   workflow_dispatch:
 
@@ -63,10 +65,10 @@ jobs:
             'No payment.' \
             'No reservation creation.'
 
-      - name: Run two-context currency and browser-history probe
+      - name: Run guarded two-context currency and browser-history probe
         run: |
           rm -rf "$OUTPUT_ROOT"
-          python scripts/airbnb_readonly_probe.py \
+          python scripts/airbnb_readonly_probe_guard.py \
             --listing-url "$LISTING_URL" \
             --output-root "$OUTPUT_ROOT"
 
@@ -82,6 +84,7 @@ jobs:
           print(json.dumps({
               'slug': os.environ['RUN_SLUG'],
               'target': data['target'],
+              'classifier_revision': data.get('classifier_revision'),
               'outcomes': data['outcomes'],
               'normalized_signatures': data['normalized_signatures'],
               'evidence_grade': data['evidence_grade'],
