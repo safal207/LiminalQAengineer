@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 import sys
+import zipfile
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -122,7 +123,7 @@ def validate_spec(spec: dict[str, Any]) -> None:
 
 
 def validate_environment(environment: Any) -> dict[str, Any]:
-    """Validate non-empty browser metadata and normalized locale/country/timezone values."""
+    """Validate public, unauthenticated browser metadata and normalized values."""
     if not isinstance(environment, dict):
         raise CaptureError("capture: environment object is required")
     missing = sorted(REQUIRED_ENV_FIELDS - environment.keys())
@@ -133,6 +134,8 @@ def validate_environment(environment: Any) -> dict[str, Any]:
             raise CaptureError(f"capture: environment.{field} must be a non-empty string")
     if not isinstance(environment["authenticated"], bool):
         raise CaptureError("capture: environment.authenticated must be boolean")
+    if environment["authenticated"] is not False:
+        raise CaptureError("capture: environment.authenticated must remain false")
     if not COUNTRY_RE.fullmatch(environment["ip_country"]):
         raise CaptureError("capture: environment.ip_country must be two uppercase letters")
     if not LOCALE_RE.fullmatch(environment["locale"]):
@@ -144,7 +147,7 @@ def validate_environment(environment: Any) -> dict[str, Any]:
     return environment
 
 
-def _validate_artifact(artifact: dict[str, Any], root: Path) -> None:
+def _validate_artifact(artifact: dict[str, Any], root: Path) -> Path:
     """Verify one artifact role, safe relative path, existence, and digest."""
     role = artifact.get("role")
     if role not in REQUIRED_ARTIFACT_ROLES:
@@ -165,6 +168,7 @@ def _validate_artifact(artifact: dict[str, Any], root: Path) -> None:
         raise CaptureError(f"artifact {role}: sha256 must be 64 lowercase hex characters")
     if sha256_file(path) != expected:
         raise CaptureError(f"artifact {role}: SHA mismatch")
+    return path
 
 
 def validate_state(
@@ -197,27 +201,144 @@ def validate_state(
     )
 
 
-def inconsistency_fingerprint(attempt: dict[str, Any]) -> str:
-    """Normalize an inconsistent attempt into a comparable transition class."""
+def _normalize_total(value: str) -> str:
+    """Remove whitespace and case differences from a visible total."""
+    return re.sub(r"\s+", "", value).casefold()
+
+
+def inconsistency_fingerprint(attempt: dict[str, Any]) -> str | None:
+    """Derive an inconsistency class from visible state instead of trusting a label."""
     before = attempt["state_before"]
     after = attempt["state_after"]
-
-    def normalize_total(value: str) -> str:
-        """Remove whitespace and case differences from a visible total."""
-        return re.sub(r"\s+", "", value).casefold()
-
+    currency_changed = before["display_currency"] != after["display_currency"]
+    total_changed = _normalize_total(before["display_total"]) != _normalize_total(
+        after["display_total"]
+    )
+    if currency_changed == total_changed:
+        return None
     value = {
         "before_currency": before["display_currency"],
         "after_currency": after["display_currency"],
-        "currency_changed": before["display_currency"] != after["display_currency"],
-        "total_relation": (
-            "unchanged"
-            if normalize_total(before["display_total"])
-            == normalize_total(after["display_total"])
-            else "changed"
-        ),
+        "currency_changed": currency_changed,
+        "total_relation": "changed" if total_changed else "unchanged",
     }
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def _require_exact_zip_members(path: Path, *, role: str, expected: set[str]) -> None:
+    """Require a deterministic, duplicate-free attempt member set in one ZIP artifact."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            names = [name for name in archive.namelist() if not name.endswith("/")]
+    except zipfile.BadZipFile as exc:
+        raise CaptureError(f"artifact {role}: invalid ZIP archive") from exc
+    if len(names) != len(set(names)):
+        raise CaptureError(f"artifact {role}: duplicate ZIP members are not allowed")
+    if set(names) != expected:
+        missing = sorted(expected - set(names))
+        extra = sorted(set(names) - expected)
+        raise CaptureError(
+            f"artifact {role}: attempt members mismatch; missing={missing}, extra={extra}"
+        )
+
+
+def _load_state_bundle(path: Path, *, role: str) -> dict[str, dict[str, Any]]:
+    """Load a state bundle and index its unique attempt records."""
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CaptureError(f"artifact {role}: invalid JSON") from exc
+    if not isinstance(value, list):
+        raise CaptureError(f"artifact {role}: expected a JSON list")
+    indexed: dict[str, dict[str, Any]] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            raise CaptureError(f"artifact {role}: every state must be an object")
+        attempt_id = item.get("attempt_id")
+        if not isinstance(attempt_id, str) or not attempt_id:
+            raise CaptureError(f"artifact {role}: every state requires attempt_id")
+        if attempt_id in indexed:
+            raise CaptureError(f"artifact {role}: duplicate attempt_id {attempt_id}")
+        state = dict(item)
+        state.pop("attempt_id")
+        indexed[attempt_id] = state
+    return indexed
+
+
+def _load_trace_bundle(path: Path) -> dict[str, list[dict[str, Any]]]:
+    """Load attempt traces and reject malformed or unbound records."""
+    indexed: dict[str, list[dict[str, Any]]] = {}
+    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise CaptureError(f"artifact transition_trace:{line_no}: invalid JSON") from exc
+        if not isinstance(record, dict):
+            raise CaptureError(f"artifact transition_trace:{line_no}: expected an object")
+        attempt_id = record.get("attempt_id")
+        if not isinstance(attempt_id, str) or not attempt_id:
+            raise CaptureError(
+                f"artifact transition_trace:{line_no}: attempt_id is required"
+            )
+        indexed.setdefault(attempt_id, []).append(record)
+    return indexed
+
+
+def validate_attempt_evidence_bindings(
+    artifact_paths: dict[str, Path],
+    attempts: list[dict[str, Any]],
+) -> None:
+    """Prove that every declared browser context has distinct bundled evidence."""
+    attempt_ids = {attempt["attempt_id"] for attempt in attempts}
+    _require_exact_zip_members(
+        artifact_paths["screenshot_before"],
+        role="screenshot_before",
+        expected={f"{attempt_id}/before.png" for attempt_id in attempt_ids},
+    )
+    _require_exact_zip_members(
+        artifact_paths["screenshot_after"],
+        role="screenshot_after",
+        expected={
+            member
+            for attempt_id in attempt_ids
+            for member in (
+                f"{attempt_id}/after_currency.png",
+                f"{attempt_id}/after_history.png",
+            )
+        },
+    )
+    _require_exact_zip_members(
+        artifact_paths["network_archive"],
+        role="network_archive",
+        expected={f"{attempt_id}/network.har" for attempt_id in attempt_ids},
+    )
+
+    before_states = _load_state_bundle(
+        artifact_paths["state_before"], role="state_before"
+    )
+    after_states = _load_state_bundle(artifact_paths["state_after"], role="state_after")
+    if set(before_states) != attempt_ids or set(after_states) != attempt_ids:
+        raise CaptureError("state artifacts must contain exactly one record per attempt")
+    for attempt in attempts:
+        attempt_id = attempt["attempt_id"]
+        if before_states[attempt_id] != attempt["state_before"]:
+            raise CaptureError(f"attempt {attempt_id}: state_before artifact mismatch")
+        if after_states[attempt_id] != attempt["state_after"]:
+            raise CaptureError(f"attempt {attempt_id}: state_after artifact mismatch")
+
+    traces = _load_trace_bundle(artifact_paths["transition_trace"])
+    if set(traces) != attempt_ids:
+        raise CaptureError("transition trace must contain exactly the declared attempts")
+    for attempt in attempts:
+        attempt_id = attempt["attempt_id"]
+        records = traces[attempt_id]
+        sense_records = [record for record in records if record.get("type") == "sense"]
+        if len(sense_records) != 1:
+            raise CaptureError(f"attempt {attempt_id}: trace requires exactly one sense record")
+        if sense_records[0].get("context_id") != attempt["context_id"]:
+            raise CaptureError(f"attempt {attempt_id}: trace context_id mismatch")
 
 
 def validate_capture(
@@ -288,14 +409,10 @@ def validate_capture(
         if result not in {"consistent", "inconsistent", "inconclusive"}:
             raise CaptureError(f"attempt {attempt_id}: invalid result")
         before, before_ts = validate_state(
-            attempt.get("state_before"),
-            attempt_id=attempt_id,
-            state_name="before",
+            attempt.get("state_before"), attempt_id=attempt_id, state_name="before"
         )
         after, after_ts = validate_state(
-            attempt.get("state_after"),
-            attempt_id=attempt_id,
-            state_name="after",
+            attempt.get("state_after"), attempt_id=attempt_id, state_name="after"
         )
         if not (started <= before_ts <= after_ts <= completed):
             raise CaptureError(
@@ -304,8 +421,17 @@ def validate_capture(
             )
         attempt["state_before"] = before
         attempt["state_after"] = after
+        fingerprint = inconsistency_fingerprint(attempt)
+        if result == "inconsistent" and fingerprint is None:
+            raise CaptureError(
+                f"attempt {attempt_id}: declared inconsistent result is not supported by visible state"
+            )
+        if result == "consistent" and fingerprint is not None:
+            raise CaptureError(
+                f"attempt {attempt_id}: declared consistent result conflicts with visible state"
+            )
         if result == "inconsistent":
-            inconsistent_fingerprints.append(inconsistency_fingerprint(attempt))
+            inconsistent_fingerprints.append(fingerprint)
 
     artifacts = capture.get("artifacts")
     if not isinstance(artifacts, list):
@@ -313,8 +439,8 @@ def validate_capture(
     roles = [artifact.get("role") for artifact in artifacts]
     if set(roles) != REQUIRED_ARTIFACT_ROLES or len(roles) != len(REQUIRED_ARTIFACT_ROLES):
         raise CaptureError("capture: exactly one artifact for every required role is required")
-    for artifact in artifacts:
-        _validate_artifact(artifact, root)
+    artifact_paths = {artifact["role"]: _validate_artifact(artifact, root) for artifact in artifacts}
+    validate_attempt_evidence_bindings(artifact_paths, attempts)
 
     matching_reproduction = any(
         count >= 2 for count in Counter(inconsistent_fingerprints).values()
@@ -322,7 +448,7 @@ def validate_capture(
     if matching_reproduction:
         grade = "F3"
         reason = (
-            "Two independent browser contexts reproduced the same normalized "
+            "Two independently bound browser contexts reproduced the same normalized "
             "inconsistency."
         )
     else:
