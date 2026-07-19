@@ -1,0 +1,270 @@
+name: Garden Browser Spawn A-B
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/airbnb-garden-liminalos-comparison-v0-1
+    paths:
+      - .github/workflows/garden-browser-spawn-ab.yml
+  pull_request:
+    branches:
+      - agent/airbnb-currency-history-lotus-result-v0-1
+    paths:
+      - .github/workflows/garden-browser-spawn-ab.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: garden-browser-spawn-ab-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 04cf22aa38254610eccfbe383e87d33a85156798
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+
+jobs:
+  diagnose:
+    name: Direct exec vs Python execv vs subprocess
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout benchmark branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact Garden
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Prepare directories and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          mkdir -p reports/spawn-ab/{rootfs,garden-image,probe-image,logs}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+
+      - name: Build and test exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_root="$RUNNER_TEMP/GardenLiminal-spawn-ab"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/spawn-ab/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/spawn-ab/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/spawn-ab/garden-image/gl"
+
+      - name: Build and export browser rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/spawn-ab/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+          docker build -t garden-spawn-rootfs:${GITHUB_SHA} \
+            reports/spawn-ab/probe-image \
+            2>&1 | tee reports/spawn-ab/probe-image-build.log
+          id="$(docker create garden-spawn-rootfs:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/spawn-ab/rootfs.tar
+          sudo tar -xf reports/spawn-ab/rootfs.tar -C reports/spawn-ab/rootfs
+
+          browser_host="$(find reports/spawn-ab/rootfs/opt/liminal-playwright \
+            -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          test -n "$browser_host"
+          browser_inside="/${browser_host#reports/spawn-ab/rootfs/}"
+          printf '%s\n' "$browser_inside" > reports/spawn-ab/browser-path.txt
+
+          sudo mkdir -p reports/spawn-ab/rootfs/opt/diagnostic
+          cat > /tmp/python-execv.py <<'PY'
+          import os
+          browser = open('/opt/diagnostic/browser-path.txt').read().strip()
+          print('python-execv', browser, flush=True)
+          os.execv(browser, [browser, '--version'])
+          PY
+          cat > /tmp/python-subprocess.py <<'PY'
+          import subprocess
+          browser = open('/opt/diagnostic/browser-path.txt').read().strip()
+          print('python-subprocess', browser, flush=True)
+          completed = subprocess.run([browser, '--version'], check=False)
+          print('subprocess-returncode', completed.returncode, flush=True)
+          raise SystemExit(completed.returncode)
+          PY
+          sudo cp /tmp/python-execv.py /tmp/python-subprocess.py \
+            reports/spawn-ab/rootfs/opt/diagnostic/
+          sudo cp reports/spawn-ab/browser-path.txt \
+            reports/spawn-ab/rootfs/opt/diagnostic/browser-path.txt
+          sudo chmod -R a+rX reports/spawn-ab/rootfs/opt/diagnostic
+
+          set +e
+          timeout 30 sudo chroot reports/spawn-ab/rootfs "$browser_inside" --version \
+            > reports/spawn-ab/logs/chroot-direct.log 2>&1
+          echo "$?" > reports/spawn-ab/logs/chroot-direct.exit
+          set -e
+
+      - name: Build Garden harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/spawn-ab/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-spawn-ab:${GITHUB_SHA} \
+            reports/spawn-ab/garden-image \
+            2>&1 | tee reports/spawn-ab/garden-image-build.log
+
+      - name: Run three Garden spawn variants
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(cat reports/spawn-ab/browser-path.txt)"
+
+          run_case() {
+            case_name="$1"
+            shift
+            seed="reports/spawn-ab/${case_name}.yaml"
+            {
+              cat <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: ${case_name}
+            id: ${case_name}-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+          YAML
+              for arg in "$@"; do
+                printf '      - %s\n' "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$arg")"
+              done
+              cat <<'YAML'
+            env:
+              - HOME=/tmp
+              - PYTHONUNBUFFERED=1
+            cwd: /
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: spawn-ab
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+            } > "$seed"
+
+            set +e
+            timeout 60 docker run --rm \
+              --privileged \
+              --pids-limit 128 \
+              --security-opt seccomp=unconfined \
+              --security-opt apparmor=unconfined \
+              -v "$GITHUB_WORKSPACE/reports/spawn-ab/rootfs:/work/rootfs:rw" \
+              -v "$GITHUB_WORKSPACE/$seed:/work/seed.yaml:ro" \
+              garden-spawn-ab:${GITHUB_SHA} \
+              run -f /work/seed.yaml --store mem \
+              > "reports/spawn-ab/logs/${case_name}.log" 2>&1
+            code=$?
+            set -e
+            echo "$code" > "reports/spawn-ab/logs/${case_name}.exit"
+          }
+
+          run_case garden-direct "$browser" --version
+          run_case garden-python-execv /usr/bin/python /opt/diagnostic/python-execv.py
+          run_case garden-python-subprocess /usr/bin/python /opt/diagnostic/python-subprocess.py
+
+      - name: Classify spawn boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('reports/spawn-ab')
+          cases = {}
+          for name in ['chroot-direct', 'garden-direct', 'garden-python-execv', 'garden-python-subprocess']:
+              exit_code = int((root / 'logs' / f'{name}.exit').read_text().strip())
+              log = (root / 'logs' / f'{name}.log').read_text(errors='replace')
+              cases[name] = {
+                  'exit_code': exit_code,
+                  'process_exit_zero': '"event":"PROCESS_EXIT"' in log and '"code":0' in log,
+                  'enoent': 'ENOENT' in log or 'No such file or directory' in log,
+                  'eperm': 'Operation not permitted' in log or 'failed: 1' in log,
+              }
+
+          if cases['garden-direct']['exit_code'] == 0 and cases['garden-python-execv']['exit_code'] == 0 \
+             and cases['garden-python-subprocess']['exit_code'] != 0:
+              boundary = 'CHILD_PROCESS_CREATION'
+          elif cases['chroot-direct']['exit_code'] == 0 and cases['garden-direct']['exit_code'] != 0:
+              boundary = 'GARDEN_EXEC_OR_SECCOMP'
+          elif all(case['exit_code'] == 0 for case in cases.values()):
+              boundary = 'ALL_SPAWN_VARIANTS_PASS'
+          else:
+              boundary = 'MIXED_OR_UNRESOLVED'
+
+          result = {
+              'schema_version': 'garden-browser-spawn-ab-v0.1',
+              'garden_commit': '04cf22aa38254610eccfbe383e87d33a85156798',
+              'browser_path': (root / 'browser-path.txt').read_text().strip(),
+              'cases': cases,
+              'boundary': boundary,
+              'airbnb_navigation': False,
+              'authority': {
+                  'mode': 'runtime_diagnostic_only',
+                  'external_submission': False,
+                  'merge': False,
+              },
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if boundary == 'MIXED_OR_UNRESOLVED':
+              raise SystemExit(1)
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/spawn-ab/rootfs
+          rm -f reports/spawn-ab/rootfs.tar
+          find reports/spawn-ab -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/spawn-ab/SHA256SUMS.txt
+
+      - name: Upload spawn evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-browser-spawn-ab-${{ github.run_id }}
+          path: reports/spawn-ab/
+          if-no-files-found: error
+          retention-days: 14

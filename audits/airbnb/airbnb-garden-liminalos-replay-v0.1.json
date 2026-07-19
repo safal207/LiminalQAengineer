@@ -1,0 +1,69 @@
+{
+  "schema_version": "liminalqa-airbnb-garden-liminalos-replay-v0.1",
+  "case_id": "ABNB-GARDEN-REPLAY-2026-07-19",
+  "source_evidence": {
+    "repository": "safal207/LiminalQAengineer",
+    "execution_pr": 77,
+    "adjudication_pr": 80,
+    "execution_head": "404da0d714de334e18080138623370fdc32717f5",
+    "workflow_run_id": 29678020284,
+    "artifact_id": 8439609413,
+    "artifact_name": "ABNB-MATRIX-antalya-center",
+    "artifact_digest": "sha256:55030ae08db9d7f462aec48a75ce11873deb32d4f44255ffc01c3b7b1e06ad49",
+    "probe_result_sha256": "517a50bd54dabc417c122a0d978e283df37007455c0e550dbd0823ef72164d0e",
+    "manifest_sha256": "696533d042f2ef730cdd321a59dbcff6bab07c4430f312138540c17579382efa",
+    "classifier_revision": "target-price-context-v2"
+  },
+  "target": {
+    "listing_id": "1418689551881927394",
+    "expected_attempts": 2,
+    "expected_state_sequence": ["TRY", "EUR", "TRY", "EUR"],
+    "expected_outcome": "consistent",
+    "expected_lotus_decision": "NO_DEFECT_OBSERVED"
+  },
+  "garden": {
+    "repository": "safal207/GardenLiminal",
+    "commit": "6c30422d0492ec312a35624322f90a7761419655",
+    "role": "execution_capability_and_lifecycle_evidence",
+    "required_build_command": "cargo build --release",
+    "required_test_command": "cargo test",
+    "required_lifecycle_events": [
+      "RUN_CREATED",
+      "SEED_LOADED",
+      "NS_CREATED",
+      "CGROUP_APPLIED",
+      "CAPS_DROPPED",
+      "PROCESS_START",
+      "PROCESS_EXIT"
+    ]
+  },
+  "liminalos": {
+    "repository": "safal207/LiminalOSAI",
+    "commit": "a2c5783287a9def4b4254b9436c2e75468613dca",
+    "role": "experimental_advisory_runtime_only",
+    "required_build_command": "make",
+    "required_check_command": "make check",
+    "required_test_command": "make test",
+    "may_confirm_product_defect": false,
+    "may_grant_execution_authority": false
+  },
+  "comparison_contract": {
+    "same_evidence_replay": true,
+    "live_airbnb_navigation": false,
+    "retroactive_garden_isolation_claim_allowed": false,
+    "garden_capability_is_separate_from_original_execution_provenance": true,
+    "liminalos_output_is_advisory_only": true,
+    "decision_may_change_only_if_existing_evidence_supports_it": true,
+    "aborted_requests_without_user_impact_are_not_product_defects": true
+  },
+  "authority": {
+    "mode": "audit_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}

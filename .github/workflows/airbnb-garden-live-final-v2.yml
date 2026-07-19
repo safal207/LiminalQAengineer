@@ -1,0 +1,360 @@
+name: Airbnb Garden Live Final v2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/airbnb-garden-liminalos-comparison-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-live-final-v2.yml
+  pull_request:
+    branches:
+      - agent/airbnb-currency-history-lotus-result-v0-1
+    paths:
+      - .github/workflows/airbnb-garden-live-final-v2.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airbnb-garden-live-final-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 04cf22aa38254610eccfbe383e87d33a85156798
+  PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
+
+jobs:
+  probe:
+    name: Compare browser rootfs outside and inside Garden
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout benchmark branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact Garden source
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Checkout exact Airbnb probe
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ env.PROBE_SHA }}
+          path: vendor/airbnb-probe
+          persist-credentials: false
+
+      - name: Verify exact pins and prepare directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          test "$(git -C vendor/airbnb-probe rev-parse HEAD)" = "$PROBE_SHA"
+          test -f vendor/airbnb-probe/scripts/airbnb_readonly_discovered_dates_probe_v4.py
+          mkdir -p reports/final-v2/{rootfs,garden-image,probe-image,evidence}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config binutils
+
+      - name: Build and test exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_root="$RUNNER_TEMP/GardenLiminal-final-v2"
+          rm -rf "$build_root"
+          cp -a vendor/GardenLiminal "$build_root"
+          test "$(git -C "$build_root" rev-parse HEAD)" = "$GARDEN_SHA"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/final-v2/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/final-v2/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/final-v2/garden-image/gl"
+
+      - name: Build rootfs with browser bundle in a normal image layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$PLAYWRIGHT_IMAGE"
+          docker image inspect "$PLAYWRIGHT_IMAGE" --format '{{json .RepoDigests}}' \
+            > reports/final-v2/playwright-image-digests.json
+
+          cat > reports/final-v2/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN python -m pip install --no-cache-dir playwright==1.60.0 \
+              && python -c 'import encodings, playwright; print("python-runtime-ok")'
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/ \
+              && find /opt/liminal-playwright -type f -name chrome-headless-shell -perm -111 -print -quit \
+              | grep -q .
+          DOCKERFILE
+
+          docker build \
+            --tag airbnb-garden-rootfs-v2:${GITHUB_SHA} \
+            reports/final-v2/probe-image \
+            2>&1 | tee reports/final-v2/probe-image-build.log
+
+          container_id="$(docker create airbnb-garden-rootfs-v2:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
+          docker export "$container_id" -o reports/final-v2/rootfs.tar
+          sudo tar -xf reports/final-v2/rootfs.tar -C reports/final-v2/rootfs
+
+          sudo mkdir -p reports/final-v2/rootfs/opt/liminalqa reports/final-v2/rootfs/evidence
+          sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py \
+            reports/final-v2/rootfs/opt/liminalqa/
+          sudo chmod -R a+rX reports/final-v2/rootfs/opt/liminalqa
+
+          browser_host_path="$(find reports/final-v2/rootfs/opt/liminal-playwright \
+            -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          test -n "$browser_host_path"
+          browser_inside_path="/${browser_host_path#reports/final-v2/rootfs/}"
+          printf '%s\n' "$browser_inside_path" > reports/final-v2/browser-inside-path.txt
+          readelf -l "$browser_host_path" > reports/final-v2/browser-elf.txt
+
+      - name: A/B preflight browser outside Garden seccomp
+        shell: bash
+        run: |
+          set -uo pipefail
+          browser="$(cat reports/final-v2/browser-inside-path.txt)"
+          set +e
+          timeout 30 sudo chroot reports/final-v2/rootfs "$browser" --version \
+            > reports/final-v2/chroot-browser-version.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/final-v2/chroot-browser-version.exit
+          cat reports/final-v2/chroot-browser-version.log
+
+      - name: Build Garden harness and exact Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/final-v2/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+
+          docker build \
+            --tag garden-airbnb-final-v2:${GITHUB_SHA} \
+            reports/final-v2/garden-image \
+            2>&1 | tee reports/final-v2/garden-image-build.log
+
+          cat > reports/final-v2/seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: airbnb-garden-final-v2
+            id: airbnb-garden-final-v2-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - /usr/bin/python
+              - /opt/liminalqa/airbnb_readonly_discovered_dates_probe_v4.py
+              - --listing-url
+              - ${LISTING_URL}
+              - --output-root
+              - /evidence/ABNB-GARDEN-FINAL-V2
+            env:
+              - PYTHONPATH=/opt/liminalqa
+              - HOME=/tmp
+              - PLAYWRIGHT_BROWSERS_PATH=/opt/liminal-playwright
+              - PYTHONUNBUFFERED=1
+            cwd: /opt/liminalqa
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: airbnb-garden
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+
+          docker run --rm --network none \
+            -v "$GITHUB_WORKSPACE/reports/final-v2/seed.yaml:/work/seed.yaml:ro" \
+            garden-airbnb-final-v2:${GITHUB_SHA} \
+            inspect -f /work/seed.yaml \
+            2>&1 | tee reports/final-v2/inspect.log
+
+      - name: Execute read-only Airbnb probe inside Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          container_name="airbnb-garden-final-v2-${GITHUB_RUN_ID}"
+          docker rm -f "$container_name" >/dev/null 2>&1 || true
+
+          set +e
+          timeout 900 docker run \
+            --name "$container_name" \
+            --privileged \
+            --cpus 1.50 \
+            --memory 2g \
+            --pids-limit 512 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/final-v2/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/final-v2/seed.yaml:/work/seed.yaml:ro" \
+            garden-airbnb-final-v2:${GITHUB_SHA} \
+            run -f /work/seed.yaml --store mem \
+            > reports/final-v2/run.log 2>&1
+          code=$?
+          set -e
+
+          echo "$code" > reports/final-v2/run.exit
+          docker inspect "$container_name" --format '{{json .HostConfig}}' \
+            > reports/final-v2/docker-host-config.json
+          docker rm -f "$container_name" >/dev/null
+          tail -300 reports/final-v2/run.log
+
+      - name: Extract and classify exact evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir=reports/final-v2/rootfs/evidence/ABNB-GARDEN-FINAL-V2
+          if [ -d "$source_dir" ]; then
+            sudo cp -a "$source_dir" reports/final-v2/evidence/
+            sudo chown -R "$(id -u):$(id -g)" reports/final-v2/evidence
+          fi
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('reports/final-v2')
+          run_code = int((root / 'run.exit').read_text().strip())
+          preflight_code = int((root / 'chroot-browser-version.exit').read_text().strip())
+          host = json.loads((root / 'docker-host-config.json').read_text())
+
+          records = []
+          for line in (root / 'run.log').read_text(errors='replace').splitlines():
+              try:
+                  item = json.loads(line)
+              except Exception:
+                  continue
+              if isinstance(item, dict) and item.get('event'):
+                  records.append(item)
+
+          events = [item['event'] for item in records]
+          required = [
+              'RUN_CREATED', 'SEED_LOADED', 'NS_CREATED', 'MOUNT_DONE',
+              'CAPS_DROPPED', 'SECCOMP_ENABLED', 'PROCESS_START', 'PROCESS_EXIT',
+          ]
+          exit_zero = any(
+              item.get('event') == 'PROCESS_EXIT' and item.get('code') == 0
+              for item in records
+          )
+
+          probe_paths = list((root / 'evidence').rglob('probe-result.json'))
+          probe = json.loads(probe_paths[0].read_text()) if len(probe_paths) == 1 else None
+          limits = {
+              'nano_cpus': host.get('NanoCpus'),
+              'memory_bytes': host.get('Memory'),
+              'pids_limit': host.get('PidsLimit'),
+          }
+          expected_limits = {
+              'nano_cpus': 1_500_000_000,
+              'memory_bytes': 2_147_483_648,
+              'pids_limit': 512,
+          }
+          safe = bool(probe) and all([
+              probe.get('confirmed_defect') is False,
+              probe.get('payment_submitted') is False,
+              probe.get('reservation_created') is False,
+          ])
+          confirmed = all([
+              preflight_code == 0,
+              run_code == 0,
+              all(event in events for event in required),
+              exit_zero,
+              limits == expected_limits,
+              safe,
+          ])
+
+          result = {
+              'schema_version': 'airbnb-garden-live-final-v2',
+              'garden_commit': '04cf22aa38254610eccfbe383e87d33a85156798',
+              'probe_commit': 'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
+              'browser_preflight_without_garden_seccomp_exit': preflight_code,
+              'garden_run_exit': run_code,
+              'garden_events': events,
+              'missing_garden_events': [event for event in required if event not in events],
+              'garden_process_exit_zero': exit_zero,
+              'outer_limits': {
+                  'configured': limits,
+                  'expected': expected_limits,
+                  'matches': limits == expected_limits,
+              },
+              'probe_present': probe is not None,
+              'probe_summary': None if probe is None else {
+                  'classifier_revision': probe.get('classifier_revision'),
+                  'outcomes': probe.get('outcomes'),
+                  'normalized_signatures': probe.get('normalized_signatures'),
+                  'evidence_grade': probe.get('evidence_grade'),
+                  'confirmed_defect': probe.get('confirmed_defect'),
+                  'payment_submitted': probe.get('payment_submitted'),
+                  'reservation_created': probe.get('reservation_created'),
+                  'resolved_target': probe.get('resolved_target'),
+                  'reload_outcome': (probe.get('reload_probe') or {}).get('outcome'),
+              },
+              'safe_readonly_probe': safe,
+              'live_garden_probe_confirmed': confirmed,
+              'truth_boundary': [
+                  'Browser packaging is checked outside Garden seccomp in the exact exported rootfs.',
+                  'Docker applies CPU, memory, and PID limits.',
+                  'Garden applies namespaces, pivot_root, capability dropping, seccomp, and lifecycle evidence.',
+                  'No inconsistent observation becomes a confirmed Airbnb defect without Lotus adjudication.',
+              ],
+              'authority': {
+                  'mode': 'audit_only',
+                  'ownership': False,
+                  'approval': False,
+                  'external_submission': False,
+                  'merge': False,
+              },
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if not confirmed:
+              raise SystemExit(1)
+          PY
+
+      - name: Remove disposable rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/final-v2/rootfs
+          rm -f reports/final-v2/rootfs.tar
+          find reports/final-v2 -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/final-v2/SHA256SUMS.txt
+
+      - name: Upload exact final evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airbnb-garden-live-final-v2-${{ github.run_id }}
+          path: reports/final-v2/
+          if-no-files-found: error
+          retention-days: 14
