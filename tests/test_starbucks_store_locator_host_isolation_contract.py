@@ -70,6 +70,7 @@ class StarbucksStoreLocatorHostIsolationContractTest(unittest.TestCase):
     def test_runner_blocks_only_one_exact_script_host(self):
         self.assertIn("r.resourceType() === 'script'", self.script)
         self.assertIn("h === blockedHost", self.script)
+        self.assertNotIn("`${location.pathname} ${document.title} ${text}`", self.script)
         self.assertNotIn("page.authenticate", self.script)
         self.assertNotIn("localStorage", self.script)
         self.assertNotIn("sessionStorage", self.script)
