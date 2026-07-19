@@ -2,14 +2,20 @@
 
 ## Question
 
-Does the mobile late-discovery defect reproduce on the public desktop web page, and would an additional hero preload improve desktop LCP?
+Under the tested desktop profile, is late discovery of the exact desktop hero the dominant LCP cause, and does adding another preload improve the result?
 
 ## Method
 
-The experiment used the public Russian-language page:
+Target:
 
 ```text
 https://tradernet.ru/?site_lang=ru
+```
+
+Exact desktop LCP resource:
+
+```text
+https://tradernet.ru/images/2022/invest/hero.light.1x.webp
 ```
 
 Three baseline and three treatment runs were alternated on the same GitHub-hosted Chrome runner.
@@ -24,84 +30,63 @@ Desktop profile:
 - 10 seconds of post-load observation;
 - no authentication, API calls, form submissions or server-state changes.
 
-The first discovery run established that desktop uses:
-
-```text
-https://tradernet.ru/images/2022/invest/hero.light.1x.webp
-```
-
-This differs from the mobile experiment, where the observed LCP resource was the `2x` variant.
-
-The treatment inserted one browser-local response-stage preload for the exact desktop `1x` LCP resource.
+The treatment used browser-local response-stage modification and inserted one preload for the exact `1x` LCP resource. The strict collector required exactly one main-document interception in every treatment round and verified that the configured hero remained both the timed resource and the LCP resource.
 
 ## Result
 
 **LiminalQA verdict:** `NO_ADDITIONAL_EFFECT`  
 **Confidence:** `MEDIUM`  
-**Evidence run:** `29662406306`  
-**Exact head:** `4b7f2a1946987dcb62c8e8b4086a0728a3f38aac`
+**Evidence run:** `29685227556`  
+**Exact head:** `c8c8708eedbe8130adfa71e25a448d4fd5484f6c`
 
-| Median metric | Desktop baseline | Extra preload | Difference |
+| Median metric | Desktop baseline | Extra preload | Treatment − baseline |
 |---|---:|---:|---:|
-| Hero request begins | 683.1 ms | 772.0 ms | +88.9 ms |
-| Hero response completes | 1,168.8 ms | 1,227.2 ms | +58.4 ms |
-| LCP | 2,284.0 ms | 2,504.0 ms | +220.0 ms |
-| FCP | 2,284.0 ms | 2,504.0 ms | +220.0 ms |
-| Hero loaded → LCP gap | 1,239.2 ms | 1,296.8 ms | +57.6 ms |
-| Long-task total | 90.0 ms | 96.0 ms | +6.0 ms |
+| Hero request begins | 748.6 ms | 790.2 ms | +41.6 ms |
+| Hero response completes | 1,138.1 ms | 1,182.3 ms | +44.2 ms |
+| LCP | 2,356.0 ms | 2,448.0 ms | +92.0 ms |
+| FCP | 2,356.0 ms | 2,448.0 ms | +92.0 ms |
+| Hero loaded → LCP gap | 1,244.8 ms | 1,229.7 ms | −15.1 ms |
+| Long-task total | 89.0 ms | 93.0 ms | +4.0 ms |
 | Script transfer | 1,278,079 bytes | 1,278,079 bytes | unchanged |
 | Script requests | 55 | 55 | unchanged |
 
-The desktop baseline already reports the exact LCP image with initiator type `link`. Therefore, the image is already scheduled early enough on desktop.
+Every baseline run recorded the exact desktop hero with initiator type `link`. Every treatment run:
 
-The additional preload did not improve request timing or LCP. The observed differences are small and unfavorable to treatment, so they should be treated as run-to-run noise rather than proof that preload harms the page.
+- intercepted exactly one main document;
+- inserted the browser-local preload;
+- preserved the exact configured hero as the timed resource and LCP resource;
+- completed without navigation or interception errors.
 
 ## Causal conclusion
 
 ```text
 Desktop HTML
   → existing link resource hint
-  → exact 1x hero requested around 0.68 s
-  → hero downloaded around 1.17 s
+  → exact 1x hero requested around 0.75 s
+  → hero downloaded around 1.14 s
   → render / visibility / runtime gap around 1.24 s
-  → desktop LCP around 2.28 s
+  → desktop LCP around 2.36 s
 ```
 
-The mobile cause does **not** reproduce on desktop:
+The strict rerun does not support missing preload as the dominant desktop cause. Adding another preload neither advanced the resource request nor improved LCP. The small unfavorable treatment deltas are bounded laboratory observations and are not proof that preload harms production performance.
 
-```text
-Mobile baseline
-  → 2x hero discovered around 7.32 s
-  → LCP around 11.36 s
+## Remaining desktop hypothesis
 
-Desktop baseline
-  → 1x hero discovered around 0.68 s
-  → LCP around 2.28 s
-```
+A separate desktop investigation should focus on the median approximately 1.245-second gap between hero response completion and LCP, including:
 
-This narrows the primary report to **Mobile Web / responsive resource scheduling** rather than a universal Tradernet web defect.
+- DOM insertion timing;
+- CSS visibility and animation;
+- rendering opportunities;
+- shared runtime cost.
 
-## Remaining desktop issue
-
-Desktop is materially healthier, but it is not fully optimized:
-
-- approximately 1.24 seconds remain between hero response completion and LCP;
-- 55 JavaScript requests transfer approximately 1.28 MB;
-- the exact same script volume remains when adding preload.
-
-A separate desktop investigation should focus on DOM insertion, CSS visibility, animation, rendering and shared runtime cost rather than another image preload.
-
-## Reporting language
-
-Recommended wording:
-
-> The severe late-discovery defect is confirmed on Mobile Web and does not reproduce under the tested Desktop Web profile. Desktop already schedules its exact `1x` LCP image through a link resource hint and reaches median LCP around 2.28 seconds. The mobile page instead discovers its `2x` hero around 7.32 seconds and reaches LCP around 11.36 seconds.
+This desktop result is independent from the mobile counterfactual, which is revalidated separately against its own exact `2x` configured resource and artifact.
 
 ## Evidence
 
 ```text
-artifact: tradernet-desktop-hero-preload-counterfactual-29662406306
-sha256: 2541c133fde90ef9722015ef85b769276016e9370d337a0a7837532f125fd142
+artifact: tradernet-desktop-hero-preload-counterfactual-29685227556
+sha256: ba6c75465b7290d6e7be2b7f0fa0b3a85e72a8720c4e0732cf47f556d5be6b18
+result sha256: 3146db898650011c2cd0788cfda75a7258023976060c17c96696eb035d5cc3bf
 ```
 
 Machine-readable summary:
@@ -109,3 +94,7 @@ Machine-readable summary:
 ```text
 audits/lighthouse/tradernet/desktop-hero-preload-counterfactual-result.json
 ```
+
+## Boundary
+
+This is a public-page, browser-local QA experiment. It performs no authentication, API calls, financial operations, fuzzing, load testing, exploitation or server-state change. Three alternating runs per variant provide directional evidence, not field-performance certainty.
