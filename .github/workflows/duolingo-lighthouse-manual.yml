@@ -1,11 +1,6 @@
 name: Duolingo Lighthouse Manual Audit
 
 on:
-  push:
-    branches:
-      - agent/duolingo-lighthouse-adapter-v0-3
-    paths:
-      - .github/workflows/duolingo-lighthouse-manual.yml
   pull_request:
     branches:
       - main
@@ -25,8 +20,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: duolingo-lighthouse-public
-  cancel-in-progress: false
+  group: duolingo-lighthouse-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lighthouse:
