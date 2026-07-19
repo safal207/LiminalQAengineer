@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GARDEN_SHA: 755bd6802b366dfdcc4456929117628ae5f8fbc0
+  GARDEN_SHA: 04cf22aa38254610eccfbe383e87d33a85156798
   PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
   LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
@@ -223,7 +223,7 @@ jobs:
           confirmed = code == 0 and all(x in events for x in required) and exit_zero and limits == expected and safe
           result = {
               'schema_version':'airbnb-garden-live-python-runtime-v0.1',
-              'garden_commit':'755bd6802b366dfdcc4456929117628ae5f8fbc0',
+              'garden_commit':'04cf22aa38254610eccfbe383e87d33a85156798',
               'probe_commit':'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
               'docker_exit_code':code,
               'garden_events':events,
