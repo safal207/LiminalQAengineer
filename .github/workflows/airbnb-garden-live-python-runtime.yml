@@ -100,8 +100,9 @@ jobs:
           sudo cp vendor/airbnb-probe/scripts/airbnb_readonly*.py \
             reports/garden-python/rootfs/opt/liminalqa/
           sudo chmod -R a+rX reports/garden-python/rootfs/opt/liminalqa
-          test -x reports/garden-python/rootfs/usr/local/bin/python
-          test -d reports/garden-python/rootfs/usr/local/lib/python3.12/encodings
+          test -x reports/garden-python/rootfs/usr/bin/python
+          sudo chroot reports/garden-python/rootfs \
+            /usr/bin/python -c 'import encodings, playwright; print("exported-python-runtime-ok")'
 
       - name: Build Garden harness and exact Seed
         shell: bash
@@ -129,7 +130,7 @@ jobs:
             path: /work/rootfs
           entrypoint:
             cmd:
-              - /usr/local/bin/python
+              - /usr/bin/python
               - /opt/liminalqa/airbnb_readonly_discovered_dates_probe_v4.py
               - --listing-url
               - ${LISTING_URL}
