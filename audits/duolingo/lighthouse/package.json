@@ -1,0 +1,13 @@
+{
+  "name": "liminalqa-duolingo-lighthouse-adapter",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Manual passive Lighthouse CI evidence adapter for Duolingo public web pages",
+  "scripts": {
+    "lh:mobile": "LH_PROFILE=mobile lhci autorun --config=./lighthouserc.cjs",
+    "lh:desktop": "LH_PROFILE=desktop lhci autorun --config=./lighthouserc.cjs"
+  },
+  "devDependencies": {
+    "@lhci/cli": "0.15.1"
+  }
+}
