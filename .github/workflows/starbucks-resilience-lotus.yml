@@ -1,0 +1,147 @@
+name: Starbucks Resilience Lotus Packet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/starbucks-route-resilience-matrix-v0-1
+    paths:
+      - .github/workflows/starbucks-resilience-lotus.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/starbucks/route-resilience-result-v0.1.json
+      - audits/lotus/starbucks/starbucks-resilience-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_starbucks_resilience_lotus.py
+      - docs/audits/STARBUCKS_ROUTE_RESILIENCE_RESULT.md
+  pull_request:
+    branches:
+      - agent/starbucks-public-lotus-audit-v0-1
+    paths:
+      - .github/workflows/starbucks-resilience-lotus.yml
+      - standards/lotus-qa/lotus-qa-contract-v0.1.json
+      - audits/starbucks/route-resilience-result-v0.1.json
+      - audits/lotus/starbucks/starbucks-resilience-findings-v0.1.json
+      - scripts/lotus_qa_decision_packet.py
+      - scripts/lotus_liminaldb_memory.py
+      - tests/test_starbucks_resilience_lotus.py
+      - docs/audits/STARBUCKS_ROUTE_RESILIENCE_RESULT.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: starbucks-resilience-lotus-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify exact Starbucks resilience evidence and Lotus memory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate committed evidence and source material
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool audits/starbucks/route-resilience-result-v0.1.json >/dev/null
+          python3 -m json.tool audits/lotus/starbucks/starbucks-resilience-findings-v0.1.json >/dev/null
+          python3 -m py_compile \
+            scripts/lotus_qa_decision_packet.py \
+            scripts/lotus_liminaldb_memory.py \
+            tests/test_starbucks_resilience_lotus.py
+          jq -e '
+            .observation.head_sha == "1f7d330df7018ed28ee500a04ff7dcbaa0b21c28" and
+            .observation.workflow_run_id == 29667373889 and
+            .observation.artifact_id == 8436241393 and
+            .observation.artifact_digest == "sha256:4fd8eb493d0a20b66d5d0f3a794ed597bf92c7a831366edf987dfa3470376a88" and
+            .matrix.fresh_browser_contexts == 30 and
+            .matrix.navigations == 120 and
+            .matrix.supported_cells == 9 and
+            .matrix.needs_evidence_cells == 1 and
+            .first_party_javascript_treatment.pairs_without_main_landmark == 30 and
+            .first_party_javascript_treatment.pairs_without_route_identity == 30 and
+            .first_party_javascript_treatment.pairs_with_javascript_required_message == 0 and
+            .first_party_javascript_treatment.pairs_with_recovery_guidance == 0 and
+            .first_party_javascript_treatment.pairs_recovered_after_scripts_restored == 30 and
+            .mobile_store_locator_third_party_treatment.generic_error_screen_rounds == 3 and
+            .mobile_store_locator_third_party_treatment.desktop_third_party_control_valid_rounds == 3
+          ' audits/starbucks/route-resilience-result-v0.1.json >/dev/null
+
+      - name: Run Starbucks resilience Lotus tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_starbucks_resilience_lotus.py -v
+
+      - name: Generate Lotus packet and LiminalDB memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/starbucks-resilience-lotus
+          python3 scripts/lotus_qa_decision_packet.py \
+            --contract standards/lotus-qa/lotus-qa-contract-v0.1.json \
+            --findings audits/lotus/starbucks/starbucks-resilience-findings-v0.1.json \
+            --output-dir reports/starbucks-resilience-lotus
+          python3 scripts/lotus_liminaldb_memory.py export \
+            --packet reports/starbucks-resilience-lotus/lotus-decision-packet.json \
+            --observed-at "2026-07-19T00:52:33.170Z" \
+            --source-commit "1f7d330df7018ed28ee500a04ff7dcbaa0b21c28" \
+            --output reports/starbucks-resilience-lotus/liminaldb-events.jsonl
+          python3 scripts/lotus_liminaldb_memory.py compare \
+            --events reports/starbucks-resilience-lotus/liminaldb-events.jsonl \
+            --output reports/starbucks-resilience-lotus/liminaldb-transitions.json
+
+      - name: Validate decisions, memory, and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == "liminalqa-lotus-decision-packet-v0.1" and
+            .summary.finding_count == 2 and
+            .summary.pythia_verdicts.ALLOW == 2 and
+            .summary.decision_statuses.CONFIRMED == 2 and
+            .summary.user_control_risks.MEDIUM == 2 and
+            .summary.durable_memory_count == 0 and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.deployment == false and
+            .authority.merge == false and
+            (.findings[] | select(.finding_id == "SBX-WEB-FIRST-PARTY-JS-SILENT-SHELL-001") | .decision.status) == "CONFIRMED" and
+            (.findings[] | select(.finding_id == "SBX-STORE-LOCATOR-MOBILE-THIRD-PARTY-ERROR-001") | .evidence.counterfactual.provider_identity) == "UNKNOWN"
+          ' reports/starbucks-resilience-lotus/lotus-decision-packet.json >/dev/null
+          jq -s -e '
+            length == 2 and
+            ([.[].id] | unique | length) == 2 and
+            ([.[].details.adapter.write_mode] | all(. == "artifact_only")) and
+            ([.[].details.finding.durable_memory] | all(. == false)) and
+            ([.[].details.authority.execution] | all(. == false)) and
+            ([.[].details.authority.merge] | all(. == false))
+          ' reports/starbucks-resilience-lotus/liminaldb-events.jsonl >/dev/null
+          jq -e '
+            .schema_version == "liminaldb-lotus-compare-v0.1" and
+            .event_count == 2 and
+            .canonical_finding_count == 2 and
+            .transition_count == 0
+          ' reports/starbucks-resilience-lotus/liminaldb-transitions.json >/dev/null
+          sha256sum \
+            audits/starbucks/route-resilience-result-v0.1.json \
+            reports/starbucks-resilience-lotus/lotus-decision-packet.json \
+            reports/starbucks-resilience-lotus/liminaldb-events.jsonl \
+            reports/starbucks-resilience-lotus/liminaldb-transitions.json \
+            > reports/starbucks-resilience-lotus/SHA256SUMS.txt
+          cat reports/starbucks-resilience-lotus/lotus-decision-packet.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact Lotus artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: starbucks-resilience-lotus-${{ github.run_id }}
+          path: reports/starbucks-resilience-lotus/
+          if-no-files-found: error
+          retention-days: 14
