@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
+  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394?check_in=2026-09-15&check_out=2026-09-17&guests=1&adults=1
   OUTPUT_ROOT: artifacts/ABNB-RUN-002-DOCKER
 
 jobs:
@@ -43,6 +43,7 @@ jobs:
         run: |
           printf '%s\n' \
             'Public unauthenticated listing only.' \
+            'Dates and guest are URL query inputs only.' \
             'No form submission.' \
             'No login.' \
             'No host contact.' \
