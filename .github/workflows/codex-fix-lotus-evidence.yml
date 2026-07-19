@@ -1,17 +1,16 @@
 name: Codex fix Lotus evidence boundaries
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/lotus-evidence-vertical-slice
-    paths:
-      - .github/workflows/codex-fix-lotus-evidence.yml
+      - main
 
 permissions:
   contents: write
 
 jobs:
   fix:
+    if: github.head_ref == 'agent/lotus-evidence-vertical-slice'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -251,12 +250,7 @@ jobs:
                   )
           ''',
           )
-          replace_once(
-              runner_path,
-              '''    run_parser.add_argument("--authenticated", action="store_true")
-          ''',
-              '''''',
-          )
+          replace_once(runner_path, '    run_parser.add_argument("--authenticated", action="store_true")\n', '')
 
           session_path = "scripts/lotus_airbnb_capture_session.py"
           replace_once(
@@ -268,12 +262,7 @@ jobs:
               '''    return command
           ''',
           )
-          replace_once(
-              session_path,
-              '''    parser.add_argument("--authenticated", action="store_true")
-          ''',
-              '''''',
-          )
+          replace_once(session_path, '    parser.add_argument("--authenticated", action="store_true")\n', '')
 
           gate_tests = "tests/test_lotus_capture_gate.py"
           replace_once(
@@ -389,12 +378,7 @@ jobs:
           )
 
           session_tests = "tests/test_lotus_airbnb_capture_session.py"
-          replace_once(
-              session_tests,
-              '''        authenticated=False,
-          ''',
-              '''''',
-          )
+          replace_once(session_tests, '        authenticated=False,\n', '')
           replace_once(
               session_tests,
               '''        self.assertIn("--acknowledge-safe-scope", command)
