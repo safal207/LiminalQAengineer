@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout exact workflow revision
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Validate exact experiment boundary
         shell: bash
