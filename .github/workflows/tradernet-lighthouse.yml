@@ -52,13 +52,17 @@ jobs:
     steps:
       - name: Checkout exact workflow revision
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Resolve and validate allowlisted target
         id: target
+        env:
+          INPUT_TARGET_URL: ${{ github.event.inputs.target_url }}
         shell: bash
         run: |
           set -euo pipefail
-          target_url="${{ github.event.inputs.target_url }}"
+          target_url="${INPUT_TARGET_URL}"
           if [[ -z "${target_url}" ]]; then
             target_url="https://tradernet.ru/"
           fi
