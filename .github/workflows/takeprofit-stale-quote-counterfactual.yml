@@ -1,0 +1,97 @@
+name: TakeProfit Stale Quote Counterfactual
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-stale-quote-counterfactual.yml
+      - audits/browser/takeprofit/stale-quote-counterfactual.json
+      - scripts/takeprofit_stale_quote_counterfactual.mjs
+  pull_request:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-stale-quote-counterfactual.yml
+      - audits/browser/takeprofit/stale-quote-counterfactual.json
+      - scripts/takeprofit_stale_quote_counterfactual.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-stale-quote-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  counterfactual:
+    name: Same-runner stale quote and ordering experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/takeprofit/stale-quote-counterfactual.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .target_url == "https://takeprofit.com/indicator/atr-super-trend-multi-source-57" and
+            .expected_symbol == "BTC/USDT" and
+            .quote_url_fragment == "QuoteApi/ListQuotes" and
+            .held_quote_request_number == 2 and
+            .hold_ms <= 90000 and
+            .baseline_observation_ms <= 90000 and
+            .boundaries.public_page_only == true and
+            .boundaries.browser_local_request_delay_only == true and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.vulnerability_claim == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --check scripts/takeprofit_stale_quote_counterfactual.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run same-runner counterfactual
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/takeprofit-stale-quote
+          node scripts/takeprofit_stale_quote_counterfactual.mjs \
+            --config audits/browser/takeprofit/stale-quote-counterfactual.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/takeprofit-stale-quote
+          cat reports/takeprofit-stale-quote/stale-quote-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-stale-quote-${{ github.run_id }}
+          path: reports/takeprofit-stale-quote/
+          if-no-files-found: error
+          retention-days: 14

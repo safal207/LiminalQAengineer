@@ -1,0 +1,35 @@
+{
+  "schema_version": "liminalqa-lighthouse-policy-v1",
+  "name": "TakeProfit public web quality audit",
+  "allowed_origins": [
+    "https://takeprofit.com"
+  ],
+  "allowed_paths": [
+    "/",
+    "/platform",
+    "/indicators",
+    "/indicator/atr-super-trend-multi-source-57",
+    "/feed",
+    "/docs/guide/getting-started/Overview"
+  ],
+  "category_thresholds": {
+    "performance": 0.65,
+    "accessibility": 0.85,
+    "best-practices": 0.85,
+    "seo": 0.85
+  },
+  "number_of_runs": 1,
+  "boundaries": {
+    "public_pages_only": true,
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "financial_operations": false,
+    "load_testing": false
+  },
+  "notes": [
+    "The audit is limited to allowlisted public HTTPS pages.",
+    "Results are quality and regression signals, not proof of a security vulnerability.",
+    "No credentials, account data, API keys, reports, alerts, orders, or trading actions are used.",
+    "The public Lighthouse portfolio complements, but does not replace, the January 2026 authenticated manual regression cases."
+  ]
+}

@@ -1,0 +1,194 @@
+name: TakeProfit Public Domain Portfolio
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-domain-portfolio.yml
+      - audits/lighthouse/takeprofit/domains.json
+      - audits/lighthouse/takeprofit/lighthouserc.cjs
+      - audits/lighthouse/takeprofit/policy.json
+      - scripts/lighthouse_to_liminalqa.py
+      - scripts/lighthouse_portfolio_summary.py
+  pull_request:
+    branches:
+      - agent/tradernet-lighthouse-audit
+      - main
+    paths:
+      - .github/workflows/takeprofit-domain-portfolio.yml
+      - audits/lighthouse/takeprofit/domains.json
+      - audits/lighthouse/takeprofit/lighthouserc.cjs
+      - audits/lighthouse/takeprofit/policy.json
+      - scripts/lighthouse_to_liminalqa.py
+      - scripts/lighthouse_portfolio_summary.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-domain-portfolio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    name: Validate public target inventory
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded inventory
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          inventory="audits/lighthouse/takeprofit/domains.json"
+          policy="audits/lighthouse/takeprofit/policy.json"
+          python3 -m json.tool "${inventory}" >/dev/null
+          python3 -m json.tool "${policy}" >/dev/null
+
+          count="$(jq '.targets | length' "${inventory}")"
+          if [[ "${count}" -lt 1 || "${count}" -gt 12 ]]; then
+            echo "Target count must be between 1 and 12; got ${count}" >&2
+            exit 1
+          fi
+
+          jq -e '
+            .scope_kind == "passive_public_quality" and
+            .boundaries.public_pages_only == true and
+            .boundaries.active_security_testing == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            ([.targets[].url | startswith("https://takeprofit.com/")] | all)
+          ' "${inventory}" >/dev/null
+
+          while IFS= read -r url; do
+            python3 scripts/lighthouse_to_liminalqa.py validate-url \
+              --policy "${policy}" \
+              --url "${url}" >/dev/null
+          done < <(jq -r '.targets[].url' "${inventory}")
+
+          matrix="$(jq -c '{include: [.targets[] | {slug: .slug, url: .url}]}' "${inventory}")"
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+          echo "Validated ${count} allowlisted TakeProfit targets."
+
+  audit:
+    name: Lighthouse · ${{ matrix.slug }}
+    needs: inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.inventory.outputs.matrix) }}
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      LIGHTHOUSE_TARGET_URL: ${{ matrix.url }}
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Confirm exact inventory membership
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e \
+            --arg slug "${{ matrix.slug }}" \
+            --arg url "${{ matrix.url }}" \
+            '.targets[] | select(.slug == $slug and .url == $url)' \
+            audits/lighthouse/takeprofit/domains.json >/dev/null
+          python3 scripts/lighthouse_to_liminalqa.py validate-url \
+            --policy audits/lighthouse/takeprofit/policy.json \
+            --url "${{ matrix.url }}" >/dev/null
+
+      - name: Record runtime versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          python3 --version
+          python3 -m py_compile \
+            scripts/lighthouse_to_liminalqa.py \
+            scripts/lighthouse_portfolio_summary.py
+
+      - name: Collect one passive Lighthouse navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci reports/lighthouse reports/domain
+          mkdir -p "reports/domain/${{ matrix.slug }}"
+          npx --yes @lhci/cli@0.15.1 autorun \
+            --config=audits/lighthouse/takeprofit/lighthouserc.cjs
+
+      - name: Build domain decision packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="reports/domain/${{ matrix.slug }}"
+          python3 scripts/lighthouse_to_liminalqa.py report \
+            --policy audits/lighthouse/takeprofit/policy.json \
+            --input-dir .lighthouseci \
+            --output-dir "${output}"
+
+          sed -i \
+            's/LiminalQA · Tradernet public Lighthouse audit/LiminalQA · TakeProfit public Lighthouse audit/' \
+            "${output}/summary.md"
+
+          mkdir -p "${output}/raw-lhci"
+          cp -R .lighthouseci/. "${output}/raw-lhci/"
+          if [[ -d reports/lighthouse/raw ]]; then
+            mkdir -p "${output}/raw-report"
+            cp -R reports/lighthouse/raw/. "${output}/raw-report/"
+          fi
+          cat "${output}/summary.md" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload domain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-domain-${{ matrix.slug }}-${{ github.run_id }}
+          path: reports/domain/${{ matrix.slug }}/
+          if-no-files-found: warn
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate TakeProfit LiminalQA packet
+    needs: audit
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Download completed domain packets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: takeprofit-domain-*-${{ github.run_id }}
+          path: downloaded-domain-packets
+
+      - name: Build portfolio summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/lighthouse_portfolio_summary.py \
+            --input-dir downloaded-domain-packets \
+            --output-dir reports/portfolio
+          cat reports/portfolio/portfolio-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload portfolio evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-domain-portfolio-${{ github.run_id }}
+          path: reports/portfolio/
+          if-no-files-found: error
+          retention-days: 14

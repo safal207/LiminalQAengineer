@@ -1,0 +1,30 @@
+{
+  "schema_version": "liminalqa-takeprofit-chart-quote-probe-config-v3",
+  "targetUrl": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "expectedSymbolHint": "BTC",
+  "attemptSymbolSwitch": false,
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 1
+  },
+  "navigationTimeoutMs": 90000,
+  "initialWaitMs": 30000,
+  "liveObservationMs": 36000,
+  "panSteps": 4,
+  "panPixelsPerStep": 70,
+  "offlineMs": 5000,
+  "reconnectWaitMs": 40000,
+  "reloadWaitMs": 30000,
+  "boundaries": {
+    "public_page_only": true,
+    "browser_local_diagnostics_only": true,
+    "passive_application_traffic_observation": true,
+    "authenticated_testing": false,
+    "application_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  }
+}

@@ -1,0 +1,105 @@
+name: TakeProfit Lotus Decision Packet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-lotus-decision.yml
+      - scripts/takeprofit_lotus_packet.py
+      - audits/lotus/takeprofit/historical-manual-findings.json
+      - audits/lotus/takeprofit/stale-quote-counterfactual-result.json
+      - audits/browser/takeprofit/chart-quote-result.json
+      - audits/lighthouse/takeprofit/portfolio-result.json
+  pull_request:
+    branches:
+      - agent/tradernet-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-lotus-decision.yml
+      - scripts/takeprofit_lotus_packet.py
+      - audits/lotus/takeprofit/historical-manual-findings.json
+      - audits/lotus/takeprofit/stale-quote-counterfactual-result.json
+      - audits/browser/takeprofit/chart-quote-result.json
+      - audits/lighthouse/takeprofit/portfolio-result.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-lotus-decision-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Pythia + CML + LS decision packet
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+
+      - name: Validate exact bounded inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool audits/lotus/takeprofit/historical-manual-findings.json >/dev/null
+          python3 -m json.tool audits/lighthouse/takeprofit/portfolio-result.json >/dev/null
+          python3 -m json.tool audits/browser/takeprofit/chart-quote-result.json >/dev/null
+          python3 -m json.tool audits/lotus/takeprofit/stale-quote-counterfactual-result.json >/dev/null
+          python3 -m py_compile scripts/takeprofit_lotus_packet.py
+
+          jq -e '
+            .target == "https://takeprofit.com/indicator/atr-super-trend-multi-source-57" and
+            .verdict == "SUPPORTED_STALE_STATE_GAP" and
+            .classification.checks.stale_state_clarity == "FAIL" and
+            .classification.checks.out_of_order_transport_delivery == "CREATED" and
+            .classification.checks.out_of_order_application_effect == "UNVERIFIED" and
+            .boundaries.public_page_only == true and
+            .boundaries.server_state_change == false and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.vulnerability_claim == false
+          ' audits/lotus/takeprofit/stale-quote-counterfactual-result.json >/dev/null
+
+      - name: Build Lotus packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/takeprofit-lotus
+          python3 scripts/takeprofit_lotus_packet.py build \
+            --historical audits/lotus/takeprofit/historical-manual-findings.json \
+            --portfolio audits/lighthouse/takeprofit/portfolio-result.json \
+            --chart audits/browser/takeprofit/chart-quote-result.json \
+            --counterfactual audits/lotus/takeprofit/stale-quote-counterfactual-result.json \
+            --output-dir reports/takeprofit-lotus
+          python3 scripts/takeprofit_lotus_packet.py validate \
+            --packet reports/takeprofit-lotus/decision-packet.json
+
+      - name: Enforce Lotus authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .decision == "ESCALATE" and
+            .authority.grants.ownership == false and
+            .authority.grants.approval == false and
+            .authority.grants.execution == false and
+            .authority.grants.delivery == false and
+            .authority.grants.merge == false and
+            (.cases | length) == 3 and
+            ([.cases[].cml.confirmed_cause] | all(. == false))
+          ' reports/takeprofit-lotus/decision-packet.json >/dev/null
+          cat reports/takeprofit-lotus/decision-packet.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact Lotus evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-lotus-decision-${{ github.run_id }}
+          path: reports/takeprofit-lotus/
+          if-no-files-found: error
+          retention-days: 14

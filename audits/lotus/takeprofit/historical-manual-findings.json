@@ -1,0 +1,92 @@
+{
+  "schema_version": "liminalqa-takeprofit-historical-manual-findings-v1",
+  "source": {
+    "title": "TakeProfit manual testing parts 1-3",
+    "reported_at": "2026-01-28",
+    "provenance": "user_provided_report_text",
+    "original_attachment_digest_available": false,
+    "confidence_boundary": "The report text supports historical occurrence and reproduction descriptions. Original screenshots and console exports are not digest-bound in this repository."
+  },
+  "findings": [
+    {
+      "id": "TP-HIST-CHART-01",
+      "title": "IndicatorManager required-field errors and undefined.info during chart reload",
+      "environment": "Chrome on Windows 11",
+      "surface": "https://takeprofit.com/platform",
+      "signatures": [
+        "IndicatorManager selected is a required field",
+        "indicators is a required field",
+        "version is a required field",
+        "Uncaught TypeError: Cannot read properties of undefined (reading 'info')"
+      ],
+      "trigger": "select ticker, add or remove indicators, reload the page",
+      "historical_severity": "MEDIUM_TO_CRITICAL_BY_VARIANT"
+    },
+    {
+      "id": "TP-HIST-CHART-05",
+      "title": "IndicatorManager validation errors while adding a published indicator",
+      "environment": "Chrome",
+      "surface": "published indicator page and chart",
+      "signatures": [
+        "IndicatorManager selected is a required field",
+        "indicators is a required field",
+        "version is a required field",
+        "indicator ID is a required field",
+        "calculation.args is a required field",
+        "display is a required field"
+      ],
+      "trigger": "open published indicator and choose Add to Chart",
+      "historical_severity": "HIGH"
+    },
+    {
+      "id": "TP-HIST-CHART-08",
+      "title": "ChartStore crosshair settings missing during indicator-page initialization",
+      "environment": "Chrome on Windows 11",
+      "surface": "published indicator page",
+      "signatures": [
+        "settings.chart.style.crosshairStyle is a required field",
+        "settings.chart.style.crosshairWidth is a required field"
+      ],
+      "trigger": "load published indicator page and inspect console",
+      "historical_severity": "MEDIUM"
+    },
+    {
+      "id": "TP-HIST-WORKSPACE-11",
+      "title": "Multiple required-field errors during workspace creation",
+      "environment": "Chrome",
+      "surface": "workspace creation",
+      "signatures": [
+        "IndicatorManager selected is a required field",
+        "ChannelSyncableData indicators is a required field",
+        "SyncToggleController version is a required field",
+        "DrawingManager drawings is a required field",
+        "DrawingManager version is a required field"
+      ],
+      "trigger": "create a new workspace",
+      "historical_severity": "HIGH"
+    },
+    {
+      "id": "TP-HIST-MOBILE-12",
+      "title": "undefined.info after mobile-web chart reload",
+      "environment": "Chrome mobile-web mode",
+      "surface": "workspace with charts",
+      "signatures": [
+        "Uncaught TypeError: Cannot read properties of undefined (reading 'info')",
+        "Chart: Time scale or logical range is not defined",
+        "Fuse SharedData: Sync has fetched too much times per second (25)"
+      ],
+      "trigger": "open chart workspace in mobile-web mode and reload",
+      "historical_severity": "CRITICAL"
+    }
+  ],
+  "authority": {
+    "mode": "evidence_only",
+    "grants": {
+      "ownership": false,
+      "approval": false,
+      "execution": false,
+      "delivery": false,
+      "merge": false
+    }
+  }
+}

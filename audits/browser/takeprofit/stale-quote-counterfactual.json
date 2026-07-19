@@ -1,0 +1,39 @@
+{
+  "schema_version": "liminalqa-takeprofit-stale-quote-counterfactual-v1",
+  "name": "TakeProfit public stale-quote and polling-order counterfactual",
+  "target_url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+  "expected_symbol": "BTC/USDT",
+  "quote_url_fragment": "QuoteApi/ListQuotes",
+  "bars_url_fragment": "ExtrapolationApi/ListBars",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 1,
+    "isMobile": true,
+    "hasTouch": true
+  },
+  "navigation_timeout_ms": 90000,
+  "bootstrap_timeout_ms": 90000,
+  "baseline_observation_ms": 75000,
+  "held_quote_request_number": 2,
+  "hold_ms": 75000,
+  "post_release_observation_ms": 20000,
+  "state_sample_interval_ms": 1000,
+  "boundaries": {
+    "public_page_only": true,
+    "browser_local_request_delay_only": true,
+    "server_state_change": false,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "limitations": [
+    "The experiment delays only one quote request naturally initiated by the public page.",
+    "It does not manufacture a second quote request or call a TakeProfit endpoint directly.",
+    "If the client serializes polling, out-of-order application cannot be tested in this run and remains unverified.",
+    "The public indicator card does not prove the authenticated workspace uses the same transport or freshness policy."
+  ]
+}

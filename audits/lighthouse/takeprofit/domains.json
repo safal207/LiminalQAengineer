@@ -1,0 +1,73 @@
+{
+  "schema_version": "liminalqa-public-domain-portfolio-v1",
+  "name": "TakeProfit public web portfolio",
+  "scope_kind": "passive_public_quality",
+  "max_parallel": 2,
+  "targets": [
+    {
+      "slug": "takeprofit-home",
+      "url": "https://takeprofit.com/",
+      "origin": "https://takeprofit.com",
+      "surface": "marketing landing and community discovery",
+      "evidence": "Official TakeProfit homepage",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "takeprofit-platform",
+      "url": "https://takeprofit.com/platform",
+      "origin": "https://takeprofit.com",
+      "surface": "public platform entry and trading workspace shell",
+      "evidence": "Official platform URL documented by TakeProfit",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "takeprofit-indicators",
+      "url": "https://takeprofit.com/indicators",
+      "origin": "https://takeprofit.com",
+      "surface": "community indicator marketplace",
+      "evidence": "Official public indicator catalogue",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "takeprofit-indicator-detail",
+      "url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+      "origin": "https://takeprofit.com",
+      "surface": "published indicator detail with chart and Add to Chart path",
+      "evidence": "Current public published indicator page",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "takeprofit-feed",
+      "url": "https://takeprofit.com/feed",
+      "origin": "https://takeprofit.com",
+      "surface": "public community feed",
+      "evidence": "Official latest-posts feed",
+      "status": "confirmed_public"
+    },
+    {
+      "slug": "takeprofit-docs-overview",
+      "url": "https://takeprofit.com/docs/guide/getting-started/Overview",
+      "origin": "https://takeprofit.com",
+      "surface": "product documentation",
+      "evidence": "Official TakeProfit documentation overview",
+      "status": "confirmed_public"
+    }
+  ],
+  "boundaries": {
+    "one_navigation_per_target": true,
+    "public_pages_only": true,
+    "active_security_testing": false,
+    "authenticated_testing": false,
+    "api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Each allowlisted target receives one passive Lighthouse navigation with at most two targets running concurrently.",
+    "The platform surface is observed only as delivered to a non-authenticated public browser session.",
+    "Results are QA, accessibility, performance, SEO, and browser-best-practice signals only.",
+    "No credentials, personal data, orders, alerts, reports, or financial operations are used."
+  ]
+}
