@@ -6,6 +6,12 @@ on:
       - agent/duolingo-lighthouse-adapter-v0-3
     paths:
       - .github/workflows/duolingo-lighthouse-manual.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/duolingo-lighthouse-manual.yml
+      - audits/duolingo/lighthouse/**
   workflow_dispatch:
     inputs:
       acknowledgement:
