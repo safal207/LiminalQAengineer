@@ -7,6 +7,7 @@ on:
     paths:
       - scripts/airbnb_readonly_probe.py
       - scripts/airbnb_readonly_probe_guard.py
+      - scripts/airbnb_readonly_discovered_dates_probe.py
       - .github/workflows/airbnb-readonly-docker-probe.yml
   pull_request:
     branches:
@@ -14,6 +15,7 @@ on:
     paths:
       - scripts/airbnb_readonly_probe.py
       - scripts/airbnb_readonly_probe_guard.py
+      - scripts/airbnb_readonly_discovered_dates_probe.py
       - .github/workflows/airbnb-readonly-docker-probe.yml
   workflow_dispatch:
 
@@ -24,24 +26,24 @@ jobs:
   readonly-probe:
     name: readonly-probe-${{ matrix.slug }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
         include:
           - slug: antalya-center
-            listing_url: 'https://www.airbnb.com/rooms/1418689551881927394?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1'
+            listing_url: 'https://www.airbnb.com/rooms/1418689551881927394'
           - slug: alanya-center
-            listing_url: 'https://www.airbnb.com/rooms/1411471065836934375?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1'
+            listing_url: 'https://www.airbnb.com/rooms/1411471065836934375'
           - slug: alanya-beach
-            listing_url: 'https://www.airbnb.com/rooms/928065654314274579?check_in=2026-08-03&check_out=2026-08-04&guests=1&adults=1'
+            listing_url: 'https://www.airbnb.com/rooms/928065654314274579'
     container:
       image: mcr.microsoft.com/playwright/python:v1.60.0-noble
       options: --ipc=host
     env:
       LISTING_URL: ${{ matrix.listing_url }}
-      OUTPUT_ROOT: artifacts/ABNB-MATRIX-${{ matrix.slug }}
+      OUTPUT_ROOT: artifacts/ABNB-DISCOVERED-${{ matrix.slug }}
       RUN_SLUG: ${{ matrix.slug }}
 
     steps:
@@ -58,17 +60,18 @@ jobs:
           printf '%s\n' \
             "Target: $LISTING_URL" \
             'Public unauthenticated listing only.' \
-            'Dates and guest are URL query inputs only.' \
+            'The script discovers dates from the public calendar.' \
+            'Dates and guest are applied only as URL query inputs.' \
             'No form submission.' \
             'No login.' \
             'No host contact.' \
             'No payment.' \
             'No reservation creation.'
 
-      - name: Run guarded two-context currency and browser-history probe
+      - name: Run discovered-date history and reload probes
         run: |
           rm -rf "$OUTPUT_ROOT"
-          python scripts/airbnb_readonly_probe_guard.py \
+          python scripts/airbnb_readonly_discovered_dates_probe.py \
             --listing-url "$LISTING_URL" \
             --output-root "$OUTPUT_ROOT"
 
@@ -81,16 +84,24 @@ jobs:
           from pathlib import Path
           path = Path(os.environ['OUTPUT_ROOT']) / 'probe-result.json'
           data = json.loads(path.read_text())
+          selected = (data.get('date_discovery') or {}).get('selected') or {}
+          reload_probe = data.get('reload_probe') or {}
           print(json.dumps({
               'slug': os.environ['RUN_SLUG'],
-              'target': data['target'],
+              'target': data.get('target'),
+              'resolved_target': data.get('resolved_target'),
+              'selected_check_in': selected.get('check_in'),
+              'selected_check_out': selected.get('check_out'),
               'classifier_revision': data.get('classifier_revision'),
-              'outcomes': data['outcomes'],
-              'normalized_signatures': data['normalized_signatures'],
-              'evidence_grade': data['evidence_grade'],
-              'confirmed_defect': data['confirmed_defect'],
-              'payment_submitted': data['payment_submitted'],
-              'reservation_created': data['reservation_created'],
+              'history_outcomes': data.get('outcomes'),
+              'normalized_signatures': data.get('normalized_signatures'),
+              'reload_outcome': reload_probe.get('outcome'),
+              'reload_before_amount': reload_probe.get('before_amount'),
+              'reload_after_amount': reload_probe.get('after_amount'),
+              'evidence_grade': data.get('evidence_grade'),
+              'confirmed_defect': data.get('confirmed_defect'),
+              'payment_submitted': data.get('payment_submitted'),
+              'reservation_created': data.get('reservation_created'),
           }, indent=2))
           PY
           fi
@@ -99,7 +110,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ABNB-MATRIX-${{ matrix.slug }}
-          path: artifacts/ABNB-MATRIX-${{ matrix.slug }}
+          name: ABNB-DISCOVERED-${{ matrix.slug }}
+          path: artifacts/ABNB-DISCOVERED-${{ matrix.slug }}
           if-no-files-found: warn
           retention-days: 14
