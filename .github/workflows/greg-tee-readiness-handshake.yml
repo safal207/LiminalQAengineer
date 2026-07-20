@@ -1,0 +1,322 @@
+name: Greg Tee Readiness Handshake Evidence
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - agent/greg-tee-full-stack-v0-1
+    paths:
+      - .github/workflows/greg-tee-readiness-handshake.yml
+      - scripts/greg_tee_readiness_handshake_evidence.py
+      - scripts/build_greg_tee_readiness_stack.py
+      - audits/reviews/greg-tee-readiness-config-v1.json
+      - docs/reviews/GREG_TEE_READINESS_HANDSHAKE_PROTOCOL_2026-07-20.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greg-tee-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  platform:
+    name: Readiness matrix — ${{ matrix.slug }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            slug: linux
+          - os: macos-latest
+            slug: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate readiness runner
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/greg_tee_readiness_handshake_evidence.py
+          python -m json.tool audits/reviews/greg-tee-readiness-config-v1.json >/dev/null
+      - name: Checkout and install exact tee-output
+        run: |
+          set -euo pipefail
+          rm -rf upstream-tee-output
+          git init upstream-tee-output
+          git -C upstream-tee-output remote add origin https://github.com/gdb/tee-output.git
+          git -C upstream-tee-output fetch --depth=1 origin c41f8ff383200320b746e953e92709ae1b505a71
+          git -C upstream-tee-output checkout --detach FETCH_HEAD
+          test "$(git -C upstream-tee-output rev-parse HEAD)" = "c41f8ff383200320b746e953e92709ae1b505a71"
+          python -m pip install ./upstream-tee-output
+          command -v tee
+          command -v parent-lifetime
+      - name: Run LPI and CaPU readiness matrix
+        run: |
+          set -euo pipefail
+          rm -rf "reports/readiness/${{ matrix.slug }}"
+          python scripts/greg_tee_readiness_handshake_evidence.py \
+            --source-file upstream-tee-output/tee_output/__init__.py \
+            --upstream-sha c41f8ff383200320b746e953e92709ae1b505a71 \
+            --output-dir "reports/readiness/${{ matrix.slug }}" \
+            --rounds 6 \
+            --lines 64 \
+            --ready-timeout 5 \
+            --timeout 25
+          cat "reports/readiness/${{ matrix.slug }}/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Bind exact attempt and checksums
+        run: |
+          set -euo pipefail
+          ROOT="reports/readiness/${{ matrix.slug }}" python - <<'PY'
+          import hashlib, json, os, time
+          from pathlib import Path
+          root = Path(os.environ["ROOT"])
+          (root / "exact-attempt.json").write_text(json.dumps({
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "execution_sha": os.environ["GITHUB_SHA"],
+              "head_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
+              "runner_os": os.environ["RUNNER_OS"],
+              "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+          }, indent=2, sort_keys=True) + "\n")
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS.txt":
+                  lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
+          (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
+          PY
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greg-readiness-${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/readiness/${{ matrix.slug }}/
+          if-no-files-found: error
+          retention-days: 30
+
+  component-contracts:
+    name: Exact readiness component contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/Liminal-Presence-Interface-LPI
+          ref: 0683ca3731256d5fc06f60c14a3deb9e9c149d19
+          path: components/lpi
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/CaPU
+          ref: babd2945046d2564e1110a76741827560c57fcca
+          path: components/capu
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/T-Trace
+          ref: 6a0755dbe8a89decd325298ec4563b9bb16adc62
+          path: components/ttrace
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/ttm-db
+          ref: eeded6bf5666512a23a7477eb8cda6485dfd173a
+          path: components/ttm
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/Scale-Descent-Protocol-SDP
+          ref: f1903aecb1f9196414c49784558f6ed9f40d8bda
+          path: components/sdp
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/DRP
+          ref: 92e63d7d4eeb55f8eb61956da002dc8951bab1c6
+          path: components/drp
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Python validation dependencies
+        run: python -m pip install pytest jsonschema
+      - name: Validate LPI exact handshake contract
+        run: |
+          set -euo pipefail
+          test "$(git -C components/lpi rev-parse HEAD)" = "0683ca3731256d5fc06f60c14a3deb9e9c149d19"
+          python components/lpi/scripts/validate_project.py
+          node --test components/lpi/tests/vocab.artifacts.test.mjs
+          grep -q "Hello.*Mirror.*Bind.*Seal.*Flow" components/lpi/docs/specs/lhs.md
+      - name: Validate CaPU maturity gate
+        run: |
+          set -euo pipefail
+          test "$(git -C components/capu rev-parse HEAD)" = "babd2945046d2564e1110a76741827560c57fcca"
+          cargo test --manifest-path components/capu/rust/cmc-core/Cargo.toml
+          grep -q "Gate.*Incubate.*Commit.*Execute" components/capu/README.md
+      - name: Validate T-Trace acknowledgements
+        run: |
+          set -euo pipefail
+          test "$(git -C components/ttrace rev-parse HEAD)" = "6a0755dbe8a89decd325298ec4563b9bb16adc62"
+          python -m pytest -q components/ttrace/tests
+          python components/ttrace/scripts/validate_ttrace.py components/ttrace/examples/minimal.ttrace.jsonl
+      - name: Validate TTM ground-truth substrate
+        run: |
+          set -euo pipefail
+          test "$(git -C components/ttm rev-parse HEAD)" = "eeded6bf5666512a23a7477eb8cda6485dfd173a"
+          cargo test --manifest-path components/ttm/rust/Cargo.toml
+      - name: Validate SDP pico collapse
+        run: |
+          set -euo pipefail
+          test "$(git -C components/sdp rev-parse HEAD)" = "f1903aecb1f9196414c49784558f6ed9f40d8bda"
+          cargo test --manifest-path components/sdp/Cargo.toml --workspace
+      - name: Validate DRP supersession
+        run: |
+          set -euo pipefail
+          test "$(git -C components/drp rev-parse HEAD)" = "92e63d7d4eeb55f8eb61956da002dc8951bab1c6"
+          python -m pytest -q components/drp/tests
+          python components/drp/tools/drp_validator.py components/drp/examples/minimal_valid.json --json
+      - name: Build exact component receipt
+        run: |
+          set -euo pipefail
+          mkdir -p reports/readiness-components
+          python - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          value = {
+              "schema_version": "liminalqa-readiness-components-v1",
+              "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+              "execution_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
+              "passed": True,
+              "components": {
+                  "lpi": {"sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19", "validation": "validate_project+node_vocab_test+LHS_contract"},
+                  "capu": {"sha": "babd2945046d2564e1110a76741827560c57fcca", "validation": "cmc_core_cargo_test+maturity_contract"},
+                  "ttrace": {"sha": "6a0755dbe8a89decd325298ec4563b9bb16adc62", "validation": "pytest+reference_validator"},
+                  "ttm_db": {"sha": "eeded6bf5666512a23a7477eb8cda6485dfd173a", "validation": "rust_cargo_test"},
+                  "sdp": {"sha": "f1903aecb1f9196414c49784558f6ed9f40d8bda", "validation": "cargo_test_workspace"},
+                  "drp": {"sha": "92e63d7d4eeb55f8eb61956da002dc8951bab1c6", "validation": "pytest+reference_validator"},
+              },
+              "boundaries": {
+                  "lpi": "process-handshake adaptation, not network protocol conformance",
+                  "capu": "write-gate adaptation, not production side-effect enforcement",
+                  "ttm_db": "append-only adapter, not a live production service",
+                  "sdp": "deterministic evidence collapse, advisory only",
+              },
+          }
+          Path("reports/readiness-components/component-contracts.json").write_text(
+              json.dumps(value, indent=2, sort_keys=True) + "\n"
+          )
+          PY
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greg-readiness-components-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/readiness-components/
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    name: Readiness replay and causal gate
+    needs: [platform, component-contracts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/T-Trace
+          ref: 6a0755dbe8a89decd325298ec4563b9bb16adc62
+          path: components/ttrace
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/DRP
+          ref: 92e63d7d4eeb55f8eb61956da002dc8951bab1c6
+          path: components/drp
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: greg-readiness-*
+          path: downloaded
+      - name: Build full readiness stack packet
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_greg_tee_readiness_stack.py
+          CONTRACT="$(find downloaded -name component-contracts.json -print -quit)"
+          test -n "$CONTRACT"
+          rm -rf reports/readiness-final
+          python scripts/build_greg_tee_readiness_stack.py \
+            --input-root downloaded \
+            --component-contracts "$CONTRACT" \
+            --output-dir reports/readiness-final
+      - name: Validate generated T-Trace and DRP records
+        run: |
+          set -euo pipefail
+          python components/ttrace/scripts/validate_ttrace.py reports/readiness-final/ttrace/readiness.ttrace.jsonl
+          python components/drp/tools/drp_validator.py reports/readiness-final/drp/decisions.json --json
+      - name: Enforce claim boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("reports/readiness-final/greg-readiness-full-stack-result.json")
+          result = json.loads(path.read_text())
+          assert not result["blocking_checks"], result["blocking_checks"]
+          contract = result["notification_contract"]
+          verdict = result["summary"]["verdict"]
+          if contract["permitted"]:
+              assert verdict == "READY_TO_NOTIFY_READINESS_BARRIER_SUPPORTED_CAUSE_NOT_EXCLUSIVE"
+              assert contract["may_claim_readiness_support"] is True
+          assert contract["may_claim_readiness_as_sole_cause"] is False
+          assert contract["must_disclose_supervisory_not_internal_ack"] is True
+          summary = Path("reports/readiness-final/SUMMARY.md").read_text()
+          assert verdict in summary
+          assert "not an internal source-level acknowledgement" in summary
+          PY
+      - name: Bind exact attempt and checksums
+        run: |
+          set -euo pipefail
+          ROOT="reports/readiness-final" python - <<'PY'
+          import hashlib, json, os, time
+          from pathlib import Path
+          root = Path(os.environ["ROOT"])
+          (root / "exact-attempt.json").write_text(json.dumps({
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "execution_sha": os.environ["GITHUB_SHA"],
+              "head_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
+              "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+          }, indent=2, sort_keys=True) + "\n")
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS.txt":
+                  lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
+          (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
+          PY
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Publish summary
+        run: cat reports/readiness-final/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greg-readiness-full-stack-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/readiness-final/
+          if-no-files-found: error
+          retention-days: 30
