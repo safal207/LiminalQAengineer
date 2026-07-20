@@ -1,0 +1,251 @@
+name: Greg Tee Full Evidence Stack v2
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - agent/greg-boris-causal-gate-run-v0-1
+    paths:
+      - .github/workflows/greg-tee-full-stack-evidence-v2.yml
+      - scripts/greg_tee_cross_platform_evidence.py
+      - scripts/build_greg_tee_full_stack_evidence.py
+      - scripts/validate_greg_tee_full_stack.py
+      - audits/reviews/greg-tee-full-stack-config-v1.json
+      - docs/reviews/GREG_TEE_FULL_STACK_PROTOCOL_2026-07-20.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greg-tee-full-stack-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  platform:
+    name: Platform evidence v2 — ${{ matrix.slug }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            slug: linux
+          - os: macos-latest
+            slug: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate observer files
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/greg_tee_cross_platform_evidence.py
+          python -m json.tool audits/reviews/greg-tee-full-stack-config-v1.json >/dev/null
+      - name: Checkout and install exact tee-output
+        run: |
+          set -euo pipefail
+          rm -rf upstream-tee-output
+          git init upstream-tee-output
+          git -C upstream-tee-output remote add origin https://github.com/gdb/tee-output.git
+          git -C upstream-tee-output fetch --depth=1 origin c41f8ff383200320b746e953e92709ae1b505a71
+          git -C upstream-tee-output checkout --detach FETCH_HEAD
+          test "$(git -C upstream-tee-output rev-parse HEAD)" = "c41f8ff383200320b746e953e92709ae1b505a71"
+          python -m pip install ./upstream-tee-output
+          command -v tee
+      - name: Run cross-platform trajectory matrix
+        run: |
+          set -euo pipefail
+          rm -rf "reports/platform/${{ matrix.slug }}"
+          python scripts/greg_tee_cross_platform_evidence.py \
+            --source-file upstream-tee-output/tee_output/__init__.py \
+            --upstream-sha c41f8ff383200320b746e953e92709ae1b505a71 \
+            --output-dir "reports/platform/${{ matrix.slug }}" \
+            --rounds 6 --lines 64 --delays 0 1 10 100 --timeout 20
+          cat "reports/platform/${{ matrix.slug }}/greg-platform-summary.md" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Bind exact attempt and checksums
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_attempt "${{ github.run_attempt }}" \
+            --arg execution_sha "${{ github.sha }}" \
+            --arg head_sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --arg runner_os "${{ runner.os }}" \
+            --arg slug "${{ matrix.slug }}" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{run_id:$run_id,run_attempt:$run_attempt,execution_sha:$execution_sha,head_sha:$head_sha,runner_os:$runner_os,slug:$slug,generated_at:$generated_at}' \
+            > "reports/platform/${{ matrix.slug }}/exact-attempt.json"
+          ROOT="reports/platform/${{ matrix.slug }}" python - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          root = Path(os.environ["ROOT"])
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "ARTIFACT_SHA256SUMS.txt":
+                  lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
+          (root / "ARTIFACT_SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greg-v2-platform-${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/platform/${{ matrix.slug }}/
+          if-no-files-found: error
+          retention-days: 30
+
+  component-contracts:
+    name: Exact component contracts v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/GardenLiminal
+          ref: 6c30422d0492ec312a35624322f90a7761419655
+          path: components/garden
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-
+          ref: 6284d2fee3f729ceacd688e74c5d67beea1ff3c7
+          path: components/ltp
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/LiminalDB
+          ref: 75ef9f7f403a34c60aa2ceba4cb3c97870d73e77
+          path: components/liminaldb
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/LiminalOSAI
+          ref: a2c5783287a9def4b4254b9436c2e75468613dca
+          path: components/liminalosai
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Validate Garden exact contract
+        run: |
+          set -euo pipefail
+          test "$(git -C components/garden rev-parse HEAD)" = "6c30422d0492ec312a35624322f90a7761419655"
+          test -f components/garden/Cargo.toml
+          test -f components/garden/README.md
+          cargo metadata --manifest-path components/garden/Cargo.toml --no-deps --format-version 1 > garden-cargo-metadata.json
+      - name: Validate LTP exact tests
+        run: |
+          set -euo pipefail
+          test "$(git -C components/ltp rev-parse HEAD)" = "6284d2fee3f729ceacd688e74c5d67beea1ff3c7"
+          test -f components/ltp/package.json
+          test -f components/ltp/pnpm-lock.yaml
+          corepack enable
+          cd components/ltp
+          pnpm install --frozen-lockfile
+          pnpm test
+      - name: Validate LiminalDB exact contract
+        run: |
+          set -euo pipefail
+          test "$(git -C components/liminaldb rev-parse HEAD)" = "75ef9f7f403a34c60aa2ceba4cb3c97870d73e77"
+          test -f components/liminaldb/Cargo.toml
+          test -f components/liminaldb/README.md
+          cargo metadata --manifest-path components/liminaldb/Cargo.toml --no-deps --format-version 1 > liminaldb-cargo-metadata.json
+      - name: Validate LiminalOSAI advisory runtime
+        run: |
+          set -euo pipefail
+          test "$(git -C components/liminalosai rev-parse HEAD)" = "a2c5783287a9def4b4254b9436c2e75468613dca"
+          test -f components/liminalosai/Makefile
+          test -f components/liminalosai/docs/EXPERIMENTAL_SCOPE.md
+          make -C components/liminalosai -j2
+          make -C components/liminalosai check
+          make -C components/liminalosai test
+      - name: Build exact component receipt
+        run: |
+          set -euo pipefail
+          mkdir -p reports/component-contracts
+          jq -n \
+            --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg execution_sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+            '{schema_version:"liminalqa-greg-component-contracts-v2",observed_at:$observed_at,execution_sha:$execution_sha,passed:true,components:{garden_liminal:{sha:"6c30422d0492ec312a35624322f90a7761419655",validation:"exact_checkout+cargo_metadata",runtime_claim:false},ltp:{sha:"6284d2fee3f729ceacd688e74c5d67beea1ff3c7",validation:"exact_checkout+pnpm_test",service_claim:false},liminaldb:{sha:"75ef9f7f403a34c60aa2ceba4cb3c97870d73e77",validation:"exact_checkout+cargo_metadata",live_daemon_claim:false},liminalosai:{sha:"a2c5783287a9def4b4254b9436c2e75468613dca",validation:"exact_checkout+make+check+test",authority:"advisory_only"}}}' \
+            > reports/component-contracts/component-contracts.json
+          cp garden-cargo-metadata.json liminaldb-cargo-metadata.json reports/component-contracts/
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root = Path('reports/component-contracts')
+          lines = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}" for p in sorted(root.rglob('*')) if p.is_file() and p.name != 'SHA256SUMS.txt']
+          (root / 'SHA256SUMS.txt').write_text('\n'.join(lines) + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greg-v2-component-contracts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/component-contracts/
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    name: Full-stack replay and gate v2
+    needs: [platform, component-contracts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: greg-v2-platform-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/input/platforms
+      - uses: actions/download-artifact@v4
+        with:
+          name: greg-v2-component-contracts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/input/contracts
+      - name: Build formal stack packet
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_greg_tee_full_stack_evidence.py scripts/validate_greg_tee_full_stack.py
+          rm -rf reports/greg-tee-full-stack reports/greg-tee-full-stack-gate
+          python scripts/build_greg_tee_full_stack_evidence.py \
+            --input-root reports/input/platforms \
+            --config audits/reviews/greg-tee-full-stack-config-v1.json \
+            --contracts reports/input/contracts/component-contracts.json \
+            --output-dir reports/greg-tee-full-stack
+          python scripts/validate_greg_tee_full_stack.py \
+            --result reports/greg-tee-full-stack/greg-tee-full-stack-result.json \
+            --output-dir reports/greg-tee-full-stack-gate --max-age-minutes 90
+          cat reports/greg-tee-full-stack/SUMMARY.md reports/greg-tee-full-stack-gate/SUMMARY.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Bind gate and exact attempt
+        run: |
+          set -euo pipefail
+          mkdir -p reports/greg-tee-full-stack/metadata
+          cp reports/greg-tee-full-stack-gate/gate-result.json reports/greg-tee-full-stack/metadata/
+          cp reports/greg-tee-full-stack-gate/SUMMARY.md reports/greg-tee-full-stack/metadata/GATE_SUMMARY.md
+          cp audits/reviews/greg-tee-full-stack-config-v1.json reports/greg-tee-full-stack/metadata/config.json
+          cp docs/reviews/GREG_TEE_FULL_STACK_PROTOCOL_2026-07-20.md reports/greg-tee-full-stack/metadata/protocol.md
+          jq -n --arg run_id "${{ github.run_id }}" --arg run_attempt "${{ github.run_attempt }}" --arg execution_sha "${{ github.sha }}" --arg head_sha "${{ github.event.pull_request.head.sha || github.sha }}" --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{run_id:$run_id,run_attempt:$run_attempt,execution_sha:$execution_sha,head_sha:$head_sha,generated_at:$generated_at,observer:"N_READ_ONLY_EVIDENCE_OBSERVER",authority:{comments_only:true,state_changes:false,approval:false,close:false,merge:false}}' > reports/greg-tee-full-stack/metadata/exact-attempt.json
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root = Path('reports/greg-tee-full-stack')
+          lines = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(root)}" for p in sorted(root.rglob('*')) if p.is_file() and p.name != 'ARTIFACT_SHA256SUMS.txt']
+          (root / 'ARTIFACT_SHA256SUMS.txt').write_text('\n'.join(lines) + '\n')
+          PY
+          jq -e '.overall_verdict == "GREG_FULL_STACK_READY_TO_NOTIFY" and (.blocking_checks | length) == 0 and .message_contract.permitted == true and .message_contract.comments_only == true and .message_contract.state_changes == false' reports/greg-tee-full-stack/metadata/gate-result.json >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greg-tee-full-stack-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/greg-tee-full-stack/
+          if-no-files-found: error
+          retention-days: 30
