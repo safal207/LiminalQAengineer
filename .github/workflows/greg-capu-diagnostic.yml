@@ -1,0 +1,65 @@
+name: Greg Readiness CaPU Diagnostic
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - agent/greg-tee-full-stack-v0-1
+    paths:
+      - .github/workflows/greg-capu-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  capu-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/CaPU
+          ref: babd2945046d2564e1110a76741827560c57fcca
+          path: components/capu
+          persist-credentials: false
+      - name: Run canonical CaPU Rust command and capture complete output
+        id: cargo
+        shell: bash
+        run: |
+          set +e
+          mkdir -p reports/capu-diagnostic
+          (
+            cd components/capu/rust/cmc-core
+            cargo test --all --locked
+          ) > reports/capu-diagnostic/cargo-test.log 2>&1
+          rc=$?
+          python - "$rc" <<'PY'
+          import json, os, sys, time
+          from pathlib import Path
+          Path("reports/capu-diagnostic/result.json").write_text(json.dumps({
+              "schema_version": "liminalqa-capu-diagnostic-v1",
+              "exit_code": int(sys.argv[1]),
+              "capu_sha": "babd2945046d2564e1110a76741827560c57fcca",
+              "execution_sha": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+              "command": "cd rust/cmc-core && cargo test --all --locked"
+          }, indent=2, sort_keys=True) + "\n")
+          PY
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          cat reports/capu-diagnostic/cargo-test.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capu-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/capu-diagnostic/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve canonical exit code
+        if: always()
+        run: exit "${{ steps.cargo.outputs.exit_code }}"
