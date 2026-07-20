@@ -1,0 +1,70 @@
+name: Company Public Audit Engine CI
+
+on:
+  push:
+    branches:
+      - agent/company-self-service-audit-v0-1
+    paths:
+      - .github/workflows/company-public-audit.yml
+      - .github/workflows/company-public-audit-engine-ci.yml
+      - audits/templates/company-public-audit.example.json
+      - scripts/company_public_audit_engine.py
+      - scripts/company_public_browser_probe.mjs
+      - tests/test_company_public_audit_engine.py
+      - docs/COMPANY_SELF_SERVICE_AUDIT.md
+      - docs/examples/company-audit-caller.yml
+  pull_request:
+    paths:
+      - .github/workflows/company-public-audit.yml
+      - .github/workflows/company-public-audit-engine-ci.yml
+      - audits/templates/company-public-audit.example.json
+      - scripts/company_public_audit_engine.py
+      - scripts/company_public_browser_probe.mjs
+      - tests/test_company_public_audit_engine.py
+      - docs/COMPANY_SELF_SERVICE_AUDIT.md
+      - docs/examples/company-audit-caller.yml
+
+permissions:
+  contents: read
+
+jobs:
+  contract-tests:
+    name: Validate schema, scripts, and fail-closed tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate Python and Node syntax
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/company_public_audit_engine.py
+          node --check scripts/company_public_browser_probe.mjs
+          python3 -m json.tool audits/templates/company-public-audit.example.json >/dev/null
+
+      - name: Run fail-closed regression suite
+        run: python3 -m unittest -v tests/test_company_public_audit_engine.py
+
+      - name: Validate example contract and matrix
+        run: |
+          set -euo pipefail
+          python3 scripts/company_public_audit_engine.py validate \
+            --config audits/templates/company-public-audit.example.json \
+            --output /tmp/company-audit-config.json
+          matrix="$(python3 scripts/company_public_audit_engine.py matrix \
+            --config /tmp/company-audit-config.json)"
+          test "$(jq -r '.include | length' <<<"${matrix}")" -eq 2
+          test "$(jq -r '.max_parallel' <<<"${matrix}")" -eq 2
+
+  reusable-workflow-smoke:
+    name: Run example.com through reusable pipeline
+    needs: contract-tests
+    uses: ./.github/workflows/company-public-audit.yml
+    with:
+      config_path: audits/templates/company-public-audit.example.json
+      engine_ref: ${{ github.sha }}
+      retention_days: 7
+      fail_on: never
