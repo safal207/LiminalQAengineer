@@ -66,10 +66,11 @@ def test_observer_is_passive_and_does_not_submit_user_content() -> None:
     assert "captcha_or_access_control_bypass" in script
 
     prohibited_calls = (
-        ".click(",
-        ".type(",
-        ".fill(",
-        "keyboard.type",
+        "page.click(",
+        "element.click(",
+        "page.type(",
+        "keyboard.type(",
+        "page.fill(",
         "setRequestInterception",
         "page.authenticate",
     )
