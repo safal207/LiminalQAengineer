@@ -177,8 +177,13 @@ jobs:
           PY
       - name: Verify CaPU exact SHA
         run: test "$(git -C components/capu rev-parse HEAD)" = "babd2945046d2564e1110a76741827560c57fcca"
-      - name: CaPU — run Rust reference tests
-        run: cargo test --manifest-path components/capu/rust/cmc-core/Cargo.toml
+      - name: CaPU — run isolated Rust reference tests
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/capu-exact
+          cp -a components/capu /tmp/capu-exact
+          cd /tmp/capu-exact/rust/cmc-core
+          cargo test --all --locked
       - name: CaPU — verify maturity gate contract
         run: |
           python - <<'PY'
@@ -186,8 +191,7 @@ jobs:
           text = Path("components/capu/README.md").read_text(encoding="utf-8")
           for token in ("Gate", "Incubate", "Commit", "Execute"):
               assert token in text, token
-          pipeline = text.find("Gate -> Incubate -> Commit -> Execute")
-          assert pipeline >= 0, "canonical maturity pipeline missing"
+          assert "Gate -> Incubate -> Commit -> Execute" in text
           PY
       - name: Validate T-Trace acknowledgements
         run: |
@@ -227,7 +231,7 @@ jobs:
               "passed": True,
               "components": {
                   "lpi": {"sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19", "validation": "locked_node_install+vocab_build+vocab_test+python_sdk_subset+LHS_contract"},
-                  "capu": {"sha": "babd2945046d2564e1110a76741827560c57fcca", "validation": "cmc_core_cargo_test+maturity_contract"},
+                  "capu": {"sha": "babd2945046d2564e1110a76741827560c57fcca", "validation": "isolated_cargo_test_all_locked+maturity_contract"},
                   "ttrace": {"sha": "6a0755dbe8a89decd325298ec4563b9bb16adc62", "validation": "pytest+reference_validator"},
                   "ttm_db": {"sha": "eeded6bf5666512a23a7477eb8cda6485dfd173a", "validation": "rust_cargo_test"},
                   "sdp": {"sha": "f1903aecb1f9196414c49784558f6ed9f40d8bda", "validation": "cargo_test_workspace"},
@@ -235,7 +239,7 @@ jobs:
               },
               "boundaries": {
                   "lpi": "process-handshake adaptation, not network protocol conformance",
-                  "capu": "write-gate adaptation, not production side-effect enforcement",
+                  "capu": "write-gate adaptation; Rust checkout isolated from parent Cargo workspace",
                   "ttm_db": "append-only adapter, not a live production service",
                   "sdp": "deterministic evidence collapse, advisory only"
               }
