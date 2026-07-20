@@ -1,7 +1,7 @@
 # ChatGPT mobile-web public audit
 
 **Case:** `chatgpt-mobile-web-public-2026-07-21`  
-**Verdict:** `ESCALATE_BOUNDED_FOLLOW_UP`  
+**Verdict:** `ONE_P3_DIAGNOSTIC_ONLY`  
 **Target:** `https://chatgpt.com/`  
 **Mode:** passive, public, signed-out web observation
 
@@ -15,18 +15,16 @@ The public ChatGPT mobile-web entry passed the bounded baseline:
 - primary mobile controls for sidebar, login, attachments, dictation and send exposed `44×44` CSS-pixel boxes;
 - the mobile login page retained provider, email and Continue choices without horizontal overflow;
 - public-home CLS remained between `0` and `0.0004`;
-- no home-page console or uncaught runtime error was observed under the primary mobile profile.
+- no home-page console or uncaught runtime error was observed under the primary mobile profile;
+- mobile event POSTs received successful HTTP `200/204` responses.
 
 The audit confirmed that ChatGPT serves a distinct signed-out mobile-web branch based on mobile user-agent, not viewport alone. That is an architectural observation, not a defect.
 
-Two repeated diagnostic signals require narrower follow-up before any external report:
-
-1. mobile-only event POST requests under `/unauth-mweb/events/` were aborted around the bounded lifecycle;
-2. the mobile login page emitted one opaque `JSHandle@error` console signal in each round.
-
-Neither signal has demonstrated user impact.
+One repeated low-severity diagnostic remains: the mobile login page emits an opaque first-party `console.error`, while the visible login state remains complete and no user-task failure is established.
 
 ## Exact evidence
+
+### Baseline matrix
 
 - Repository: `safal207/LiminalQAengineer`
 - PR: `#106`
@@ -34,34 +32,33 @@ Neither signal has demonstrated user impact.
 - Workflow run: `29783360123`
 - Artifact: `chatgpt-mobile-web-public-29783360123`
 - Artifact SHA-256: `1be5ceda6b73ff4a92ff13fc793c22366a05c97069392ad2ac0ec4a3c5ae7316`
-- Result-packet SHA-256: `b28f6ad07c93f6ddc7e0105b6ce4a9f773763957228d2e7f1dd9361ca7fa1a00`
-- Machine adjudication: `audits/chatgpt/mobile-web-public-result.json`
+- Baseline packet SHA-256: `b28f6ad07c93f6ddc7e0105b6ce4a9f773763957228d2e7f1dd9361ca7fa1a00`
 
-## Question
+### Focused diagnostic
 
-Does ChatGPT mobile web preserve a clear path from arrival to first prompt while keeping navigation, composer state, authentication choices, accessibility semantics and compact-height recovery understandable on a small screen?
+- Exact diagnostic head: `e56e2e86770e4ed198380800d970a7198020d6e1`
+- Workflow run: `29783766882`
+- Artifact: `chatgpt-mobile-web-diagnostics-29783766882`
+- Artifact SHA-256: `dc76eadf08f34a03273f95aee2ff3a7256b39c1a600af5cef91c0c0fd799056c`
+- Diagnostic packet SHA-256: `545480af7621ee11a7c7bbaaca65c2d134791abab43cddddb1ae0a39a2357434`
+
+Machine-readable adjudications:
+
+- `audits/chatgpt/mobile-web-public-result.json`
+- `audits/chatgpt/mobile-web-diagnostics-result.json`
 
 ## Product boundary
 
 This audit is specifically about **mobile web** in a browser. It does not treat the ChatGPT Android or iOS **mobile application** as the same product surface.
 
-Official OpenAI documentation establishes that:
-
-- ChatGPT is available on the web at `chatgpt.com` and in separate iOS and Android applications;
-- signed-out web use may be available in supported regions, while availability can vary by region;
-- file uploads are available on supported paid plans on web and mobile apps;
-- some capabilities have platform-specific boundaries: Canvas documentation still lists mobile platforms, including mobile web, as coming soon;
-- Voice documentation distinguishes desktop web from mobile-app availability for some voice experiences;
-- login can be affected by browser, cookies, JavaScript, network and Cloudflare conditions.
-
-These official capability statements are context, not proof that the current mobile-web interface succeeds or fails.
+Official OpenAI documentation establishes that ChatGPT is offered through the web and separate mobile applications, that some signed-out functionality varies by region, and that some capabilities have platform-specific availability. These statements provide context only; they are not evidence that the current mobile-web interface passes or fails.
 
 ## Evidence labels
 
 - `SIGNED_OUT_PUBLIC_EVIDENCE` — reproduced on public signed-out pages with exact profile and artifact.
-- `REPEATED_PUBLIC_OBSERVATION` — reproduced in both bounded rounds for the same profile and target.
 - `CONFIRMED_ARCHITECTURE_NOT_DEFECT` — delivery difference is proven but no user failure follows automatically.
-- `USER_IMPACT_UNKNOWN` — signal exists but no user-task failure has been established.
+- `CONFIRMED_DIAGNOSTIC_USER_IMPACT_UNKNOWN` — stable diagnostic signal without a demonstrated broken task.
+- `REJECTED_FALSE_NETWORK_FAILURE` — successful HTTP delivery was incorrectly grouped as a failed request by the generic detector.
 - `REJECTED_FALSE_POSITIVE` — detector output contradicted by screenshot or structural review.
 - `NEEDS_AUTHENTICATED_MOBILE_EVIDENCE` — cannot be claimed from signed-out pages.
 - `APP_ONLY_OR_PLATFORM_SPECIFIC` — official documentation distinguishes the capability from mobile web.
@@ -69,13 +66,13 @@ These official capability statements are context, not proof that the current mob
 
 ## Safety boundary
 
-The observer:
+The observers:
 
-- opens only `https://chatgpt.com/` and `https://chatgpt.com/auth/login`;
-- uses desktop/mobile user-agent and viewport combinations;
-- captures rendered text, headings, accessible names, focus order, layout geometry, performance entries, console signals and screenshots;
-- repeats each bounded profile twice;
-- does not bypass a challenge or access control.
+- open only `https://chatgpt.com/` and `https://chatgpt.com/auth/login`;
+- use desktop/mobile user-agent and viewport combinations;
+- capture rendered text, accessible names, focus order, geometry, performance entries, console signals and screenshots;
+- repeat bounded states twice;
+- do not bypass a challenge or access control.
 
 No prompt is submitted. No login is submitted. No account is accessed. No file is uploaded. No microphone or camera permission is requested. No application API is called directly. No fuzzing, load test, active security test or private-data collection occurs.
 
@@ -85,11 +82,11 @@ No prompt is submitted. No login is submitted. No account is accessed. No file i
 |---|---|---:|---|
 | `desktop-ua-desktop-viewport` | Desktop | 1440×900 | HTTP 200; desktop signed-out experience |
 | `desktop-ua-mobile-viewport` | Desktop | 412×915 | HTTP 200; responsive desktop branch |
-| `mobile-ua-desktop-viewport` | Android mobile | 1440×900 | HTTP 200; mobile-user-agent branch expanded to wide viewport |
+| `mobile-ua-desktop-viewport` | Android mobile | 1440×900 | HTTP 200; mobile-user-agent branch on a wide viewport |
 | `mobile-ua-mobile-viewport` | Android mobile | 412×915 | HTTP 200; primary mobile-web state |
 | `mobile-ua-compact-height` | Android mobile | 412×520 | HTTP 200; composer and CTA visible |
 
-The matrix distinguishes user-agent routing from viewport-driven responsive behaviour. It does not emulate every Android browser, browser chrome, safe-area inset, real virtual keyboard or OEM skin.
+The matrix separates user-agent routing from viewport-driven responsive behaviour. It does not emulate every Android browser, safe-area inset, browser chrome, real virtual keyboard or OEM skin.
 
 ## Confirmed passes
 
@@ -111,7 +108,7 @@ Under Android mobile user-agent at `412×915`, these visible controls exposed `4
 - Start dictation;
 - Send message.
 
-The generic detector also flagged the inner textarea content box, a `36`-pixel-high suggestion CTA and legal links. Those raw counts are not an automatic accessibility failure: the textarea sits inside a larger composer container, and links require standards-aware spacing and context review.
+The generic detector also flagged the inner textarea content box, a `36`-pixel-high suggestion CTA and legal links. Those counts are not automatic accessibility failures: the textarea sits inside a larger composer container, and links require standards-aware spacing and context review.
 
 ### Compact-height layout — `PASS_WITH_BOUNDARY`
 
@@ -119,20 +116,24 @@ At `412×520`, the title, primary composer, dictation/send controls and `What ca
 
 ### Mobile login layout — `PASS`
 
-At `412×915`, the login page displayed:
-
-- Continue with Google;
-- Continue with Apple;
-- Continue with phone;
-- Email address;
-- Continue;
-- Try it first.
-
-The main provider and Continue controls measured `340×44` CSS pixels and no horizontal overflow was observed.
+At `412×915`, the login page displayed provider choices, email input, Continue and Try it first. Main provider and Continue controls measured `340×44` CSS pixels, with no horizontal overflow.
 
 ### Layout stability — `PASS_IN_OBSERVATION_WINDOW`
 
 Observed CLS ranged from `0` to `0.0004` across the public profiles.
+
+### Mobile event delivery — `PASS_WITH_DETECTOR_CORRECTION`
+
+The generic observer initially labelled six `/unauth-mweb/events/` POSTs as aborted. The focused run proved that the first-party endpoints returned successful responses before the browser loading signal:
+
+- page view: HTTP `204`;
+- performance: HTTP `204`;
+- business: HTTP `204`;
+- stats flush: HTTP `200`.
+
+The successful response preceded the `net::ERR_ABORTED` CDP/Puppeteer signal by `0–33 ms`. No `visibilitychange`, `pagehide`, `beforeunload` or `unload` event occurred before capture.
+
+**Adjudication:** `REJECTED_FALSE_NETWORK_FAILURE`. The generic detector must not count a successful `2xx` response followed by loading-aborted as failed delivery without additional evidence.
 
 ## Confirmed architecture
 
@@ -147,34 +148,39 @@ At the same `412×915` viewport:
 | No visible `What can I do?` CTA in the captured state | `What can I do?` CTA visible |
 | Desktop/responsive delivery | Event namespace includes `/unauth-mweb/events/` |
 
-This proves a separate mobile-web branch. It is not a defect by itself. It means fixes, accessibility reviews and experiments must cover mobile user-agent behaviour rather than relying on viewport-only responsive testing.
+This proves a separate mobile-web branch. It is not a defect by itself. Fixes, accessibility reviews and experiments must cover mobile user-agent behaviour instead of relying on viewport-only responsive testing.
 
-## Diagnostic signals requiring follow-up
+## Remaining diagnostic
 
-### Mobile event POST aborts — `REPEATED_USER_IMPACT_UNKNOWN`
+### Opaque first-party console error on mobile login — `CONFIRMED_DIAGNOSTIC_USER_IMPACT_UNKNOWN`
 
-Each mobile-user-agent home run recorded six aborted POST requests under:
+The mobile login page emitted one stable `console.error` in both focused rounds:
 
-- `/unauth-mweb/events/page-view`;
-- `/unauth-mweb/events/performance`;
-- `/unauth-mweb/events/business`;
-- `/unauth-mweb/events/statsc/flush`.
+- elapsed after navigation: approximately `1.0–1.3 s`;
+- console text: `JSHandle@error`;
+- serialized values: empty object and `undefined`;
+- first-party source: `2340486e-dndlwhxa5s7p8x6d.js`, line `27`, column `11836`;
+- no uncaught page error;
+- no visible login failure;
+- provider choices, email field and Continue remained present.
 
-The requests are event/telemetry routes, and the bounded browser closes after evidence capture. No missing content, HTTP error response or visible user failure was observed. This must not be reported as a product defect until a lifecycle trace proves that requests fail before teardown or that required analytics are lost.
+**Classification:** `P3-diagnostic`. The signal may represent noisy or intentionally caught logging, but its semantic cause cannot be established from public minified assets. It is not a security claim and not proof that login is broken.
 
-### Opaque login console signal — `REPEATED_USER_IMPACT_UNKNOWN`
-
-The mobile login page emitted one console error represented as `JSHandle@error` in both rounds. The current observer did not serialize the underlying object, and the login form remained visibly complete. A focused diagnostic run must preserve console arguments and stack information before any defect claim.
+Recommended first-party repair path: resolve the stack through source maps and emit an explicit error code/message if logging is intentional, then rerun the public console-cleanliness check.
 
 ## Rejected detector outputs
 
 ### Composer overlap — `REJECTED_FALSE_POSITIVE`
 
-The generic geometry detector reported overlap between the composer and a fixed/sticky surface. Screenshot review showed no obstruction: the detected surface was an ancestor layout container containing the composer. Future detector revisions must exclude ancestor/descendant pairs.
+Screenshot review showed no obstruction. The detected fixed/sticky surface was an ancestor container containing the composer. The geometry detector must exclude ancestor/descendant pairs.
 
 ### Duplicate visible heading — `REJECTED_BY_BROWSER_MATRIX`
 
-A text-only public fetch suggested repeated start-state wording. The controlled browser matrix found no duplicate visible heading in any profile. The text-only signal is not a defect.
+A text-only public fetch suggested repeated start-state wording. The controlled browser matrix found no duplicate visible heading in any profile.
+
+### Raw small-target count — `ADJUDICATED_NOT_A_CONFIRMED_DEFECT`
+
+Critical icon controls met the `44×44` target in the tested mobile state. Suggestion and legal-link geometry still deserve standards-aware review, but the raw detector count is not a defect verdict.
 
 ## Authenticated journeys outside this packet
 
@@ -187,21 +193,20 @@ The following remain `NEEDS_AUTHENTICATED_MOBILE_EVIDENCE`:
 5. sidebar history, chat search, Projects, pinned chats and deep links;
 6. model/tool selection and plan-limit messaging;
 7. Search citations, widgets and source panels;
-8. custom GPTs, Plugins, Deep research, Work and availability by plan;
+8. custom GPTs, Deep research, Work and availability by plan;
 9. settings, memory, privacy controls, billing and workspace switching;
 10. error recovery after offline/online transitions;
 11. cross-device draft/history synchronisation;
 12. accessibility with TalkBack, browser zoom and external keyboard.
 
-Official documentation also identifies platform differences. For example, Canvas is documented for web desktop while mobile platforms, including mobile web, are still listed as coming soon. Such a gap is a product capability boundary, not automatically a UX defect.
+A platform availability difference is not automatically a UX defect. Each authenticated conclusion requires an authorised test account, exact plan/workspace, browser version, region and state trace.
 
 ## Next bounded tests
 
-1. Serialize login console arguments and stacks without submitting credentials.
-2. Trace `visibilitychange`, `pagehide` and teardown timing for `/unauth-mweb/events/`.
-3. Run a real Android Chrome session with virtual keyboard and `visualViewport` evidence.
-4. Run an authorised signed-in account matrix for long chat, streaming, attachments, sidebar history and offline recovery.
-5. Run TalkBack, external-keyboard and `200%` browser-zoom tasks.
+1. Run an authorised signed-in account matrix for long chat, streaming, attachments, sidebar history and offline recovery.
+2. Run a real Android Chrome session with virtual keyboard and `visualViewport` evidence.
+3. Run TalkBack, external-keyboard and `200%` browser-zoom tasks.
+4. Re-run the public login console probe after the relevant first-party bundle changes.
 
 ## Decision rule
 
@@ -214,7 +219,7 @@ A detector signal becomes a public mobile-web finding only when:
 5. exact-run evidence is preserved;
 6. uncertainty remains explicit.
 
-`ESCALATE_BOUNDED_FOLLOW_UP` does not authorise external reporting, account access, security claims, deployment or merge.
+`ONE_P3_DIAGNOSTIC_ONLY` does not authorise external reporting, account access, security claims, deployment or merge. Human review remains required before any external use.
 
 ## Official public references
 
