@@ -149,7 +149,10 @@ jobs:
         with:
           node-version: "20"
       - name: Install Python validation dependencies
-        run: python -m pip install pytest jsonschema
+        run: |
+          set -euo pipefail
+          python -m pip install pytest jsonschema
+          python -m pip install -e 'components/lpi/packages/python-lri[dev]'
       - name: Validate LPI exact handshake contract
         run: |
           set -euo pipefail
