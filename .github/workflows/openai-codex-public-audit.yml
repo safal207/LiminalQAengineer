@@ -11,22 +11,13 @@ on:
       - audits/companies/openai-codex/public-audit.json
       - scripts/company_public_audit_engine.py
       - scripts/company_public_browser_probe.mjs
-  pull_request:
-    branches:
-      - agent/company-self-service-audit-v0-1
-    paths:
-      - .github/workflows/openai-codex-public-audit.yml
-      - .github/workflows/company-public-audit.yml
-      - audits/companies/openai-codex/public-audit.json
-      - scripts/company_public_audit_engine.py
-      - scripts/company_public_browser_probe.mjs
 
 permissions:
   contents: read
 
 concurrency:
   group: openai-codex-public-audit-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   audit:
@@ -34,6 +25,6 @@ jobs:
     uses: ./.github/workflows/company-public-audit.yml
     with:
       config_path: audits/companies/openai-codex/public-audit.json
-      engine_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      engine_ref: ${{ github.sha }}
       retention_days: 30
       fail_on: never
