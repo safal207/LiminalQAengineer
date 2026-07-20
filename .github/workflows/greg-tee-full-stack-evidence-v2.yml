@@ -140,7 +140,39 @@ jobs:
           test "$(git -C components/garden rev-parse HEAD)" = "6c30422d0492ec312a35624322f90a7761419655"
           test -f components/garden/Cargo.toml
           test -f components/garden/README.md
-          cargo metadata --manifest-path components/garden/Cargo.toml --no-deps --format-version 1 > garden-cargo-metadata.json
+          python - <<'PY'
+          import json
+          import tomllib
+          from pathlib import Path
+
+          root = Path("components/garden")
+          manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+          assert manifest["package"]["name"] == "gl"
+          assert manifest["package"]["edition"] == "2021"
+          lib_path = root / manifest["lib"]["path"]
+          bin_entry = manifest["bin"][0]
+          bin_path = root / bin_entry["path"]
+          assert manifest["lib"]["name"] == "gl"
+          assert bin_entry["name"] == "gl"
+          assert lib_path.is_file(), lib_path
+          assert bin_path.is_file(), bin_path
+          readme = (root / "README.md").read_text(encoding="utf-8")
+          for term in ("Seed", "Lifecycle Events", "PROCESS_START", "PROCESS_EXIT"):
+              assert term in readme, term
+          receipt = {
+              "schema_version": "liminalqa-garden-manifest-contract-v1",
+              "exact_sha": "6c30422d0492ec312a35624322f90a7761419655",
+              "package": manifest["package"]["name"],
+              "edition": manifest["package"]["edition"],
+              "lib_path": str(lib_path),
+              "bin_path": str(bin_path),
+              "lifecycle_terms_verified": ["Seed", "Lifecycle Events", "PROCESS_START", "PROCESS_EXIT"],
+              "runtime_claim": False,
+              "dependency_resolution_claim": False,
+              "passed": True,
+          }
+          Path("garden-manifest-contract.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+          PY
       - name: Validate LTP exact tests
         run: |
           set -euo pipefail
@@ -174,9 +206,9 @@ jobs:
           jq -n \
             --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg execution_sha "${{ github.event.pull_request.head.sha || github.sha }}" \
-            '{schema_version:"liminalqa-greg-component-contracts-v2",observed_at:$observed_at,execution_sha:$execution_sha,passed:true,components:{garden_liminal:{sha:"6c30422d0492ec312a35624322f90a7761419655",validation:"exact_checkout+cargo_metadata",runtime_claim:false},ltp:{sha:"6284d2fee3f729ceacd688e74c5d67beea1ff3c7",validation:"exact_checkout+pnpm_test",service_claim:false},liminaldb:{sha:"75ef9f7f403a34c60aa2ceba4cb3c97870d73e77",validation:"exact_checkout+cargo_metadata",live_daemon_claim:false},liminalosai:{sha:"a2c5783287a9def4b4254b9436c2e75468613dca",validation:"exact_checkout+make+check+test",authority:"advisory_only"}}}' \
+            '{schema_version:"liminalqa-greg-component-contracts-v2",observed_at:$observed_at,execution_sha:$execution_sha,passed:true,components:{garden_liminal:{sha:"6c30422d0492ec312a35624322f90a7761419655",validation:"exact_checkout+tomllib_manifest_and_source_contract",runtime_claim:false,dependency_resolution_claim:false},ltp:{sha:"6284d2fee3f729ceacd688e74c5d67beea1ff3c7",validation:"exact_checkout+pnpm_test",service_claim:false},liminaldb:{sha:"75ef9f7f403a34c60aa2ceba4cb3c97870d73e77",validation:"exact_checkout+cargo_metadata",live_daemon_claim:false},liminalosai:{sha:"a2c5783287a9def4b4254b9436c2e75468613dca",validation:"exact_checkout+make+check+test",authority:"advisory_only"}}}' \
             > reports/component-contracts/component-contracts.json
-          cp garden-cargo-metadata.json liminaldb-cargo-metadata.json reports/component-contracts/
+          cp garden-manifest-contract.json liminaldb-cargo-metadata.json reports/component-contracts/
           python - <<'PY'
           import hashlib
           from pathlib import Path
