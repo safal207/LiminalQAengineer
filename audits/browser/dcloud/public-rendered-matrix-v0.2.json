@@ -1,0 +1,64 @@
+{
+  "schema_version": "liminalqa-dcloud-public-rendered-v1",
+  "name": "DCloud rendered public tri-lens confirmation matrix",
+  "contract_path": "audits/dcloud/public-audit-v0.1/contract.json",
+  "profiles": [
+    {
+      "id": "desktop",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "hasTouch": false
+      }
+    },
+    {
+      "id": "mobile",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "deviceScaleFactor": 2.625,
+        "isMobile": true,
+        "hasTouch": true
+      }
+    }
+  ],
+  "navigation_timeout_ms": 60000,
+  "settle_ms": 6000,
+  "keyboard_tab_steps": 20,
+  "max_console_entries": 150,
+  "max_failed_requests": 100,
+  "max_response_entries": 1000,
+  "max_body_sample_chars": 7000,
+  "max_visible_links": 250,
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authentication": false,
+    "account_access": false,
+    "form_submission": false,
+    "button_clicks": false,
+    "direct_api_testing": false,
+    "email_or_external_contact": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "limitations": [
+    "A headless browser can receive a regional, anti-bot, or transient variant; such outcomes remain environment evidence.",
+    "Visible marker reproduction confirms rendered public content, not the internal publishing root cause.",
+    "Business impact is inferred from the public journey and is not a measured conversion loss.",
+    "Keyboard observation uses Tab only and does not activate controls or submit forms.",
+    "One desktop and one mobile laboratory navigation per route are not field performance percentiles."
+  ]
+}
