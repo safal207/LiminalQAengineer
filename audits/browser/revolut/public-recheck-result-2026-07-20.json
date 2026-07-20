@@ -1,0 +1,119 @@
+{
+  "schema_version": "liminalqa-revolut-public-recheck-canonical-v1",
+  "observed_at": "2026-07-20T17:39:16Z",
+  "coordinate_model": {
+    "O": "official public URL or current official SDK source + profile + viewport + unauthenticated state + observation time",
+    "N": "passive unauthenticated browser and bounded deterministic local SDK observer",
+    "X": "web route or docs section -> public claim -> runtime/source contract",
+    "Y": "consistent -> contradictory -> ambiguous -> reproduced",
+    "Z": "desktop/mobile browser, public runtime, network-disabled Docker",
+    "T": "navigation -> settled capture or build -> deterministic probe -> result"
+  },
+  "current_upstream": {
+    "repository": "revolut-engineering/revolut-x-api",
+    "branch": "master",
+    "sha": "13778de69e0411ee11198dc913a3b9b0f72ac880",
+    "same_as_previous_audit": true
+  },
+  "verdicts": {
+    "btc_pln_currency_context": "REPRODUCED_AGAIN",
+    "solana_external_wallet_copy": "REPRODUCED_AGAIN",
+    "retry_after_contract": "REPRODUCED_AGAIN",
+    "public_endpoint_auth_documentation": "REPRODUCED_AGAIN",
+    "node_signing_example": "REPRODUCED_AGAIN",
+    "authenticated_curl_api_key": "REPRODUCED_AGAIN",
+    "btc_order_book_eth_sample": "REPRODUCED_AGAIN",
+    "public_endpoint_runtime_access": "PUBLIC_NO_AUTH_CONFIRMED_2_OF_2",
+    "amount_deeplink_initialization": "NOT_REPRODUCED_IN_CURRENT_TWO_PROFILE_CAPTURE",
+    "descending_asks_hypothesis": "BLOCKED_BY_DOCUMENTED_CONTRACT",
+    "new_high_confidence_product_defect": "NONE_BEYOND_EXISTING_SEVEN"
+  },
+  "public_content_matrix": {
+    "profiles": ["desktop", "mobile"],
+    "http_200_on_all_six_captures": true,
+    "btc_pln": {
+      "route_heading": "BTC/PLN",
+      "market_statistics_currency": "PLN",
+      "hero_converter_currency": "EUR",
+      "price_of_btc_in_pln_table_currency": "EUR"
+    },
+    "sol_usd": {
+      "offers_solana_external_wallet_transfer": true,
+      "parenthetical_supported_wallets": "Bitcoin and Ethereum only"
+    },
+    "developer_reference": {
+      "global_auth_text_requires_custom_headers_for_every_request": true,
+      "public_bearer_code_blocks": 4,
+      "node_example_uses_obsolete_path_and_payload": true,
+      "authenticated_curl_blocks": 32,
+      "authenticated_curl_blocks_without_x_revx_api_key": 32,
+      "btc_usd_order_book_example_contains_eth_levels": true
+    }
+  },
+  "sdk_retry_after": {
+    "classification": "CONFIRMED_RETRY_AFTER_CONTRACT_MISMATCH",
+    "numeric_header": "2",
+    "documented_property_unit": "milliseconds",
+    "observed_value": 2,
+    "expected_if_documentation_is_authoritative": 2000,
+    "http_date_observed": "NaN serialized as null",
+    "http_date_expected": "non-negative millisecond delay",
+    "live_revolut_request": false,
+    "container_network": "none"
+  },
+  "public_runtime": {
+    "observed_at": "2026-07-20T17:33:15.996987Z",
+    "request_count": 2,
+    "minimum_spacing_seconds": 1.1,
+    "authentication_material_sent": false,
+    "last_trades": {"http": 200, "classification": "PUBLIC_NO_AUTH_CONFIRMED", "item_count": 100, "contract_shape": true},
+    "btc_usd_order_book": {"http": 200, "classification": "PUBLIC_NO_AUTH_CONFIRMED", "ask_levels": 5, "bid_levels": 5, "contract_shape": true},
+    "raw_market_values_retained": false
+  },
+  "dependency_signal": {
+    "classification": "ADVISORY_REVIEW_REQUIRED",
+    "critical": 0,
+    "high": 2,
+    "moderate": 3,
+    "total": 5,
+    "direct_high_packages": [],
+    "runtime_exploitability_claimed": false
+  },
+  "evidence": {
+    "content_run_id": 29764421114,
+    "content_execution_sha": "2d8aa414bfeb5289e0b245fdc1e80e86accb5c65",
+    "content_artifact_id": 8470187683,
+    "content_artifact_digest": "sha256:2764aa4ee7b0b7ecacfff7a3970ac3d9c1974918505678f962d797ad8b04e051",
+    "content_result_sha256": "77369f80ee993535409098b9aa2278b3d5cb89bdf8db5b6c5ea2fda0aa0dc915",
+    "content_summary_sha256": "8fb81f3f0fd0ba435d56136f18a91c74350b6e06cd8ab2b7eeee52a4dfdf4503",
+    "public_runtime_run_id": 29666130304,
+    "public_runtime_artifact_id": 8470029099,
+    "public_runtime_artifact_digest": "sha256:5bfb96692cd96702a63ea153cd566f329b7ad82d3e221c7cb968eb09f6386850",
+    "public_runtime_result_sha256": "ad5f91372f8ec71868ada76cf9cca8b1b7ecb8e6e2f44e204bbf6c577d1562d6",
+    "docker_run_id": 29676434220,
+    "docker_exact_head": "f8e86da2e98f9391ee899685991d744e293a8037",
+    "docker_artifact_id": 8470077319,
+    "docker_artifact_digest": "sha256:19c80a74925cc77372dde7f4434183edb6bb79cc11c8dfad74626b606046f065",
+    "docker_summary_sha256": "cc80343c30cc7abd5906508d81304f851e85b570bc8827122959d810a2890ac7",
+    "retry_after_result_sha256": "3a42638c8caf81313d1ae7c9e60e1b38784f583d9c19b7be970bfb41200bc4f3",
+    "docker_public_runtime_sha256": "05ce185398be15f326406e99e8c5f44adfeeedceb7f650893c37b81af5632b1e",
+    "npm_advisory_classification_sha256": "2ec6d1a8ed0ecc84e383f396c76f9e5b72660318dd320f1da85cec9e92b55427"
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "private_keys_or_tokens": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "exploitation": false,
+    "vulnerability_claim": false
+  },
+  "limitations": [
+    "Rendered documentation and public pages do not establish internal root cause.",
+    "Dependency advisories require runtime reachability analysis and are not findings of exploitability by themselves.",
+    "The two public endpoint requests confirm the documented public contract and do not indicate an authentication bypass.",
+    "The amount and amount-to initialization hypothesis remains unresolved historically and was not reproduced in the current desktop/mobile capture."
+  ]
+}

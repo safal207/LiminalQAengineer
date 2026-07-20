@@ -1,0 +1,56 @@
+{
+  "schema_version": "liminalqa-revolut-public-content-recheck-v0.2",
+  "targets": [
+    {
+      "id": "btc-pln",
+      "url": "https://www.revolut.com/en-PL/crypto/price/btc/?amount=100",
+      "kind": "crypto-page"
+    },
+    {
+      "id": "sol-usd",
+      "url": "https://www.revolut.com/en-PL/crypto/price/sol/usd/?amount-to=5000",
+      "kind": "crypto-page"
+    },
+    {
+      "id": "x-api-docs",
+      "url": "https://developer.revolut.com/docs/api/revolut-x-crypto-exchange",
+      "kind": "developer-docs"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "desktop",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {"width": 1440, "height": 1000, "deviceScaleFactor": 1, "isMobile": false, "hasTouch": false}
+    },
+    {
+      "id": "mobile",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {"width": 412, "height": 915, "deviceScaleFactor": 2.625, "isMobile": true, "hasTouch": true}
+    }
+  ],
+  "navigation_timeout_ms": 90000,
+  "settle_ms": 7000,
+  "max_body_chars": 12000,
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "trading_actions": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false
+  },
+  "limitations": [
+    "The content probe confirms rendered public text only and does not infer internal ownership or root cause.",
+    "The separate public endpoint probe performs the only direct runtime requests and retains no market values.",
+    "A documentation inconsistency is not an authentication bypass or vulnerability claim.",
+    "One browser capture per profile and route is a reproducible snapshot, not long-term availability evidence."
+  ]
+}
