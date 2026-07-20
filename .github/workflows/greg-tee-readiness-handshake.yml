@@ -175,16 +175,19 @@ jobs:
               assert token in text, token
           assert text.index("Hello") < text.index("Mirror") < text.index("Bind") < text.index("Seal") < text.index("Flow")
           PY
-      - name: Validate CaPU maturity gate
+      - name: Verify CaPU exact SHA
+        run: test "$(git -C components/capu rev-parse HEAD)" = "babd2945046d2564e1110a76741827560c57fcca"
+      - name: CaPU — run Rust reference tests
+        run: cargo test --manifest-path components/capu/rust/cmc-core/Cargo.toml
+      - name: CaPU — verify maturity gate contract
         run: |
-          set -euo pipefail
-          test "$(git -C components/capu rev-parse HEAD)" = "babd2945046d2564e1110a76741827560c57fcca"
-          cargo test --manifest-path components/capu/rust/cmc-core/Cargo.toml
           python - <<'PY'
           from pathlib import Path
           text = Path("components/capu/README.md").read_text(encoding="utf-8")
           for token in ("Gate", "Incubate", "Commit", "Execute"):
               assert token in text, token
+          pipeline = text.find("Gate -> Incubate -> Commit -> Execute")
+          assert pipeline >= 0, "canonical maturity pipeline missing"
           PY
       - name: Validate T-Trace acknowledgements
         run: |
