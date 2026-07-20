@@ -1,0 +1,147 @@
+name: AI Coding Companies Public Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/ai-coding-companies-public-audit-v0-1
+    paths:
+      - .github/workflows/ai-coding-companies-public-audit.yml
+      - .github/workflows/company-public-audit.yml
+      - audits/companies/openai-codex/public-audit.json
+      - audits/companies/anthropic-claude-code/public-audit.json
+      - audits/companies/cursor/public-audit.json
+      - scripts/company_public_audit_engine.py
+      - scripts/company_public_browser_probe.mjs
+  pull_request:
+    branches:
+      - agent/company-self-service-audit-v0-1
+    paths:
+      - .github/workflows/ai-coding-companies-public-audit.yml
+      - .github/workflows/company-public-audit.yml
+      - audits/companies/openai-codex/public-audit.json
+      - audits/companies/anthropic-claude-code/public-audit.json
+      - audits/companies/cursor/public-audit.json
+      - scripts/company_public_audit_engine.py
+      - scripts/company_public_browser_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-coding-companies-public-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  openai-codex:
+    name: OpenAI Codex public audit
+    uses: ./.github/workflows/company-public-audit.yml
+    with:
+      config_path: audits/companies/openai-codex/public-audit.json
+      engine_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      retention_days: 30
+      fail_on: never
+
+  anthropic-claude-code:
+    name: Anthropic Claude Code public audit
+    uses: ./.github/workflows/company-public-audit.yml
+    with:
+      config_path: audits/companies/anthropic-claude-code/public-audit.json
+      engine_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      retention_days: 30
+      fail_on: never
+
+  cursor:
+    name: Cursor public audit
+    uses: ./.github/workflows/company-public-audit.yml
+    with:
+      config_path: audits/companies/cursor/public-audit.json
+      engine_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      retention_days: 30
+      fail_on: never
+
+  portfolio:
+    name: Preserve portfolio outputs
+    needs:
+      - openai-codex
+      - anthropic-claude-code
+      - cursor
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Build portfolio result
+        shell: bash
+        env:
+          OPENAI_RESULT: ${{ needs.openai-codex.result }}
+          OPENAI_VERDICT: ${{ needs.openai-codex.outputs.verdict }}
+          OPENAI_SEVERITY: ${{ needs.openai-codex.outputs.severity }}
+          OPENAI_ARTIFACT: ${{ needs.openai-codex.outputs.artifact_name }}
+          OPENAI_SHA: ${{ needs.openai-codex.outputs.result_sha256 }}
+          CLAUDE_RESULT: ${{ needs.anthropic-claude-code.result }}
+          CLAUDE_VERDICT: ${{ needs.anthropic-claude-code.outputs.verdict }}
+          CLAUDE_SEVERITY: ${{ needs.anthropic-claude-code.outputs.severity }}
+          CLAUDE_ARTIFACT: ${{ needs.anthropic-claude-code.outputs.artifact_name }}
+          CLAUDE_SHA: ${{ needs.anthropic-claude-code.outputs.result_sha256 }}
+          CURSOR_RESULT: ${{ needs.cursor.result }}
+          CURSOR_VERDICT: ${{ needs.cursor.outputs.verdict }}
+          CURSOR_SEVERITY: ${{ needs.cursor.outputs.severity }}
+          CURSOR_ARTIFACT: ${{ needs.cursor.outputs.artifact_name }}
+          CURSOR_SHA: ${{ needs.cursor.outputs.result_sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/ai-coding-companies
+          jq -n \
+            --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg sha "${GITHUB_SHA}" \
+            --arg openai_result "${OPENAI_RESULT}" \
+            --arg openai_verdict "${OPENAI_VERDICT}" \
+            --arg openai_severity "${OPENAI_SEVERITY}" \
+            --arg openai_artifact "${OPENAI_ARTIFACT}" \
+            --arg openai_sha "${OPENAI_SHA}" \
+            --arg claude_result "${CLAUDE_RESULT}" \
+            --arg claude_verdict "${CLAUDE_VERDICT}" \
+            --arg claude_severity "${CLAUDE_SEVERITY}" \
+            --arg claude_artifact "${CLAUDE_ARTIFACT}" \
+            --arg claude_sha "${CLAUDE_SHA}" \
+            --arg cursor_result "${CURSOR_RESULT}" \
+            --arg cursor_verdict "${CURSOR_VERDICT}" \
+            --arg cursor_severity "${CURSOR_SEVERITY}" \
+            --arg cursor_artifact "${CURSOR_ARTIFACT}" \
+            --arg cursor_sha "${CURSOR_SHA}" \
+            '{
+              schema_version:"liminalqa-ai-coding-companies-portfolio-v1",
+              observed_at:$observed_at,
+              provenance:{run_id:$run_id,run_attempt:$run_attempt,repository:$repository,sha:$sha},
+              companies:[
+                {id:"openai-codex",workflow_result:$openai_result,verdict:$openai_verdict,severity:$openai_severity,artifact:$openai_artifact,result_sha256:$openai_sha},
+                {id:"anthropic-claude-code",workflow_result:$claude_result,verdict:$claude_verdict,severity:$claude_severity,artifact:$claude_artifact,result_sha256:$claude_sha},
+                {id:"cursor",workflow_result:$cursor_result,verdict:$cursor_verdict,severity:$cursor_severity,artifact:$cursor_artifact,result_sha256:$cursor_sha}
+              ],
+              boundary:"public passive quality and accessibility evidence only"
+            }' > reports/ai-coding-companies/portfolio-result.json
+          {
+            echo "# AI coding companies public audit"
+            echo
+            echo "| Company | Workflow | Verdict | Severity | Artifact | Result SHA-256 |"
+            echo "|---|---|---|---|---|---|"
+            jq -r '.companies[] | "| \(.id) | \(.workflow_result) | \(.verdict // "n/a") | \(.severity // "n/a") | `\(.artifact // "n/a")` | `\(.result_sha256 // "n/a")` |"' \
+              reports/ai-coding-companies/portfolio-result.json
+            echo
+            echo "> Public passive quality and accessibility evidence only. No login, accounts, installation, model requests, code execution, repository connection, forms, or security testing."
+          } > reports/ai-coding-companies/portfolio-summary.md
+          sha256sum reports/ai-coding-companies/portfolio-result.json \
+            reports/ai-coding-companies/portfolio-summary.md \
+            > reports/ai-coding-companies/SHA256SUMS.txt
+          cat reports/ai-coding-companies/portfolio-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload portfolio result
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-coding-companies-portfolio-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/ai-coding-companies/
+          if-no-files-found: error
+          retention-days: 30
