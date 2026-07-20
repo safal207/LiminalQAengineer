@@ -1,0 +1,79 @@
+{
+  "schema_version": "liminalqa-company-public-audit-v1",
+  "company": {
+    "name": "OpenAI Codex",
+    "audit_name": "Public product, onboarding, documentation, and accessibility baseline"
+  },
+  "allowed_origins": [
+    "https://openai.com",
+    "https://learn.chatgpt.com"
+  ],
+  "allowed_query_keys": [],
+  "targets": [
+    {
+      "id": "product",
+      "url": "https://openai.com/codex/",
+      "kind": "product"
+    },
+    {
+      "id": "get-started",
+      "url": "https://openai.com/codex/get-started/",
+      "kind": "onboarding"
+    },
+    {
+      "id": "docs-home",
+      "url": "https://learn.chatgpt.com/docs",
+      "kind": "documentation"
+    },
+    {
+      "id": "cli-docs",
+      "url": "https://learn.chatgpt.com/docs/codex/cli",
+      "kind": "documentation"
+    },
+    {
+      "id": "security-docs",
+      "url": "https://learn.chatgpt.com/docs/security",
+      "kind": "documentation"
+    }
+  ],
+  "profiles": [
+    "desktop",
+    "mobile"
+  ],
+  "settings": {
+    "settle_ms": 6000,
+    "keyboard_tab_steps": 30,
+    "lighthouse_runs": 1,
+    "max_parallel": 2,
+    "retain_body_sample": false
+  },
+  "category_thresholds": {
+    "performance": 0.55,
+    "accessibility": 0.9,
+    "best-practices": 0.85,
+    "seo": 0.85
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "credentials_or_secrets": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "publishing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Official OpenAI public pages only.",
+    "The original developers.openai.com Codex documentation entry currently resolves to learn.chatgpt.com; direct canonical URLs are used to avoid cross-origin redirect ambiguity.",
+    "No ChatGPT login, account, repository connection, task execution, plugin installation, or security scan is attempted."
+  ]
+}
