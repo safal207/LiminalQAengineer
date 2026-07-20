@@ -1,5 +1,6 @@
 {
   "schema_version": "liminalqa-boris-primary-identifier-config-v1",
+  "oracle_revision": "bounded-prefix-suffix-v1",
   "target": {
     "repository": "anthropics/claude-code",
     "issue_number": 21151,
@@ -72,6 +73,7 @@
       "Multiple targets should show a bounded sample and a remaining-count suffix.",
       "Glob and Grep should expose the pattern, not file contents.",
       "Duplicate basenames must retain enough parent context to remain distinguishable.",
+      "Long identifiers may be middle-truncated only when stable prefix and suffix anchors remain visible.",
       "Expanded mode may add details but may not be the only place where object identity exists."
     ]
   },
