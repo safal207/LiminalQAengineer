@@ -1,0 +1,48 @@
+{
+  "schema_version": "liminalqa-greg-tee-full-stack-config-v1",
+  "subject": {
+    "repository": "gdb/tee-output",
+    "issue": 3,
+    "exact_sha": "c41f8ff383200320b746e953e92709ae1b505a71"
+  },
+  "components": {
+    "garden_liminal": {
+      "repository": "safal207/GardenLiminal",
+      "exact_sha": "6c30422d0492ec312a35624322f90a7761419655",
+      "integration_mode": "CONTRACT_ADAPTER_NO_PRIVILEGED_RUNTIME"
+    },
+    "ltp": {
+      "repository": "safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-",
+      "exact_sha": "6284d2fee3f729ceacd688e74c5d67beea1ff3c7",
+      "integration_mode": "CONTRACT_ADAPTER_WITH_DETERMINISTIC_REPLAY"
+    },
+    "liminaldb": {
+      "repository": "safal207/LiminalDB",
+      "exact_sha": "75ef9f7f403a34c60aa2ceba4cb3c97870d73e77",
+      "integration_mode": "FILE_BACKED_EVENT_SOURCED_ADAPTER_NO_LIVE_DAEMON"
+    },
+    "liminalosai": {
+      "repository": "safal207/LiminalOSAI",
+      "exact_sha": "a2c5783287a9def4b4254b9436c2e75468613dca",
+      "integration_mode": "ADVISORY_ONLY_RULE_BASED_OBSERVER"
+    }
+  },
+  "matrix": {
+    "operating_systems": ["ubuntu-latest", "macos-latest"],
+    "python": "3.11",
+    "scenarios": ["issue", "fd"],
+    "pty_modes": [false, true],
+    "delay_ms": [0, 1, 10, 100],
+    "shutdown_modes": ["baseline", "patched"],
+    "rounds_per_coordinate": 6,
+    "fd_lines_per_stream": 64,
+    "child_timeout_seconds": 20
+  },
+  "observer": {
+    "identity": "N_READ_ONLY_EVIDENCE_OBSERVER",
+    "external_state_change": false,
+    "approval": false,
+    "close": false,
+    "merge": false
+  }
+}
