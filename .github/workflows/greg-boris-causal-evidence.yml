@@ -1,0 +1,180 @@
+name: Greg and Boris Causal Evidence
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/greg-boris-causal-evidence.yml
+      - scripts/greg_tee_output_evidence.py
+      - scripts/boris_open_work_evidence.py
+      - scripts/validate_greg_boris_causal_graph.py
+      - audits/reviews/greg-boris-open-work-result-2026-07-20.json
+      - docs/reviews/GREG_BROCKMAN_BORIS_CHERNY_OPEN_WORK_REVIEW_2026-07-20.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: greg-boris-causal-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: Space transition time causal gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout exact review revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Validate observer syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            scripts/greg_tee_output_evidence.py \
+            scripts/boris_open_work_evidence.py \
+            scripts/validate_greg_boris_causal_graph.py
+          python -m json.tool \
+            audits/reviews/greg-boris-open-work-result-2026-07-20.json \
+            >/dev/null
+
+      - name: Checkout exact gdb tee-output source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf upstream-tee-output
+          git init upstream-tee-output
+          git -C upstream-tee-output remote add origin https://github.com/gdb/tee-output.git
+          git -C upstream-tee-output fetch --depth=1 origin c41f8ff383200320b746e953e92709ae1b505a71
+          git -C upstream-tee-output checkout --detach FETCH_HEAD
+          test "$(git -C upstream-tee-output rev-parse HEAD)" = "c41f8ff383200320b746e953e92709ae1b505a71"
+          git -C upstream-tee-output status --short
+
+      - name: Install exact tee-output package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install ./upstream-tee-output
+          python - <<'PY'
+          import tee_output
+          print(tee_output.__file__)
+          print(tee_output.Tee)
+          PY
+          command -v parent-lifetime
+
+      - name: Run deterministic Greg shutdown evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/greg-tee-output
+          # The exact upstream package exports Tee from tee_output.__init__.
+          # Correct only the observer import path; upstream source remains untouched.
+          sed -i 's/from tee_output\.tee import Tee/from tee_output import Tee/' \
+            scripts/greg_tee_output_evidence.py
+          python scripts/greg_tee_output_evidence.py \
+            --source-file upstream-tee-output/tee_output/__init__.py \
+            --upstream-sha c41f8ff383200320b746e953e92709ae1b505a71 \
+            --output-dir reports/greg-tee-output \
+            --lines 64 \
+            --baseline-rounds 20 \
+            --patched-rounds 10 \
+            --timeout 20
+          cat reports/greg-tee-output/greg-tee-output-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Capture Boris lifecycle evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/boris-open-work
+          python scripts/boris_open_work_evidence.py \
+            --output-dir reports/boris-open-work
+          cat reports/boris-open-work/boris-open-work-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Apply space transition time causal gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/causal-gate
+          python scripts/validate_greg_boris_causal_graph.py \
+            --greg-result reports/greg-tee-output/greg-tee-output-result.json \
+            --boris-result reports/boris-open-work/boris-open-work-result.json \
+            --review-result audits/reviews/greg-boris-open-work-result-2026-07-20.json \
+            --output-dir reports/causal-gate \
+            --max-observation-age-minutes 60
+          cat reports/causal-gate/causal-gate-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Build exact-attempt portfolio
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/greg-boris-portfolio
+          cp -R reports/greg-tee-output reports/greg-boris-portfolio/
+          cp -R reports/boris-open-work reports/greg-boris-portfolio/
+          if test -d reports/causal-gate; then
+            cp -R reports/causal-gate reports/greg-boris-portfolio/
+          fi
+          cp audits/reviews/greg-boris-open-work-result-2026-07-20.json \
+            reports/greg-boris-portfolio/read-only-review-result.json
+          cp docs/reviews/GREG_BROCKMAN_BORIS_CHERNY_OPEN_WORK_REVIEW_2026-07-20.md \
+            reports/greg-boris-portfolio/read-only-review.md
+          jq -n \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_attempt "${{ github.run_attempt }}" \
+            --arg execution_sha "${{ github.sha }}" \
+            --arg head_sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --arg upstream_sha "c41f8ff383200320b746e953e92709ae1b505a71" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              run_id:$run_id,
+              run_attempt:$run_attempt,
+              execution_sha:$execution_sha,
+              head_sha:$head_sha,
+              greg_upstream_sha:$upstream_sha,
+              generated_at:$generated_at,
+              authority:{external_state_change:false,approval:false,close:false,merge:false}
+            }' > reports/greg-boris-portfolio/exact-attempt.json
+          find reports/greg-boris-portfolio -type f ! -name ARTIFACT_SHA256SUMS.txt -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > reports/greg-boris-portfolio/ARTIFACT_SHA256SUMS.txt
+
+      - name: Validate final notification boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f reports/greg-boris-portfolio/causal-gate/causal-gate-result.json
+          jq -e '
+            .authority.external_notification_authorized_by_gate == true and
+            .authority.external_state_change == false and
+            .authority.approval == false and
+            .authority.close == false and
+            .authority.merge == false and
+            (.blocking_checks | length) == 0 and
+            (.overall_verdict | startswith("READY_TO_NOTIFY"))
+          ' reports/greg-boris-portfolio/causal-gate/causal-gate-result.json >/dev/null
+
+      - name: Upload exact evidence portfolio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greg-boris-causal-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/greg-boris-portfolio/
+          if-no-files-found: error
+          retention-days: 30
