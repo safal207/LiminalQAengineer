@@ -1,0 +1,168 @@
+{
+  "schema_version": "liminalqa-takeprofit-exact-attempt-public-recheck-v1",
+  "generated_at": "2026-07-20T16:58:34.735127+00:00",
+  "verdict": "WARN",
+  "target_count": 6,
+  "warning_count": 6,
+  "coordinate_model": {
+    "O": "URL + mobile Lighthouse viewport + unauthenticated state + observation time",
+    "N": "passive Lighthouse browser",
+    "T": "one cold public navigation per exact target"
+  },
+  "current_targets": [
+    {
+      "url": "https://takeprofit.com/",
+      "performance": 27,
+      "accessibility": 78,
+      "best_practices": 71,
+      "seo": 100,
+      "fcp_ms": 12247.0904,
+      "lcp_ms": 21167.5355,
+      "tbt_ms": 2601.5,
+      "cls": 0.0019013348,
+      "verdict": "WARN",
+      "severity": "HIGH",
+      "evidence_sha256": "f38c951907976530a38327cb262a0ba26825f33c0a913d5c75a812c1ec9b6aed",
+      "fetch_time": "2026-07-20T16:55:18.671Z"
+    },
+    {
+      "url": "https://takeprofit.com/platform",
+      "performance": 29,
+      "accessibility": 81,
+      "best_practices": 75,
+      "seo": 92,
+      "fcp_ms": 4194.0929,
+      "lcp_ms": 19413.993,
+      "tbt_ms": 4512.5,
+      "cls": 0.0005093537,
+      "verdict": "WARN",
+      "severity": "HIGH",
+      "evidence_sha256": "9711817f788b6c4acd6a91d9ba795910030f69c769870be7749233cff99fb00b",
+      "fetch_time": "2026-07-20T16:55:26.181Z"
+    },
+    {
+      "url": "https://takeprofit.com/indicators",
+      "performance": 30,
+      "accessibility": 76,
+      "best_practices": 71,
+      "seo": 100,
+      "fcp_ms": 8747.9245,
+      "lcp_ms": 16288.732,
+      "tbt_ms": 1722.0,
+      "cls": 0.0005255461,
+      "verdict": "WARN",
+      "severity": "HIGH",
+      "evidence_sha256": "8b0db091c99efe15d01e2a25d45e16e3bfbb95de18a4f3a799bccc383063c567",
+      "fetch_time": "2026-07-20T16:56:20.583Z"
+    },
+    {
+      "url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+      "performance": 26,
+      "accessibility": 80,
+      "best_practices": 75,
+      "seo": 100,
+      "fcp_ms": 7914.8308,
+      "lcp_ms": 8758.9157,
+      "tbt_ms": 7976.0,
+      "cls": 0.0514642846,
+      "verdict": "WARN",
+      "severity": "HIGH",
+      "evidence_sha256": "228ddfb73d2b4e1f17ccc2616b4514f9377ba0e16bb5a7ca6634479870a92488",
+      "fetch_time": "2026-07-20T16:56:27.972Z"
+    },
+    {
+      "url": "https://takeprofit.com/feed",
+      "performance": 43,
+      "accessibility": 78,
+      "best_practices": 93,
+      "seo": 100,
+      "fcp_ms": 3187.7731,
+      "lcp_ms": 4621.37045,
+      "tbt_ms": 5505.1309,
+      "cls": 0.00041909,
+      "verdict": "WARN",
+      "severity": "MEDIUM",
+      "evidence_sha256": "d38f6c8348b53299ab5cc9de7eef64e58b1ee3b95639f9a3c9592699634238a8",
+      "fetch_time": "2026-07-20T16:57:10.442Z"
+    },
+    {
+      "url": "https://takeprofit.com/docs/guide/getting-started/Overview",
+      "performance": 44,
+      "accessibility": 96,
+      "best_practices": 96,
+      "seo": 92,
+      "fcp_ms": 1675.6855,
+      "lcp_ms": 10435.6855,
+      "tbt_ms": 4397.0,
+      "cls": 0.0,
+      "verdict": "WARN",
+      "severity": "MEDIUM",
+      "evidence_sha256": "5abb8fadd4a44c31e9aec5c8e777f3371fd03465f3c80bc2d5c139d1b47dfdd8",
+      "fetch_time": "2026-07-20T16:57:23.308Z"
+    }
+  ],
+  "portfolio_metrics": {
+    "average_performance_score": 33.2,
+    "fastest_lcp_ms": 4621.37045,
+    "slowest_lcp_ms": 21167.5355
+  },
+  "recurring_findings": [
+    {"audit_id": "bootup-time", "target_count": 6},
+    {"audit_id": "render-blocking-resources", "target_count": 5},
+    {"audit_id": "uses-text-compression", "target_count": 5},
+    {"audit_id": "button-name", "target_count": 5},
+    {"audit_id": "unused-javascript", "target_count": 4},
+    {"audit_id": "legacy-javascript", "target_count": 4},
+    {"audit_id": "errors-in-console", "target_count": 4},
+    {"audit_id": "unused-css-rules", "target_count": 4},
+    {"audit_id": "cache-insight", "target_count": 3},
+    {"audit_id": "dom-size", "target_count": 3},
+    {"audit_id": "bf-cache", "target_count": 2},
+    {"audit_id": "forced-reflow-insight", "target_count": 2}
+  ],
+  "comparison_with_2026_07_18_snapshot": {
+    "classification": "DIRECTIONAL_SINGLE_RUN_COMPARISON_NOT_FIELD_TREND",
+    "average_performance": {"previous": 34.0, "current": 33.2, "delta": -0.8},
+    "homepage": {"previous_lcp_s": 24.84, "current_lcp_s": 21.17, "delta_s": -3.67},
+    "platform": {"previous_lcp_s": 24.16, "current_lcp_s": 19.41, "delta_s": -4.75},
+    "indicators": {"previous_performance": 38, "current_performance": 30, "previous_lcp_s": 7.0, "current_lcp_s": 16.29, "lcp_delta_s": 9.29, "status": "NEW_DIRECTIONAL_REGRESSION_SIGNAL"},
+    "indicator_detail": {"previous_performance": 26, "current_performance": 26, "previous_tbt_s": 4.66, "current_tbt_s": 7.98, "tbt_delta_s": 3.32, "status": "NEW_DIRECTIONAL_REGRESSION_SIGNAL"},
+    "feed": {"previous_lcp_s": 4.84, "current_lcp_s": 4.62, "delta_s": -0.22},
+    "docs": {"previous_lcp_s": 10.25, "current_lcp_s": 10.44, "delta_s": 0.19}
+  },
+  "evidence": {
+    "workflow_run_id": 29761586937,
+    "run_attempt": 1,
+    "workflow_head_sha": "ce39768452a804fdff7abaada81c24b27aa4b338",
+    "pull_request_merge_sha_in_manifest": "2dff5a6762aefaf0fd60b8d467a751558c6972d8",
+    "aggregate_artifact_id": 8469097575,
+    "aggregate_artifact_name": "takeprofit-recheck-portfolio-29761586937-1",
+    "aggregate_artifact_digest": "sha256:81a19491adabd886e71e892762fc63de0712aa6ae0d55470e648eb843c3ab560",
+    "artifact_retention_until": "2026-08-19T16:58:34Z",
+    "portfolio_json_sha256": "7bcd501068f95161f6f11e61f4ab723d3400ddd387468e46babd3af3160ac7e8",
+    "portfolio_markdown_sha256": "cd0d15101408636525a4d67d10a66e16f2e02883b660007d80df3e062076c0e7",
+    "exact_attempt_manifest_sha256": "f2e2e8ce0e0fc6fd725597f2cfbe99d873d9ff3e8f1cd0b932b72a0d9871ff71",
+    "domain_artifacts": [
+      {"slug": "takeprofit-home", "artifact_id": 8469019422, "digest": "sha256:0d94e286b387e79b0aa5ee734fa279ed629376a5c72ec89fa66ba90fc6e42863"},
+      {"slug": "takeprofit-platform", "artifact_id": 8469023738, "digest": "sha256:324bc7934c562ad64f71c2a21afe27c54d3472a8e6066ad14cf4b30cc05202b6"},
+      {"slug": "takeprofit-indicators", "artifact_id": 8469043943, "digest": "sha256:943b7b2b067e033230a02674d72e4717c319ef4ac44b473ebf63a1d6d0ecfb16"},
+      {"slug": "takeprofit-indicator-detail", "artifact_id": 8469049333, "digest": "sha256:e76ceff238efcd3a363be6a1fba161c770d41f22497908528da033e86feab849"},
+      {"slug": "takeprofit-feed", "artifact_id": 8469067763, "digest": "sha256:48aca80a033282a24a41b7f0c6fb426b80bb248178544f64b0664c7e043cfd20"},
+      {"slug": "takeprofit-docs-overview", "artifact_id": 8469091795, "digest": "sha256:110a3ec6367f56fbd4e4eee01b15c15cc59d294256a4889b826b9abb1babb3b4"}
+    ]
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false
+  },
+  "limitations": [
+    "Each target contains one laboratory Lighthouse navigation and is not a field percentile.",
+    "Two-date deltas are directional signals and require repeated rounds before being called stable regressions.",
+    "A successful workflow is not itself evidence; verdicts come from the committed packet values and hashes."
+  ]
+}
