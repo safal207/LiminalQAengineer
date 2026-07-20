@@ -123,7 +123,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Apply READY-handshake and EOF-drain candidate
+      - name: Apply READY and in-stream DRAIN-ACK candidate
         run: |
           python contrib/upstream-contributor-kits/apply_greg_3.py \
             upstream/tee-output \
@@ -160,8 +160,8 @@ jobs:
           os=${{ matrix.os }}
           python=${{ matrix.python }}
           regression_outcome=${{ steps.regression.outcome }}
-          contract=ready_handshake_bundled_relay_eof_drain_sigint_fallback
-          trajectory=pty_print_traceback_immediate_close_10_rounds
+          contract=ready_handshake_in_stream_sentinel_drain_ack_natural_exit_sigint_fallback
+          trajectory=pty_print_traceback_immediate_close_25_rounds
           EOF
           shasum -a 256 artifacts/greg/tee-output-3.patch >> artifacts/greg/receipt-${{ matrix.os }}-py${{ matrix.python }}.txt
 
