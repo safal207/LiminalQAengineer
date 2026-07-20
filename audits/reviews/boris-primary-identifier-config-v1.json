@@ -1,0 +1,92 @@
+{
+  "schema_version": "liminalqa-boris-primary-identifier-config-v1",
+  "target": {
+    "repository": "anthropics/claude-code",
+    "issue_number": 21151,
+    "assignee": "bcherny",
+    "expected_state": "open",
+    "required_labels": [
+      "enhancement",
+      "area:tui",
+      "area:tools"
+    ]
+  },
+  "public_evidence_boundary": {
+    "tracker_is_public": true,
+    "full_tui_source_verified": false,
+    "installed_cli_runtime_verified": false,
+    "implementation_claim_permitted": false,
+    "reference_renderer_only": true
+  },
+  "component_refs": {
+    "lpi": {
+      "repository": "safal207/Liminal-Presence-Interface-LPI",
+      "sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19"
+    },
+    "capu": {
+      "repository": "safal207/CaPU",
+      "sha": "babd2945046d2564e1110a76741827560c57fcca"
+    },
+    "ttrace": {
+      "repository": "safal207/T-Trace",
+      "sha": "6a0755dbe8a89decd325298ec4563b9bb16adc62"
+    },
+    "ttm_db": {
+      "repository": "safal207/ttm-db",
+      "sha": "eeded6bf5666512a23a7477eb8cda6485dfd173a"
+    },
+    "sdp": {
+      "repository": "safal207/Scale-Descent-Protocol-SDP",
+      "sha": "f1903aecb1f9196414c49784558f6ed9f40d8bda"
+    },
+    "drp": {
+      "repository": "safal207/DRP",
+      "sha": "92e63d7d4eeb55f8eb61956da002dc8951bab1c6"
+    }
+  },
+  "contract": {
+    "workspace": "/workspace/project",
+    "max_collapsed_length": 120,
+    "multi_identifier_limit": 2,
+    "required_tools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ],
+    "required_outcomes": [
+      "success",
+      "blocked",
+      "permission_denied",
+      "error"
+    ],
+    "required_cardinalities": [
+      "single",
+      "multiple"
+    ],
+    "rules": [
+      "Collapsed output must preserve a primary identifier.",
+      "Blocked and denied outcomes must expose the affected identifier without requiring expansion.",
+      "Workspace paths should be rendered relative to the workspace.",
+      "Multiple targets should show a bounded sample and a remaining-count suffix.",
+      "Glob and Grep should expose the pattern, not file contents.",
+      "Duplicate basenames must retain enough parent context to remain distinguishable.",
+      "Expanded mode may add details but may not be the only place where object identity exists."
+    ]
+  },
+  "claim_boundary": {
+    "permitted": [
+      "The public issue supports a missing-primary-identifier product contract.",
+      "The reference renderer satisfies the proposed bounded acceptance matrix.",
+      "The issue should remain open until current-product behavior is verified against the contract."
+    ],
+    "forbidden": [
+      "The current Claude Code implementation was source-audited.",
+      "The issue is fixed in the current release.",
+      "The reference renderer is the actual Claude Code renderer.",
+      "Boris or Anthropic must adopt the proposed exact UI wording.",
+      "The issue should be closed."
+    ]
+  }
+}
