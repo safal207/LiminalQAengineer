@@ -2,9 +2,9 @@ name: Cursor Public Audit
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches:
-      - agent/ai-coding-companies-public-audit-v0-1
+      - agent/company-self-service-audit-v0-1
     paths:
       - .github/workflows/cursor-public-audit.yml
       - .github/workflows/company-public-audit.yml
@@ -25,6 +25,6 @@ jobs:
     uses: ./.github/workflows/company-public-audit.yml
     with:
       config_path: audits/companies/cursor/public-audit.json
-      engine_ref: ${{ github.sha }}
+      engine_ref: ${{ github.event.pull_request.head.sha || github.sha }}
       retention_days: 30
       fail_on: never
