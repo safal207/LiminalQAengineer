@@ -105,28 +105,19 @@ jobs:
           test "${RETENTION_DAYS}" -le 90
 
       - name: Checkout exact caller repository
-        id: caller
         uses: actions/checkout@v4
         with:
           path: caller
           persist-credentials: false
 
-      - name: Record caller identity
+      - name: Record exact caller identity
+        id: caller
         shell: bash
         run: |
           set -euo pipefail
           caller_sha="$(git -C caller rev-parse HEAD)"
           test "${caller_sha}" = "${GITHUB_SHA}"
           echo "caller_sha=${caller_sha}" >> "${GITHUB_OUTPUT}"
-          echo "caller_repository=${GITHUB_REPOSITORY}" >> "${GITHUB_OUTPUT}"
-        id: caller_identity
-
-      - name: Publish caller outputs
-        id: caller
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "caller_sha=$(git -C caller rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
           echo "caller_repository=${GITHUB_REPOSITORY}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout pinned LiminalQA engine
@@ -148,7 +139,7 @@ jobs:
             "${ENGINE_REPOSITORY}" "${engine_sha}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Resolve config path inside caller checkout
-        id: config
+        id: config_path
         shell: bash
         env:
           CONFIG_PATH: ${{ inputs.config_path }}
@@ -159,14 +150,12 @@ jobs:
           from pathlib import Path
 
           root = Path("caller").resolve()
-          raw = os.environ["CONFIG_PATH"]
-          candidate = (root / raw).resolve()
+          candidate = (root / os.environ["CONFIG_PATH"]).resolve()
           if candidate != root and root not in candidate.parents:
               raise SystemExit("config_path escapes the caller checkout")
           if not candidate.is_file():
               raise SystemExit(f"config file does not exist: {candidate}")
-          output = Path(os.environ["GITHUB_OUTPUT"])
-          with output.open("a", encoding="utf-8") as handle:
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"path={candidate}\n")
           PY
 
@@ -174,7 +163,7 @@ jobs:
         id: contract
         shell: bash
         env:
-          CONFIG_FILE: ${{ steps.config.outputs.path }}
+          CONFIG_FILE: ${{ steps.config_path.outputs.path }}
         run: |
           set -euo pipefail
           mkdir -p prepared
@@ -187,12 +176,9 @@ jobs:
             --config prepared/validated-config.json)"
           config_sha="$(jq -r '.config_sha256' <<<"${validation}")"
           test "${config_sha}" = "$(jq -r '.config_sha256' <<<"${matrix_payload}")"
-          matrix="$(jq -c '{include:.include}' <<<"${matrix_payload}")"
-          max_parallel="$(jq -r '.max_parallel' <<<"${matrix_payload}")"
-          expected_cells="$(jq -r '.include | length' <<<"${matrix_payload}")"
-          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
-          echo "max_parallel=${max_parallel}" >> "${GITHUB_OUTPUT}"
-          echo "expected_cells=${expected_cells}" >> "${GITHUB_OUTPUT}"
+          echo "matrix=$(jq -c '{include:.include}' <<<"${matrix_payload}")" >> "${GITHUB_OUTPUT}"
+          echo "max_parallel=$(jq -r '.max_parallel' <<<"${matrix_payload}")" >> "${GITHUB_OUTPUT}"
+          echo "expected_cells=$(jq -r '.include | length' <<<"${matrix_payload}")" >> "${GITHUB_OUTPUT}"
           echo "config_sha256=${config_sha}" >> "${GITHUB_OUTPUT}"
           jq '{company, targets, profiles, settings, category_thresholds, boundaries}' \
             prepared/validated-config.json >> "${GITHUB_STEP_SUMMARY}"
@@ -231,12 +217,11 @@ jobs:
           path: engine
           persist-credentials: false
 
-      - name: Resolve and revalidate caller contract
-        id: config
+      - name: Resolve exact caller config path
+        id: config_path
         shell: bash
         env:
           CONFIG_PATH: ${{ inputs.config_path }}
-          EXPECTED_CONFIG_SHA: ${{ needs.prepare.outputs.config_sha256 }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -252,15 +237,26 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"path={candidate}\n")
           PY
+
+      - name: Revalidate exact contract and matrix cell
+        shell: bash
+        env:
+          CONFIG_FILE: ${{ steps.config_path.outputs.path }}
+          EXPECTED_CONFIG_SHA: ${{ needs.prepare.outputs.config_sha256 }}
+          TARGET_ID: ${{ matrix.target_id }}
+          TARGET_URL: ${{ matrix.target_url }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
           mkdir -p prepared
           validation="$(python3 engine/scripts/company_public_audit_engine.py validate \
-            --config "${{ steps.config.outputs.path }}" \
+            --config "${CONFIG_FILE}" \
             --output prepared/validated-config.json)"
           test "$(jq -r '.config_sha256' <<<"${validation}")" = "${EXPECTED_CONFIG_SHA}"
           jq -e \
-            --arg id "${{ matrix.target_id }}" \
-            --arg url "${{ matrix.target_url }}" \
-            --arg profile "${{ matrix.profile }}" \
+            --arg id "${TARGET_ID}" \
+            --arg url "${TARGET_URL}" \
+            --arg profile "${PROFILE}" \
             '(.targets[] | select(.id == $id and .url == $url)) and (.profiles | index($profile) != null)' \
             prepared/validated-config.json >/dev/null
 
@@ -274,6 +270,7 @@ jobs:
           set -euo pipefail
           python3 --version
           node --version
+          python3 -m py_compile engine/scripts/company_public_audit_engine.py
           node --check engine/scripts/company_public_browser_probe.mjs
           chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "${chrome}"
@@ -304,8 +301,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${AUDIT_OUTPUT}"
-          lighthouse_runs="$(jq -r '.settings.lighthouse_runs' prepared/validated-config.json)"
-          export LIGHTHOUSE_RUNS="${lighthouse_runs}"
+          export LIGHTHOUSE_RUNS="$(jq -r '.settings.lighthouse_runs' prepared/validated-config.json)"
           cat > lighthouserc.company.cjs <<'EOF'
           const desktop = process.env.AUDIT_PROFILE === "desktop";
           module.exports = {
@@ -411,12 +407,11 @@ jobs:
           path: engine
           persist-credentials: false
 
-      - name: Resolve and revalidate exact contract
-        id: config
+      - name: Resolve exact caller config path
+        id: config_path
         shell: bash
         env:
           CONFIG_PATH: ${{ inputs.config_path }}
-          EXPECTED_CONFIG_SHA: ${{ needs.prepare.outputs.config_sha256 }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -432,9 +427,17 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"path={candidate}\n")
           PY
+
+      - name: Revalidate exact contract
+        shell: bash
+        env:
+          CONFIG_FILE: ${{ steps.config_path.outputs.path }}
+          EXPECTED_CONFIG_SHA: ${{ needs.prepare.outputs.config_sha256 }}
+        run: |
+          set -euo pipefail
           mkdir -p prepared
           validation="$(python3 engine/scripts/company_public_audit_engine.py validate \
-            --config "${{ steps.config.outputs.path }}" \
+            --config "${CONFIG_FILE}" \
             --output prepared/validated-config.json)"
           test "$(jq -r '.config_sha256' <<<"${validation}")" = "${EXPECTED_CONFIG_SHA}"
 
@@ -476,11 +479,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          outputs="reports/company-audit/workflow-outputs.json"
+          output_json="reports/company-audit/workflow-outputs.json"
           artifact_name="liminalqa-company-audit-${{ github.run_id }}-${{ github.run_attempt }}"
-          echo "verdict=$(jq -r '.verdict' "${outputs}")" >> "${GITHUB_OUTPUT}"
-          echo "severity=$(jq -r '.severity' "${outputs}")" >> "${GITHUB_OUTPUT}"
-          echo "result_sha256=$(jq -r '.result_sha256' "${outputs}")" >> "${GITHUB_OUTPUT}"
+          echo "verdict=$(jq -r '.verdict' "${output_json}")" >> "${GITHUB_OUTPUT}"
+          echo "severity=$(jq -r '.severity' "${output_json}")" >> "${GITHUB_OUTPUT}"
+          echo "result_sha256=$(jq -r '.result_sha256' "${output_json}")" >> "${GITHUB_OUTPUT}"
           echo "artifact_name=${artifact_name}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload aggregate evidence packet
