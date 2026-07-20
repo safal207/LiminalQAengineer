@@ -1,0 +1,44 @@
+{
+  "schema_version": "liminalqa-chatgpt-unauth-mobile-chat-v1",
+  "case_id": "chatgpt-unauthenticated-mobile-chat-2026-07-21",
+  "target_url": "https://chatgpt.com/",
+  "user_agent": "Mozilla/5.0 (Linux; Android 16; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36",
+  "viewport": {
+    "width": 412,
+    "height": 915,
+    "deviceScaleFactor": 2.625,
+    "isMobile": true,
+    "hasTouch": true
+  },
+  "compact_viewport": {
+    "width": 412,
+    "height": 520,
+    "deviceScaleFactor": 2.625,
+    "isMobile": true,
+    "hasTouch": true
+  },
+  "prompt": "Reply with exactly: MOBILE WEB OK",
+  "expected_response_fragment": "MOBILE WEB OK",
+  "initial_wait_ms": 3500,
+  "stream_timeout_ms": 45000,
+  "stability_window_ms": 2500,
+  "boundaries": {
+    "public_unauthenticated_only": true,
+    "single_benign_prompt": true,
+    "maximum_prompt_submissions": 1,
+    "login_submission": false,
+    "account_access": false,
+    "file_upload": false,
+    "microphone_permission": false,
+    "camera_permission": false,
+    "direct_application_api_testing": false,
+    "captcha_or_access_control_bypass": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "private_data_collection": false,
+    "external_reporting": false,
+    "deployment": false,
+    "merge": false
+  }
+}
