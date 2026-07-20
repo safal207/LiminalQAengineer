@@ -44,6 +44,8 @@ jobs:
 
   anthropic-claude-code:
     name: Anthropic Claude Code public audit
+    needs: openai-codex
+    if: always() && needs.openai-codex.result == 'success'
     uses: ./.github/workflows/company-public-audit.yml
     with:
       config_path: audits/companies/anthropic-claude-code/public-audit.json
@@ -53,6 +55,8 @@ jobs:
 
   cursor:
     name: Cursor public audit
+    needs: anthropic-claude-code
+    if: always() && needs.anthropic-claude-code.result == 'success'
     uses: ./.github/workflows/company-public-audit.yml
     with:
       config_path: audits/companies/cursor/public-audit.json
