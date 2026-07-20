@@ -1,0 +1,49 @@
+{
+  "claim_boundary": {
+    "external_state_changes": false,
+    "output_complete_ack": "observational visibility of every expected record in stdout, stderr, and combined files",
+    "output_complete_is_internal_tee_ack": false,
+    "postwrite_drain_as_sole_root_cause": false,
+    "process_topology_changes_must_be_disclosed": true
+  },
+  "inherited_readiness_evidence": {
+    "artifact": 8476100343,
+    "artifact_digest": "sha256:60ee7ea0899e302e3d65afdd612a4bcb292f7dee74be8df211d446daa6164048",
+    "head": "070b7cb8d319fc87939ea979f1cf2ce5015a7c1c",
+    "run": 29779674997,
+    "verdict": "HOLD_READINESS_BARRIER_NOT_SUFFICIENT"
+  },
+  "matrix": {
+    "drain_timeout_seconds": 5,
+    "fd_lines_per_stream": 64,
+    "modes": [
+      "ack_immediate",
+      "ack_postwrite_1ms",
+      "ack_postwrite_5ms",
+      "ack_postwrite_10ms",
+      "ack_postwrite_25ms",
+      "ack_quiescence_5ms",
+      "ack_output_complete",
+      "ack_output_complete_safe_close",
+      "direct_ack_safe_close",
+      "direct_ack_output_complete_safe_close"
+    ],
+    "platforms": [
+      "ubuntu-latest",
+      "macos-latest"
+    ],
+    "pty": true,
+    "rounds_per_coordinate": 6,
+    "scenarios": [
+      "issue",
+      "fd"
+    ],
+    "startup_ready_timeout_seconds": 5
+  },
+  "schema_version": "liminalqa-greg-tee-postwrite-drain-config-v1",
+  "upstream": {
+    "issue": 3,
+    "repository": "gdb/tee-output",
+    "sha": "c41f8ff383200320b746e953e92709ae1b505a71"
+  }
+}
