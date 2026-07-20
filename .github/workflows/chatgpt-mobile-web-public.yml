@@ -68,7 +68,23 @@ jobs:
           ' "${config}" >/dev/null
 
       - name: Validate contract tests
-        run: python -m pytest tests/test_chatgpt_mobile_web_public_audit.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import runpy
+
+          namespace = runpy.run_path("tests/test_chatgpt_mobile_web_public_audit.py")
+          tests = sorted(
+              (name, function)
+              for name, function in namespace.items()
+              if name.startswith("test_") and callable(function)
+          )
+          for name, function in tests:
+              function()
+              print(f"PASS {name}")
+          print(f"Validated {len(tests)} contract tests")
+          PY
 
       - name: Install pinned browser driver
         run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
