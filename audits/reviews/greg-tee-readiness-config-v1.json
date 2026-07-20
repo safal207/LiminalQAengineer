@@ -1,0 +1,48 @@
+{
+  "claim_boundary": {
+    "external_state_changes": false,
+    "not_claimed": "internal source-level read-loop acknowledgement",
+    "readiness_as_sole_root_cause": false,
+    "readiness_can_be_supported": true,
+    "supervisor_ack": "actual system tee is alive and all target files exist"
+  },
+  "components": {
+    "capu": "babd2945046d2564e1110a76741827560c57fcca",
+    "drp": "92e63d7d4eeb55f8eb61956da002dc8951bab1c6",
+    "lpi": "0683ca3731256d5fc06f60c14a3deb9e9c149d19",
+    "sdp": "f1903aecb1f9196414c49784558f6ed9f40d8bda",
+    "ttrace": "6a0755dbe8a89decd325298ec4563b9bb16adc62",
+    "ttm_db": "eeded6bf5666512a23a7477eb8cda6485dfd173a"
+  },
+  "matrix": {
+    "child_timeout_seconds": 25,
+    "fd_lines_per_stream": 64,
+    "modes": [
+      "current",
+      "sleep100",
+      "file_exists",
+      "supervisor_ack",
+      "supervisor_ack_safe_close"
+    ],
+    "platforms": [
+      "ubuntu-latest",
+      "macos-latest"
+    ],
+    "pty": [
+      false,
+      true
+    ],
+    "ready_timeout_seconds": 5,
+    "rounds_per_coordinate": 6,
+    "scenarios": [
+      "issue",
+      "fd"
+    ]
+  },
+  "schema_version": "liminalqa-greg-tee-readiness-config-v1",
+  "upstream": {
+    "issue": 3,
+    "repository": "gdb/tee-output",
+    "sha": "c41f8ff383200320b746e953e92709ae1b505a71"
+  }
+}
