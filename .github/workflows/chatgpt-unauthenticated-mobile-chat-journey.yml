@@ -1,0 +1,105 @@
+name: ChatGPT Unauthenticated Mobile Chat Journey
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/chatgpt-unauth-mobile-chat-journey-v0-1
+    paths:
+      - .github/workflows/chatgpt-unauthenticated-mobile-chat-journey.yml
+      - audits/chatgpt/unauthenticated-mobile-chat-journey-v1.json
+      - scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs
+      - docs/audits/CHATGPT_UNAUTHENTICATED_MOBILE_CHAT_JOURNEY.md
+      - tests/test_chatgpt_unauthenticated_mobile_chat_journey.py
+  pull_request:
+    branches:
+      - agent/chatgpt-mobile-web-audit-v0-1
+    paths:
+      - .github/workflows/chatgpt-unauthenticated-mobile-chat-journey.yml
+      - audits/chatgpt/unauthenticated-mobile-chat-journey-v1.json
+      - scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs
+      - docs/audits/CHATGPT_UNAUTHENTICATED_MOBILE_CHAT_JOURNEY.md
+      - tests/test_chatgpt_unauthenticated_mobile_chat_journey.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chatgpt-unauth-mobile-chat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  journey:
+    name: One benign signed-out mobile chat journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v6
+
+      - name: Validate exact bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/chatgpt/unauthenticated-mobile-chat-journey-v1.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            (.target_url == "https://chatgpt.com/") and
+            (.prompt == "Reply with exactly: MOBILE WEB OK") and
+            (.expected_response_fragment == "MOBILE WEB OK") and
+            (.boundaries.public_unauthenticated_only == true) and
+            (.boundaries.single_benign_prompt == true) and
+            (.boundaries.maximum_prompt_submissions == 1) and
+            (.boundaries.login_submission == false) and
+            (.boundaries.account_access == false) and
+            (.boundaries.file_upload == false) and
+            (.boundaries.microphone_permission == false) and
+            (.boundaries.camera_permission == false) and
+            (.boundaries.direct_application_api_testing == false) and
+            (.boundaries.captcha_or_access_control_bypass == false) and
+            (.boundaries.fuzzing == false) and
+            (.boundaries.load_testing == false) and
+            (.boundaries.active_security_testing == false) and
+            (.boundaries.private_data_collection == false)
+          ' "${config}" >/dev/null
+
+      - name: Run contract regression tests
+        run: python -m unittest tests/test_chatgpt_unauthenticated_mobile_chat_journey.py
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Locate Chrome and validate observer
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run one bounded public mobile-chat journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/chatgpt-unauth-mobile-chat
+          node scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs \
+            --config audits/chatgpt/unauthenticated-mobile-chat-journey-v1.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/chatgpt-unauth-mobile-chat
+          cat reports/chatgpt-unauth-mobile-chat/chatgpt-unauth-mobile-chat-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact journey evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-unauth-mobile-chat-${{ github.run_id }}
+          path: reports/chatgpt-unauth-mobile-chat/
+          if-no-files-found: error
+          retention-days: 14
