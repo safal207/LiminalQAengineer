@@ -1,0 +1,122 @@
+name: TakeProfit Public Identity Sentinel
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-public-identity-audit-v0-1
+    paths:
+      - .github/workflows/takeprofit-public-identity-sentinel.yml
+      - audits/browser/takeprofit/public-identity-sentinel.json
+      - scripts/takeprofit_public_identity_probe.mjs
+  pull_request:
+    branches:
+      - agent/takeprofit-lighthouse-audit
+    paths:
+      - .github/workflows/takeprofit-public-identity-sentinel.yml
+      - audits/browser/takeprofit/public-identity-sentinel.json
+      - scripts/takeprofit_public_identity_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-public-identity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Desktop and mobile public identity trajectory
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/takeprofit/public-identity-sentinel.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-takeprofit-public-identity-v1" and
+            .targets.home == "https://takeprofit.com/" and
+            .targets.sentinel_profile == "https://takeprofit.com/@USERNAME_NOT_SET" and
+            .targets.reference_profile == "https://takeprofit.com/@TakeProfit" and
+            .targets.profile_docs == "https://takeprofit.com/docs/guide/getting-started/User-Profile" and
+            .sentinel == "USERNAME_NOT_SET" and
+            (.profiles | length) == 2 and
+            .boundaries.public_pages_only == true and
+            .boundaries.natural_navigation_only == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.personal_data_access == false and
+            .boundaries.form_submission == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.server_state_change == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/takeprofit_public_identity_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Observe public identity and documentation trajectory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/takeprofit-public-identity
+          node scripts/takeprofit_public_identity_probe.mjs \
+            --config audits/browser/takeprofit/public-identity-sentinel.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/takeprofit-public-identity
+          cat reports/takeprofit-public-identity/takeprofit-public-identity-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate evidence and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/takeprofit-public-identity/takeprofit-public-identity-result.json"
+          jq -e '
+            .schema_version == "liminalqa-takeprofit-public-identity-result-v1" and
+            (.profiles | length) == 2 and
+            .authority.mode == "evidence_only" and
+            .authority.grants.ownership == false and
+            .authority.grants.approval == false and
+            .authority.grants.execution == false and
+            .authority.grants.delivery == false and
+            .authority.grants.deployment == false and
+            .authority.grants.external_submission == false and
+            .authority.grants.merge == false
+          ' "${result}" >/dev/null
+          ! grep -R -E -i 'authorization:|cookie:|set-cookie:|access_token|refresh_token' \
+            reports/takeprofit-public-identity \
+            --exclude='*.png'
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-public-identity-${{ github.run_id }}
+          path: reports/takeprofit-public-identity/
+          if-no-files-found: error
+          retention-days: 30

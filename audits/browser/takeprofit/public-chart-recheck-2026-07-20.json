@@ -1,0 +1,153 @@
+{
+  "schema_version": "liminalqa-takeprofit-public-chart-recheck-v1",
+  "recheck_date": "2026-07-20",
+  "coordinate_model": {
+    "O": "public BTC/USDT indicator page + unauthenticated browser + observation time",
+    "N": "passive browser observer",
+    "X": "page -> chart store -> quote request -> visible chart -> connection indicator",
+    "Y": "booting -> live-looking -> disconnected/stale -> recovered",
+    "Z": "public page and bounded browser-local network treatment",
+    "T": "boot -> quote bootstrap -> live window -> outage/delay -> restore -> reload"
+  },
+  "old_sent_findings": {
+    "chartstore_required_fields": "REPRODUCED_AGAIN",
+    "quote_connection_state_only_small_icon": "REPRODUCED_AGAIN",
+    "missing_textual_freshness_boundary": "REPRODUCED_AGAIN"
+  },
+  "chart_quote_probe": {
+    "workflow_run_id": 29664421729,
+    "exact_head_sha": "afc71b6c3cd51b4d1a17b90ac60c9c07d693df5d",
+    "artifact_id": 8468880790,
+    "artifact_name": "takeprofit-chart-quote-29664421729",
+    "artifact_digest": "sha256:2e0d0b3255ba12a84c9f7a7bdb4146218960ba011017b066e7d785f889846c26",
+    "result_sha256": "991dd1a6e1eb6ea0d3116a530d3c2b6a82155e192f06c3fef4a2019da551167b",
+    "summary_sha256": "38c9178d5d863235e6775d3b9721a5f736ad2b044d3baa33162478adf4ccc75a",
+    "verdict": "WARN",
+    "observed": {
+      "chart_surfaces": 2,
+      "expected_symbol_visible": true,
+      "list_bars_requests": 3,
+      "list_quotes_requests": 5,
+      "distinct_quote_response_bodies": 4,
+      "market_data_bytes": 74188,
+      "websocket_frames": 0,
+      "chart_pixels_changed_during_live_window": false,
+      "reconnect_recovery": "PASS",
+      "reload_recovery": "PASS",
+      "explicit_offline_or_stale_state": "NOT_OBSERVED"
+    },
+    "required_field_signature": [
+      "[ChartStore] settings.chart.timeToCloseLabel is a required field",
+      "settings.chart.style.lineSource is a required field",
+      "settings.chart.style.tpo is a required field"
+    ],
+    "new_technical_signals": {
+      "invalid_preload_href_warnings": 34,
+      "distribution": "17 during initial load and 17 after reload",
+      "classification": "CONFIRMED_CONSOLE_MARKUP_DEFECT_WITHOUT_PROVEN_USER_IMPACT",
+      "public_plans_endpoint": {
+        "url": "https://takeprofit.com/api/subs-platform/plans",
+        "http_status": 403,
+        "observed_count": 2,
+        "classification": "NEEDS_PRODUCT_INTENT_AND_USER_IMPACT_EVIDENCE"
+      },
+      "termly_resource_blocker_order_warning": {
+        "observed_count": 2,
+        "classification": "NEEDS_CONSENT_SEQUENCE_EVIDENCE; NO_LEGAL_VIOLATION_CLAIM"
+      }
+    }
+  },
+  "stale_quote_counterfactual": {
+    "workflow_run_id": 29664421726,
+    "exact_head_sha": "afc71b6c3cd51b4d1a17b90ac60c9c07d693df5d",
+    "artifact_id": 8468899721,
+    "artifact_name": "takeprofit-stale-quote-29664421726",
+    "artifact_digest": "sha256:30bf70c95a81eb4aae07c2a01ed9d09174f3e186a7e14ed52caae5d204884597",
+    "result_sha256": "07050effde6a337d08d07d18da0162fac000113fed9acb38332d5fca74721821",
+    "summary_sha256": "2bc32700e7145fda7858c0fbbc57c62ab2406ee4e87f1356f616a60c603ba3e6",
+    "evidence_sha256": "833d572ff1976b05fc5ad60aa0cd2cb3bd11435932a566d841e8d79c73e2080d",
+    "verdict": "SUPPORTED_STALE_STATE_GAP",
+    "held_response_ms": 75640,
+    "newer_quote_response_events_while_held": 4,
+    "chart_visible_during_hold": true,
+    "freshness_terms_visible": false,
+    "older_response_delivered_after_newer_events": true,
+    "visible_price_rollback": "NOT_PROVEN"
+  },
+  "quote_visible_dependency": {
+    "workflow_run_id": 29666441927,
+    "exact_head_sha": "a247b5d354b9291c25ebd35325fa66eddb08e154",
+    "artifact_id": 8468928455,
+    "artifact_name": "takeprofit-quote-visible-dependency-29666441927",
+    "artifact_digest": "sha256:8f61a5266b1791548d23630d3405ccd0bbf9e7e2e57226a124631e58b0372c96",
+    "result_sha256": "efd670543f1e7ae9d2fac2c6a38d7fd16497b4fbcd34a48f422479be7ff6850a",
+    "summary_sha256": "4129c516280aa6d825a0c1d8bc142c641421260e1a86dc5f912487d036c6f0c6",
+    "evidence_sha256": "1ea989b97a6b446fa20ae60a47f9999903a0ce3e293f7eab9c556c44ba49f972",
+    "verdict": "VISIBLE_QUOTE_DEPENDENCY_OBSERVED",
+    "pairs": 3,
+    "chart_visible_in_all_treatments": true,
+    "body_text_unchanged_in_all_pairs": true,
+    "freshness_terms_visible": false,
+    "consistent_changed_pixels": 621,
+    "changed_pixel_ratio": 0.0032142857142857142,
+    "bounded_visual_difference": "small green connection/live icon disappears and the 1h control shifts left"
+  },
+  "freshness_outage": {
+    "workflow_run_id": 29665413400,
+    "exact_head_sha": "fe17c3ddad4e4540d91cb30ba40456f2114dc997",
+    "artifact_id": 8469010821,
+    "artifact_name": "takeprofit-quote-freshness-outage-v2-29665413400",
+    "artifact_digest": "sha256:26c2444f72978c155069ba46634f748241f5584cb57b779c4f53c52c70ee5c02",
+    "result_sha256": "de97d655e9dc6b04c9fb7303509a786cfb94fd8ea3f094973ead7c1c3db2a3de",
+    "summary_sha256": "bbc48d7dbbdb2306e1fd337b024ea43c425d892d453e081f7d1d3ef073b95d27",
+    "evidence_sha256": "9173842b10b44337879659e7df679e6330d5efdfb73323c5888bb718380e8809",
+    "verdict": "CONFIRMED_MISSING_FRESHNESS_BOUNDARY_DURING_OUTAGE",
+    "rounds": [
+      {"requested_ms": 90000, "actual_ms": 90412, "quote_responses_during_outage": 0, "chart_retained": true, "freshness_boundary": "MISSING", "recovery": "PASS"},
+      {"requested_ms": 105000, "actual_ms": 105445, "quote_responses_during_outage": 0, "chart_retained": true, "freshness_boundary": "MISSING", "recovery": "PASS"},
+      {"requested_ms": 120000, "actual_ms": 120514, "quote_responses_during_outage": 0, "chart_retained": true, "freshness_boundary": "MISSING", "recovery": "PASS"}
+    ]
+  },
+  "application_order": {
+    "workflow_run_id": 29666441936,
+    "exact_head_sha": "a247b5d354b9291c25ebd35325fa66eddb08e154",
+    "artifact_id": 8468987480,
+    "artifact_name": "takeprofit-quote-application-order-29666441936",
+    "artifact_digest": "sha256:3e431a3c1c2804985894826dd8b190bf882a74371ce554ad4909e8678c6cbb95",
+    "result_sha256": "b0f2181653fe4ea2d588961c962948917392d189e58d5f5ad9cb691528e8ca65",
+    "summary_sha256": "f8153179d7064111eab07ce4742271b2b745bff620034625264584d04f80b4cd",
+    "evidence_sha256": "6f443aa848cb3794b1458c6009e7a8cc1157b7d1c062e644bc02938ad237196e",
+    "verdict": "ESCALATE_APPLICATION_ORDER_UNVERIFIED",
+    "rounds": 3,
+    "hold_ms_range": [90394, 90474],
+    "distinct_newer_responses_per_round": [0, 0, 0],
+    "application_outcome": "INCONCLUSIVE_NO_NEWER_RESPONSE",
+    "freshness_state_gap": "REPLICATED",
+    "visible_rollback": "NOT_PROVEN"
+  },
+  "causal_boundary": {
+    "confirmed": [
+      "required ChartStore defaults remain incomplete on public chart boot and reload",
+      "loss of current quote requests changes only a small icon while the chart remains plausible",
+      "90-120 seconds of complete browser-level network outage produce no explicit freshness boundary",
+      "invalid preload href warnings recur on initial load and reload"
+    ],
+    "not_confirmed": [
+      "visible BTC price rollback",
+      "numerically incorrect price versus an external market",
+      "one shared root cause for ChartStore and freshness signaling",
+      "privacy or legal violation from the Termly warning",
+      "user impact from the plans endpoint 403"
+    ]
+  },
+  "authority": {
+    "mode": "evidence_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "delivery": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "schema_version": "liminalqa-takeprofit-public-identity-canonical-v1",
+  "observed_at": "2026-07-20T16:53:21.217Z",
+  "coordinate_model": {
+    "O": "public URL + browser profile + viewport + unauthenticated state + observation time",
+    "N": "passive unauthenticated browser",
+    "X": "domain -> route -> feed card -> author anchor -> profile route",
+    "Y": "rendered -> accessible -> navigable -> profile state",
+    "Z": "desktop/mobile user-agent and viewport",
+    "T": "initial navigation -> settled feed -> author navigation -> profile state"
+  },
+  "verdicts": {
+    "public_identity_sentinel": "CONFIRMED_PUBLIC_SURFACE",
+    "sentinel_profile_route": "VALID_200_PLACEHOLDER_PROFILE",
+    "feed_profile_publication_consistency": "CONFIRMED_INCONSISTENCY",
+    "public_profile_drafts_documentation": "CONFIRMED_DOCUMENTATION_AMBIGUITY",
+    "duplicate_footer_semantics": "NEEDS_ACCESSIBILITY_REVIEW"
+  },
+  "desktop": {
+    "home_http_status": 200,
+    "sentinel_text_occurrences": 7,
+    "visible_sentinel_author_links": 7,
+    "accessibility_sentinel_matches": 28,
+    "sentinel_href": "https://takeprofit.com/@USERNAME_NOT_SET",
+    "sentinel_profile_http_status": 200,
+    "sentinel_profile_title": "USERNAME_NOT_SET",
+    "sentinel_profile_followers": 0,
+    "sentinel_profile_following": 0,
+    "sentinel_profile_publications": 0,
+    "home_body_sha256": "043db37524fad870b72c8f62f0ad74f8784ed7623a883bf98b61eb9e92f439f0",
+    "profile_body_sha256": "cf0c33159f935eabab6b5af11bb941ffef883f5b4c6deafad6f139eda0c227f6"
+  },
+  "mobile": {
+    "home_http_status": 200,
+    "sentinel_text_occurrences": 7,
+    "visible_sentinel_author_links": 7,
+    "accessibility_sentinel_matches": 28,
+    "sentinel_href": "https://takeprofit.com/@USERNAME_NOT_SET",
+    "sentinel_profile_http_status": 200,
+    "sentinel_profile_title": "USERNAME_NOT_SET",
+    "sentinel_profile_followers": 0,
+    "sentinel_profile_following": 0,
+    "sentinel_profile_publications": 0,
+    "home_body_sha256": "b76c00e35735d63af2d2a37ed53a1b2b0872911f36b9f3947d85176c305e6674",
+    "profile_body_sha256": "4cdbd774495d1274aa68e0f14c607f3f30b08e90bb53cafe7272027619cc3088"
+  },
+  "documentation": {
+    "url": "https://takeprofit.com/docs/guide/getting-started/User-Profile",
+    "page_title": "User Profile Page - TakeProfit",
+    "mentions_public_profile": true,
+    "states_public_profile_displays_drafts_tab": true,
+    "unauthenticated_reference_profile_has_drafts_tab": false,
+    "body_sha256": "01060bbdc1f0dbc98fee2311c84cfbdb6c1866a3da8b7aeb01b38e92997dda58",
+    "classification": "The guide does not distinguish owner-only Drafts visibility from the public visitor view. No private-draft exposure is claimed."
+  },
+  "bounded_causal_trajectory": [
+    "missing or unfinished public username state",
+    "literal sentinel reaches public feed cards",
+    "sentinel becomes visible and accessibility-exposed author link",
+    "link opens a valid placeholder profile reporting zero publications",
+    "public feed attribution and profile publication state disagree",
+    "authorship trust and recovery are reduced"
+  ],
+  "evidence": {
+    "workflow_run_id": 29761310912,
+    "exact_head_sha": "c041755c4a5c20d86e4d1bcbf3321f6e58d820f2",
+    "artifact_id": 8468951631,
+    "artifact_name": "takeprofit-public-identity-29761310912",
+    "artifact_digest": "sha256:f8c5b4a36109f71d6f46a098796a9c9343bdb34762702c1b4fd345a238adcbea",
+    "artifact_retention_until": "2026-08-19T16:53:21Z",
+    "raw_result_sha256": "187ab9c3081a84a01e940b995caa0ff76de339734aec1d0c1e4d4710f6bd9e7d",
+    "summary_sha256": "74814ebffeeac67b90e690a117420301974ec580ed37a1a63598ad18bc628b85",
+    "files": [
+      "takeprofit-public-identity-result.json",
+      "takeprofit-public-identity-summary.md",
+      "desktop-home.png",
+      "mobile-home.png",
+      "desktop-sentinel-profile.png",
+      "mobile-sentinel-profile.png",
+      "docs-user-profile.png",
+      "desktop-reference-profile.png",
+      "SHA256SUMS.txt"
+    ]
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "personal_data_access": false,
+    "form_submission": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false
+  },
+  "limitations": [
+    "The placeholder username does not prove private-data exposure or account compromise.",
+    "The cause is inferred from public state and remains unconfirmed without code or backend evidence.",
+    "Documentation ambiguity is separate from runtime behavior."
+  ]
+}
