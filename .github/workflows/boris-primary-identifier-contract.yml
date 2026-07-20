@@ -1,0 +1,331 @@
+name: Boris Primary Identifier Contract Evidence
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - agent/greg-boris-open-work-review-2026-07-20
+    paths:
+      - .github/workflows/boris-primary-identifier-contract.yml
+      - scripts/boris_primary_identifier_contract_evidence.py
+      - scripts/build_boris_primary_identifier_stack.py
+      - audits/reviews/boris-primary-identifier-config-v1.json
+      - docs/reviews/BORIS_CLAUDE_CODE_PRIMARY_IDENTIFIER_PROTOCOL_2026-07-20.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: boris-primary-identifier-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-evidence:
+    name: Public issue and reference-renderer evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate evidence sources
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/boris_primary_identifier_contract_evidence.py
+          python -m py_compile scripts/build_boris_primary_identifier_stack.py
+          python -m json.tool audits/reviews/boris-primary-identifier-config-v1.json >/dev/null
+      - name: Resolve exact public tracker head
+        id: tracker
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git ls-remote https://github.com/anthropics/claude-code.git refs/heads/main | awk '{print $1}')"
+          test -n "$sha"
+          test "${#sha}" -eq 40
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Build live issue snapshot and reference matrix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRACKER_HEAD_SHA: ${{ steps.tracker.outputs.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf reports/boris-primary-identifier/input
+          python scripts/boris_primary_identifier_contract_evidence.py \
+            --config audits/reviews/boris-primary-identifier-config-v1.json \
+            --output-dir reports/boris-primary-identifier/input \
+            --tracker-head-sha "$TRACKER_HEAD_SHA"
+          cat reports/boris-primary-identifier/input/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Bind exact attempt and checksums
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ROOT: reports/boris-primary-identifier/input
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, time
+          from pathlib import Path
+          root = Path(os.environ["ROOT"])
+          (root / "exact-attempt.json").write_text(json.dumps({
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "execution_sha": os.environ["GITHUB_SHA"],
+              "head_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
+              "runner_os": os.environ["RUNNER_OS"],
+              "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+          }, indent=2, sort_keys=True) + "\n")
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS.txt":
+                  lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
+          (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boris-primary-identifier-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/boris-primary-identifier/input/
+          if-no-files-found: error
+          retention-days: 30
+
+  component-contracts:
+    name: Exact product-contract component checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/Liminal-Presence-Interface-LPI
+          ref: 0683ca3731256d5fc06f60c14a3deb9e9c149d19
+          path: components/lpi
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/CaPU
+          ref: babd2945046d2564e1110a76741827560c57fcca
+          path: components/capu
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/T-Trace
+          ref: 6a0755dbe8a89decd325298ec4563b9bb16adc62
+          path: components/ttrace
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/ttm-db
+          ref: eeded6bf5666512a23a7477eb8cda6485dfd173a
+          path: components/ttm
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/Scale-Descent-Protocol-SDP
+          ref: f1903aecb1f9196414c49784558f6ed9f40d8bda
+          path: components/sdp
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/DRP
+          ref: 92e63d7d4eeb55f8eb61956da002dc8951bab1c6
+          path: components/drp
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install exact validation dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install pytest jsonschema
+          python -m pip install -e 'components/lpi/packages/python-lri[dev]'
+          npm ci --prefix components/lpi --ignore-scripts --no-audit --no-fund
+      - name: LPI exact contract
+        run: |
+          set -euo pipefail
+          test "$(git -C components/lpi rev-parse HEAD)" = "0683ca3731256d5fc06f60c14a3deb9e9c149d19"
+          cd components/lpi
+          node tools/build-vocab.mjs
+          node --test tests/vocab.artifacts.test.mjs
+          cd packages/python-lri
+          python -m pytest -q tests/test_lri.py tests/test_lss.py tests/test_validator.py
+      - name: LPI state ordering
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("components/lpi/docs/specs/lhs.md").read_text(encoding="utf-8")
+          for token in ("Hello", "Mirror", "Bind", "Seal", "Flow", "Timing Expectations", "Timeout Window"):
+              assert token in text, token
+          assert text.index("Hello") < text.index("Mirror") < text.index("Bind") < text.index("Seal") < text.index("Flow")
+          PY
+      - name: CaPU isolated maturity contract
+        run: |
+          set -euo pipefail
+          test "$(git -C components/capu rev-parse HEAD)" = "babd2945046d2564e1110a76741827560c57fcca"
+          rm -rf /tmp/capu-exact
+          cp -a components/capu /tmp/capu-exact
+          cd /tmp/capu-exact/rust/cmc-core
+          cargo test --all --locked
+          cd "$GITHUB_WORKSPACE"
+          grep -F "Gate -> Incubate -> Commit -> Execute" components/capu/README.md
+      - name: T-Trace exact validation
+        run: |
+          set -euo pipefail
+          test "$(git -C components/ttrace rev-parse HEAD)" = "6a0755dbe8a89decd325298ec4563b9bb16adc62"
+          python -m pytest -q components/ttrace/tests
+          python components/ttrace/scripts/validate_ttrace.py components/ttrace/examples/minimal.ttrace.jsonl
+      - name: TTM exact substrate
+        run: |
+          set -euo pipefail
+          test "$(git -C components/ttm rev-parse HEAD)" = "eeded6bf5666512a23a7477eb8cda6485dfd173a"
+          rm -rf /tmp/ttm-exact
+          cp -a components/ttm /tmp/ttm-exact
+          cargo test --manifest-path /tmp/ttm-exact/rust/Cargo.toml
+      - name: SDP exact pico collapse
+        run: |
+          set -euo pipefail
+          test "$(git -C components/sdp rev-parse HEAD)" = "f1903aecb1f9196414c49784558f6ed9f40d8bda"
+          cargo test --manifest-path components/sdp/Cargo.toml --workspace
+      - name: DRP exact supersession
+        run: |
+          set -euo pipefail
+          test "$(git -C components/drp rev-parse HEAD)" = "92e63d7d4eeb55f8eb61956da002dc8951bab1c6"
+          python -m pytest -q components/drp/tests
+          python components/drp/tools/drp_validator.py components/drp/examples/minimal_valid.json --json
+      - name: Build exact component receipt
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/boris-primary-identifier/components
+          python - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          value = {
+              "schema_version": "liminalqa-boris-primary-identifier-components-v1",
+              "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+              "execution_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
+              "passed": True,
+              "components": {
+                  "lpi": {"sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19", "validation": "locked_vocab+python_sdk+LHS_order"},
+                  "capu": {"sha": "babd2945046d2564e1110a76741827560c57fcca", "validation": "isolated_cargo_test_all_locked+maturity_contract"},
+                  "ttrace": {"sha": "6a0755dbe8a89decd325298ec4563b9bb16adc62", "validation": "pytest+reference_validator"},
+                  "ttm_db": {"sha": "eeded6bf5666512a23a7477eb8cda6485dfd173a", "validation": "isolated_rust_cargo_test"},
+                  "sdp": {"sha": "f1903aecb1f9196414c49784558f6ed9f40d8bda", "validation": "cargo_test_workspace"},
+                  "drp": {"sha": "92e63d7d4eeb55f8eb61956da002dc8951bab1c6", "validation": "pytest+reference_validator"}
+              },
+              "boundary": "Component contracts are exact-head checks; they do not convert the reference renderer into Claude Code product code."
+          }
+          Path("reports/boris-primary-identifier/components/receipt.json").write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boris-primary-identifier-components-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/boris-primary-identifier/components/
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    name: Product-contract replay and authority gate
+    needs:
+      - public-evidence
+      - component-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/T-Trace
+          ref: 6a0755dbe8a89decd325298ec4563b9bb16adc62
+          path: validators/ttrace
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: safal207/DRP
+          ref: 92e63d7d4eeb55f8eb61956da002dc8951bab1c6
+          path: validators/drp
+          persist-credentials: false
+      - name: Install validation dependencies
+        run: python -m pip install jsonschema
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: boris-primary-identifier-*
+          path: downloaded
+      - name: Build full product-contract packet
+        run: |
+          set -euo pipefail
+          component_receipt="$(find downloaded -name receipt.json -print -quit)"
+          test -n "$component_receipt"
+          rm -rf reports/boris-primary-identifier/final
+          python scripts/build_boris_primary_identifier_stack.py \
+            --input-root downloaded \
+            --component-contracts "$component_receipt" \
+            --output-dir reports/boris-primary-identifier/final
+      - name: Validate generated T-Trace and DRP records
+        run: |
+          set -euo pipefail
+          python validators/ttrace/scripts/validate_ttrace.py reports/boris-primary-identifier/final/ttrace/boris-primary-identifier.ttrace.jsonl
+          python validators/drp/tools/drp_validator.py reports/boris-primary-identifier/final/drp/decisions.json --json
+      - name: Enforce notification and claim boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path("reports/boris-primary-identifier/final/boris-primary-identifier-full-stack-result.json").read_text())
+          assert value["verdict"] == "READY_TO_NOTIFY_PRIMARY_IDENTIFIER_CONTRACT_SUPPORTED_IMPLEMENTATION_NOT_VERIFIED"
+          assert value["blocking_checks"] == []
+          contract = value["notification_contract"]
+          assert contract["permitted"] is True
+          assert contract["comments_only"] is True
+          assert contract["state_changes"] is False
+          assert contract["may_claim_current_product_fixed"] is False
+          assert contract["may_claim_private_tui_source_audited"] is False
+          assert contract["may_close_issue"] is False
+          assert contract["must_disclose_reference_renderer"] is True
+          assert contract["must_disclose_runtime_not_verified"] is True
+          assert value["summary"]["implementation_status"] == "NOT_VERIFIED"
+          assert value["summary"]["source_audit_status"] == "NOT_PERFORMED"
+          PY
+      - name: Bind exact attempt and checksums
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ROOT: reports/boris-primary-identifier/final
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os, time
+          from pathlib import Path
+          root = Path(os.environ["ROOT"])
+          (root / "exact-attempt.json").write_text(json.dumps({
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "execution_sha": os.environ["GITHUB_SHA"],
+              "head_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
+              "runner_os": os.environ["RUNNER_OS"],
+              "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+          }, indent=2, sort_keys=True) + "\n")
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS.txt":
+                  lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
+          (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
+          PY
+      - name: Publish summary
+        run: cat reports/boris-primary-identifier/final/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boris-primary-identifier-full-stack-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/boris-primary-identifier/final/
+          if-no-files-found: error
+          retention-days: 30
