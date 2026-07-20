@@ -1,0 +1,79 @@
+{
+  "schema_version": "liminalqa-company-public-audit-v1",
+  "company": {
+    "name": "Anthropic Claude Code",
+    "audit_name": "Public product, onboarding, reference, permissions, and accessibility baseline"
+  },
+  "allowed_origins": [
+    "https://claude.com",
+    "https://code.claude.com"
+  ],
+  "allowed_query_keys": [],
+  "targets": [
+    {
+      "id": "product",
+      "url": "https://claude.com/product/claude-code",
+      "kind": "product"
+    },
+    {
+      "id": "docs-overview",
+      "url": "https://code.claude.com/docs/en/overview",
+      "kind": "documentation"
+    },
+    {
+      "id": "quickstart",
+      "url": "https://code.claude.com/docs/en/quickstart",
+      "kind": "onboarding"
+    },
+    {
+      "id": "cli-reference",
+      "url": "https://code.claude.com/docs/en/cli-reference",
+      "kind": "reference"
+    },
+    {
+      "id": "permission-modes",
+      "url": "https://code.claude.com/docs/en/permission-modes",
+      "kind": "security-documentation"
+    }
+  ],
+  "profiles": [
+    "desktop",
+    "mobile"
+  ],
+  "settings": {
+    "settle_ms": 6000,
+    "keyboard_tab_steps": 30,
+    "lighthouse_runs": 1,
+    "max_parallel": 2,
+    "retain_body_sample": false
+  },
+  "category_thresholds": {
+    "performance": 0.55,
+    "accessibility": 0.9,
+    "best-practices": 0.85,
+    "seo": 0.85
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "credentials_or_secrets": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "publishing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Official Claude and Claude Code public pages only.",
+    "The former anthropic.com product entry currently resolves to claude.com; the canonical final product URL is used directly.",
+    "No installation command is executed, no Claude account is used, and no local files, repositories, tools, MCP servers, agents, or permission modes are activated."
+  ]
+}

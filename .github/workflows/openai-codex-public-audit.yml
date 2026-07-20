@@ -1,0 +1,21 @@
+name: OpenAI Codex Public Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openai-codex-public-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: OpenAI Codex bounded public audit
+    uses: ./.github/workflows/company-public-audit.yml
+    with:
+      config_path: audits/companies/openai-codex/public-audit.json
+      engine_ref: ${{ github.sha }}
+      retention_days: 30
+      fail_on: never

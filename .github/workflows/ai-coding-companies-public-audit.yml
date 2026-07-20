@@ -1,0 +1,28 @@
+name: AI Coding Companies Portfolio Index
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  explain:
+    name: Use isolated company workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain evidence isolation
+        run: |
+          cat <<'EOF' >> "${GITHUB_STEP_SUMMARY}"
+          # AI coding companies portfolio
+
+          The three company audits intentionally run as separate workflows so every company receives a unique run ID, artifact namespace, exact-attempt set, and aggregate result.
+
+          Use:
+
+          - `OpenAI Codex Public Audit`
+          - `Claude Code Public Audit`
+          - `Cursor Public Audit`
+
+          This index workflow performs no external navigation and produces no product verdict.
+          EOF

@@ -1,0 +1,21 @@
+name: Claude Code Public Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-code-public-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Claude Code bounded public audit
+    uses: ./.github/workflows/company-public-audit.yml
+    with:
+      config_path: audits/companies/anthropic-claude-code/public-audit.json
+      engine_ref: ${{ github.sha }}
+      retention_days: 30
+      fail_on: never

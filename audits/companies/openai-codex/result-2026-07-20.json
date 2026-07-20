@@ -1,0 +1,89 @@
+{
+  "schema_version": "liminalqa-openai-codex-public-audit-canonical-v1",
+  "observed_at": "2026-07-20",
+  "scope": {
+    "targets": 5,
+    "profiles": ["desktop", "mobile"],
+    "cells": 10,
+    "public_unauthenticated_only": true
+  },
+  "aggregate": {
+    "verdict": "WARN",
+    "automated_severity": "MEDIUM",
+    "pass_cells": 0,
+    "warning_cells": 10,
+    "reason_counts": {
+      "lighthouse_threshold_warning": 10,
+      "console_errors_observed": 4
+    }
+  },
+  "confirmed_findings": [
+    {
+      "id": "OAI-CODEX-A11Y-01",
+      "classification": "CONFIRMED_PUBLIC_ACCESSIBILITY_DEFECT",
+      "surface": "https://learn.chatgpt.com/docs",
+      "profiles": ["desktop", "mobile"],
+      "summary": "The Codex pet button visibly shows 1/8 while its accessible name is 'Show next Codex pet. Codey is selected.'; the visible label is excluded from the accessible name.",
+      "severity_candidate": "P3"
+    },
+    {
+      "id": "OAI-CODEX-A11Y-02",
+      "classification": "CONFIRMED_DOCUMENT_STRUCTURE_DEFECT",
+      "surface": "https://learn.chatgpt.com/docs/security",
+      "profiles": ["desktop", "mobile"],
+      "summary": "The article renders h3 'Explore plugin use cases' without an intervening article-level h2; Lighthouse reports heading-order.",
+      "severity_candidate": "P3"
+    },
+    {
+      "id": "OAI-CODEX-A11Y-03",
+      "classification": "RECURRING_LOCALIZED_ACCESSIBILITY_SIGNAL",
+      "summary": "Color-contrast appears on five cells and CLI docs report three non-descriptive links in desktop and mobile.",
+      "severity_candidate": "NEEDS_NODE_REVIEW"
+    }
+  ],
+  "candidates_not_promoted": [
+    {
+      "id": "OAI-CODEX-DELIVERY-01",
+      "classification": "UA_OR_CDN_DEPENDENT_DELIVERY_CANDIDATE",
+      "summary": "The pinned desktop UA received HTTP 200 with 'This page couldn’t load', Reload/Back controls, and first-party static chunk 403 errors, while the mobile UA rendered the full page.",
+      "promotion_block": "Requires native-UA versus pinned-UA counterfactual; the observer pins Chrome 126 while the runner uses a newer Chrome build."
+    },
+    {
+      "id": "OAI-CODEX-PERF-01",
+      "classification": "DIRECTIONAL_ONLY",
+      "summary": "Mobile product/get-started and docs performance values are single-run laboratory signals, not field regressions."
+    }
+  ],
+  "exact_evidence": {
+    "workflow_run_id": 29769492765,
+    "run_attempt": 1,
+    "child_pr": 93,
+    "source_head": "6b82f5c6a8b1a38d4c19986d14c16d15dcd29189",
+    "aggregate_caller_sha": "6f37e3229079f522c4bd8d5877702a4d2bea803f",
+    "config_sha256": "7d8cbdda973250af40c0ed785b708f524e473d830dc3833ec14872596f6926f2",
+    "aggregate_artifact_id": 8472386423,
+    "aggregate_artifact_digest": "sha256:e0e9d750ea9c1a2abbfdc1313d19c420a3775475306a809eb19d4c7acd6b2805",
+    "result_sha256": "a503e1582d76db97db0990183c27b2ef5ca665808d395871346bc3e363b4efff",
+    "summary_sha256": "899c289b65fb7e4e24351d608c8f6e150cb7c7ed845e6a5edea4dc2f13471782",
+    "generated_evidence_index_sha256": "8ca96bf14cfc2bb3b2bfc411f760f07a78e005e4cf6b001ac3d36053b3a5b7d5"
+  },
+  "boundaries": {
+    "login": false,
+    "account_access": false,
+    "repository_connection": false,
+    "model_request": false,
+    "codex_task_execution": false,
+    "cli_or_installation": false,
+    "forms_or_direct_apis": false,
+    "security_testing": false,
+    "external_submission": false
+  },
+  "authority": {
+    "mode": "evidence_only",
+    "ownership": false,
+    "approval": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}

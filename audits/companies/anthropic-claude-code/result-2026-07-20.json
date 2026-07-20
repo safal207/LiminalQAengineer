@@ -1,0 +1,102 @@
+{
+  "schema_version": "liminalqa-claude-code-public-audit-canonical-v1",
+  "observed_at": "2026-07-20",
+  "scope": {
+    "targets": 5,
+    "profiles": ["desktop", "mobile"],
+    "cells": 10,
+    "public_unauthenticated_only": true
+  },
+  "aggregate": {
+    "verdict": "WARN",
+    "automated_severity": "HIGH",
+    "pass_cells": 3,
+    "warning_cells": 7,
+    "reason_counts": {
+      "lighthouse_threshold_warning": 7,
+      "unnamed_sequential_controls": 2,
+      "console_errors_observed": 2
+    }
+  },
+  "confirmed_findings": [
+    {
+      "id": "CLAUDE-A11Y-01",
+      "classification": "CONFIRMED_PUBLIC_ACCESSIBILITY_DEFECT",
+      "surface": "https://claude.com/product/claude-code",
+      "profiles": ["desktop", "mobile"],
+      "summary": "Visible Individual and Onboarding role=tab controls use aria-controls values that do not resolve to existing panel IDs.",
+      "severity_candidate": "P2_P3"
+    },
+    {
+      "id": "CLAUDE-A11Y-02",
+      "classification": "CONFIRMED_DESKTOP_ACCESSIBILITY_DEFECT",
+      "surface": "https://claude.com/product/claude-code",
+      "profiles": ["desktop"],
+      "summary": "Two copy-command buttons visibly contain the curl install command but expose only aria-label='Copy command to clipboard'; Lighthouse reports label-content-name-mismatch.",
+      "severity_candidate": "P3"
+    },
+    {
+      "id": "CLAUDE-A11Y-03",
+      "classification": "CONFIRMED_UNNAMED_KEYBOARD_CONTROL_SIGNAL",
+      "surface": "https://claude.com/product/claude-code",
+      "profiles": ["desktop", "mobile"],
+      "summary": "Two enabled sequential anchor elements have no accessible name in each profile; destination mapping remains required."
+    },
+    {
+      "id": "CLAUDE-OBS-04",
+      "classification": "CONFIRMED_TECHNICAL_SIGNAL_USER_IMPACT_UNPROVEN",
+      "summary": "Both product profiles repeatedly fail event_logging/v2/batch CORS preflights, producing 12 console errors per profile."
+    }
+  ],
+  "directional_signals": {
+    "docs_mobile_performance": {
+      "overview": 27,
+      "quickstart": 36,
+      "cli_reference": 36,
+      "interpretation": "Single-run experiment-selection signal only."
+    },
+    "recurring_lighthouse": {
+      "unused_javascript_cells": 8,
+      "color_contrast_cells": 8,
+      "bfcache_cells": 8
+    }
+  },
+  "claims_not_promoted": [
+    "Product performance score 0 is incomplete because LCP and TBT were absent.",
+    "Duplicate IDs in responsive docs widgets require manual impact review.",
+    "Event logging failure is not equated with a failed user journey.",
+    "No security or CLI runtime claim is made."
+  ],
+  "exact_evidence": {
+    "workflow_run_id": 29769523371,
+    "run_attempt": 1,
+    "child_pr": 94,
+    "source_head": "b172a69a3d8e9ccdf9c6331aac361602ac17d142",
+    "aggregate_caller_sha": "81dcd38b1197bd84d3136a6a88f914e8b29c60c6",
+    "config_sha256": "fed5e3fe51abaa615e56113763cc75400b752b4e1553953bf76c7170af70e400",
+    "aggregate_artifact_id": 8472339939,
+    "aggregate_artifact_digest": "sha256:0ce7eb564bd4fb6e9df8afd6b76c5ff4ef8cf030a1b9170a58689cd2e37cd469",
+    "result_sha256": "6038103afada359adde3d4169ff640fd4cde233a5e6be7644db2b72e78e21e40",
+    "summary_sha256": "ae434f45520db2c61a1f98d84d81c82435d4471f5bce85bdaa3dc440e909b0db",
+    "generated_evidence_index_sha256": "00fde51010260bc88daf578838a1d7850890988beed814ef14fc3299cdf6317e"
+  },
+  "boundaries": {
+    "login": false,
+    "account_access": false,
+    "installation_or_cli_execution": false,
+    "local_file_or_repository_access": false,
+    "mcp_or_agents": false,
+    "model_requests": false,
+    "forms_or_direct_apis": false,
+    "security_testing": false,
+    "external_submission": false
+  },
+  "authority": {
+    "mode": "evidence_only",
+    "ownership": false,
+    "approval": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}
