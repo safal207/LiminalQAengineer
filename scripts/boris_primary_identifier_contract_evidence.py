@@ -155,6 +155,16 @@ def truncate_middle(value: str, max_length: int) -> str:
     return value[:left] + "…" + value[-right:]
 
 
+def identifier_recognizable(rendered: str, identifier: str, max_length: int) -> bool:
+    """Require full identity when it fits; otherwise preserve stable prefix and suffix."""
+    if identifier in rendered:
+        return True
+    if len(identifier) <= max_length:
+        return False
+    anchor_length = min(16, max(6, max_length // 8))
+    return identifier[:anchor_length] in rendered and identifier[-anchor_length:] in rendered
+
+
 def normalize_path(value: str, workspace: str) -> str:
     normalized = value.replace("\\", "/")
     workspace_norm = workspace.rstrip("/")
@@ -320,7 +330,10 @@ def build_scenarios(config: dict[str, Any]) -> list[dict[str, Any]]:
                         max_length=max_length,
                         multi_limit=multi_limit,
                     )
-                    identifier_visible = any(identifier in proposed for identifier in normalized[:multi_limit])
+                    identifier_visible = all(
+                        identifier_recognizable(proposed, identifier, max_length)
+                        for identifier in normalized[:multi_limit]
+                    )
                     outcome_visible = outcome == "success" or proposed.startswith(outcome_prefix(outcome))
                     workspace_private = not any(
                         re.search(r"/(?:Users|home)/[^/]+/", proposed) for _ in [0]
@@ -395,13 +408,19 @@ def build_scenarios(config: dict[str, Any]) -> list[dict[str, Any]]:
                 "reported_collapsed_model": reported_collapsed_model(tool, identifiers, outcome),
                 "reference_collapsed_output": proposed,
                 "checks": {
-                    "identifier_visible": any(value in proposed for value in normalized[:multi_limit]),
+                    "identifier_visible": all(
+                        identifier_recognizable(proposed, value, max_length)
+                        for value in normalized[:multi_limit]
+                    ),
                     "outcome_visible": outcome == "success" or proposed.startswith(outcome_prefix(outcome)),
                     "workspace_private": not bool(re.search(r"/(?:Users|home)/[^/]+/", proposed)),
                     "content_safe": "\n" not in proposed,
                     "compact": len(proposed) <= max_length,
                     "critical_identifier_visible": (
-                        any(value in proposed for value in normalized[:multi_limit])
+                        all(
+                            identifier_recognizable(proposed, value, max_length)
+                            for value in normalized[:multi_limit]
+                        )
                         if outcome in {"blocked", "permission_denied"}
                         else True
                     ),
@@ -539,7 +558,7 @@ def main() -> int:
         {"name": "issue_state_expected", "passed": issue.get("state") == target["expected_state"], "detail": issue.get("state")},
         {"name": "boris_assigned", "passed": target["assignee"] in assignees, "detail": assignees},
         {"name": "required_labels_present", "passed": required_labels.issubset(labels), "detail": labels},
-        {"name": "comments_complete", "passed": len(comments) == issue.get("comments"), "detail": {"fetched": len(comments), "reported": issue.get("comments")}},
+        {"name": "comments_complete", "passed": len(comments) >= int(issue.get("comments") or 0), "detail": {"fetched": len(comments), "reported_at_initial_snapshot": issue.get("comments")}},
         {"name": "public_demand_nontrivial", "passed": len(comments) >= 20 and evidence["unique_comment_authors"] >= 10, "detail": {"comments": len(comments), "authors": evidence["unique_comment_authors"]}},
         {"name": "regression_boundary_present", "passed": evidence["signal_counts"].get("regression_2_1_19_to_2_1_20", 0) > 0, "detail": evidence["signal_counts"].get("regression_2_1_19_to_2_1_20", 0)},
         {"name": "blocked_identifier_signal_present", "passed": evidence["signal_counts"].get("blocked_identifier_needed", 0) > 0, "detail": evidence["signal_counts"].get("blocked_identifier_needed", 0)},
