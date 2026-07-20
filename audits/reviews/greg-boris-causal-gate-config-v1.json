@@ -1,0 +1,29 @@
+{
+  "schema_version": "liminalqa-greg-boris-causal-gate-config-v1",
+  "greg": {
+    "repository": "gdb/tee-output",
+    "issue": 3,
+    "exact_sha": "c41f8ff383200320b746e953e92709ae1b505a71",
+    "lines_per_stream": 64,
+    "baseline_rounds": 20,
+    "counterfactual_rounds": 10,
+    "child_timeout_seconds": 20
+  },
+  "boris": {
+    "fork_pull_requests": [1, 2, 3],
+    "upstream_pull_requests": [58036, 58037, 58038],
+    "followup_sha": "b474e098d15d8a0936153118adb6e28255b9071e",
+    "claude_code_issues": [21151, 4937, 1554]
+  },
+  "dimensions": ["space", "transition", "time", "causality"],
+  "maximum_observation_age_minutes": 60,
+  "notification_policy": {
+    "require_zero_blocking_checks": true,
+    "require_ready_to_notify_prefix": true,
+    "permit_external_comments": true,
+    "permit_external_state_changes": false,
+    "permit_approval": false,
+    "permit_close": false,
+    "permit_merge": false
+  }
+}
