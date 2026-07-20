@@ -1,0 +1,138 @@
+name: TradingView Public Surface Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradingview-public-audit-v0-1
+    paths:
+      - .github/workflows/tradingview-public-surface-audit.yml
+      - audits/browser/tradingview/public-surface-matrix.json
+      - scripts/tradingview_public_surface_probe.mjs
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradingview-public-surface-audit.yml
+      - audits/browser/tradingview/public-surface-matrix.json
+      - scripts/tradingview_public_surface_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradingview-public-surface-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Observe desktop and mobile public surfaces
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/tradingview/public-surface-matrix.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-tradingview-public-surface-v1" and
+            (.targets | length) == 6 and
+            (.profiles | length) == 2 and
+            ([.targets[].url | startswith("https://www.tradingview.com/")] | all) and
+            .boundaries.public_pages_only == true and
+            .boundaries.natural_navigation_only == true and
+            .boundaries.passive_browser_observation == true and
+            .boundaries.keyboard_navigation_only == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.account_access == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.form_submission == false and
+            .boundaries.publishing == false and
+            .boundaries.trading_actions == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.server_state_change == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --check scripts/tradingview_public_surface_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run bounded public browser matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradingview-public
+          node scripts/tradingview_public_surface_probe.mjs \
+            --config audits/browser/tradingview/public-surface-matrix.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradingview-public
+          cat reports/tradingview-public/tradingview-public-surface-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate evidence and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/tradingview-public/tradingview-public-surface-result.json"
+          jq -e '
+            .schema_version == "liminalqa-tradingview-public-surface-result-v1" and
+            (.observations | length) == 12 and
+            .authority.mode == "evidence_only" and
+            .authority.grants.ownership == false and
+            .authority.grants.approval == false and
+            .authority.grants.execution == false and
+            .authority.grants.external_submission == false and
+            .authority.grants.delivery == false and
+            .authority.grants.deployment == false and
+            .authority.grants.merge == false
+          ' "${result}" >/dev/null
+          ! grep -R -E -i 'authorization:|cookie:|set-cookie:|access_token|refresh_token|sessionid' \
+            reports/tradingview-public \
+            --exclude='*.png'
+
+      - name: Record exact attempt manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_attempt "${{ github.run_attempt }}" \
+            --arg head_sha "${{ github.sha }}" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{run_id:$run_id,run_attempt:$run_attempt,head_sha:$head_sha,generated_at:$generated_at}' \
+            > reports/tradingview-public/exact-attempt.json
+          sha256sum reports/tradingview-public/* \
+            > reports/tradingview-public/ARTIFACT_SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradingview-public-surface-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/tradingview-public/
+          if-no-files-found: error
+          retention-days: 30
