@@ -1,0 +1,104 @@
+{
+  "schema_version": "liminalqa-cursor-public-audit-canonical-v1",
+  "observed_at": "2026-07-20",
+  "scope": {
+    "targets": 5,
+    "profiles": ["desktop", "mobile"],
+    "cells": 10,
+    "public_unauthenticated_only": true
+  },
+  "aggregate": {
+    "verdict": "WARN",
+    "automated_severity": "HIGH",
+    "pass_cells": 0,
+    "warning_cells": 10,
+    "reason_counts": {
+      "lighthouse_threshold_warning": 10,
+      "console_errors_observed": 10,
+      "unnamed_sequential_controls": 6,
+      "unnamed_accessibility_controls": 4,
+      "nested_interactive_controls": 2
+    }
+  },
+  "confirmed_findings": [
+    {
+      "id": "CURSOR-A11Y-01",
+      "classification": "CONFIRMED_PUBLIC_ACCESSIBILITY_DEFECT",
+      "surface": "https://cursor.com/home",
+      "profiles": ["desktop", "mobile"],
+      "summary": "Multiple aria-hidden demo windows contain keyboard-focusable buttons, links, switches, and inputs; Lighthouse reports aria-hidden-focus.",
+      "severity_candidate": "P2"
+    },
+    {
+      "id": "CURSOR-DOCS-02",
+      "classification": "CONFIRMED_DEEP_LINK_DEGRADATION",
+      "profiles": ["desktop", "mobile"],
+      "requested_urls": [
+        "https://docs.cursor.com/en/get-started/quickstart",
+        "https://docs.cursor.com/en/cli/overview"
+      ],
+      "final_url": "https://cursor.com/docs",
+      "summary": "Quickstart and CLI deep links redirect to the generic docs root rather than route-specific replacement content.",
+      "severity_candidate": "P2_P3"
+    },
+    {
+      "id": "CURSOR-A11Y-03",
+      "classification": "CONFIRMED_DOCS_ACCESSIBILITY_SIGNAL",
+      "summary": "The generic docs page exposes unnamed sequential controls, an unnamed accessibility-tree control, a button-name failure, and a Start here heading link whose visible text is excluded from its accessible name.",
+      "severity_candidate": "P3"
+    },
+    {
+      "id": "CURSOR-A11Y-04",
+      "classification": "RECURRING_CONTRAST_DEFECT_SIGNAL",
+      "summary": "color-contrast appears in all 10 route/profile cells.",
+      "severity_candidate": "P2_P3"
+    }
+  ],
+  "directional_signals": {
+    "mobile_performance_scores": {
+      "home": 30,
+      "pricing": 44,
+      "security": 31,
+      "quickstart_redirect_target": 27,
+      "cli_redirect_target": 27
+    },
+    "interpretation": "Single-run laboratory signals; redirected docs values measure the generic docs root."
+  },
+  "claims_not_promoted": [
+    "WebGL and browser experimental-service console errors are not automatically user-visible defects.",
+    "Missing-alt DOM counts were not promoted because Lighthouse image-alt passed.",
+    "Nested-interactive observer output on docs requires exact ancestor confirmation before invalid-HTML attribution.",
+    "No security or agent-runtime claim is made."
+  ],
+  "exact_evidence": {
+    "workflow_run_id": 29769555934,
+    "run_attempt": 1,
+    "child_pr": 95,
+    "source_head": "591d68a5f878a94336a98633c189432cf875f590",
+    "aggregate_caller_sha": "bca840bb7cb0b1934ad82f4d1657dd73c2034b28",
+    "config_sha256": "0e1285ea9de4d5c0899a5fc6bee81cb6b1963145cf2152cef2ef48ef94b97dc1",
+    "aggregate_artifact_id": 8472361710,
+    "aggregate_artifact_digest": "sha256:2828eb70e2fe7b5ced2f9ef4250ed67f31a39d940b0b6d3edbea4ad056ebb492",
+    "result_sha256": "9ea8033eabb499ada7b8c63d42f4ded6f57fe71506ba79bbe8ea47d10b644dd9",
+    "summary_sha256": "fec6d0169af3df35888532f8252ce9224307672a07487acedf3f0229d9784030",
+    "generated_evidence_index_sha256": "16f2848d1ce8edf9024e8e01cab0ff7364b6cddbdc60119d50db03f0c160c1fd"
+  },
+  "boundaries": {
+    "login_or_account": false,
+    "download_or_installation": false,
+    "subscription_or_payment": false,
+    "model_request_or_indexing": false,
+    "agent_or_bugbot_execution": false,
+    "forms_or_direct_apis": false,
+    "security_testing": false,
+    "external_submission": false
+  },
+  "authority": {
+    "mode": "evidence_only",
+    "ownership": false,
+    "approval": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  }
+}
