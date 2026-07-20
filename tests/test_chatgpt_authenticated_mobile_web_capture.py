@@ -128,7 +128,7 @@ class ChatGPTAuthenticatedMobileWebCaptureContractTest(unittest.TestCase):
             "Pythia claim judgment",
             "CML canonical memory",
             "LS human-impact scorecard",
-            "Raw message text",
+            "raw conversation text",
             "Screenshots are disabled by default",
         }
         for term in required:
