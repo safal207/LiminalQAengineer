@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Apply the bounded candidate fix for gdb/tee-output#3.
+# Apply the bounded READY-handshake + EOF-drain candidate for gdb/tee-output#3.
 # Every source replacement must match once against the pinned upstream revision.
 
 from __future__ import annotations
@@ -15,6 +15,58 @@ def replace_once(path: Path, old: str, new: str) -> None:
     if count != 1:
         raise RuntimeError(f"{path}: expected one source match, found {count}")
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
+RELAY_FILE = r'''"""Small binary relay used by :mod:`tee_output`.
+
+The relay opens every output target before acknowledging readiness, then copies
+stdin to the original stream and all targets until EOF. Exiting only after the
+read loop finishes gives ``Tee.close()`` a concrete drain-completion boundary.
+"""
+
+import argparse
+import errno
+import os
+
+
+def copy_stream(paths, ready_fd):
+    outputs = [open(path, "ab", buffering=0) for path in paths]
+    try:
+        os.write(ready_fd, b"1")
+    finally:
+        os.close(ready_fd)
+
+    try:
+        while True:
+            try:
+                chunk = os.read(0, 65536)
+            except OSError as exc:
+                # Closing a PTY master is reported as EIO on some platforms.
+                if exc.errno == errno.EIO:
+                    break
+                raise
+            if not chunk:
+                break
+
+            os.write(1, chunk)
+            for output in outputs:
+                output.write(chunk)
+    finally:
+        for output in outputs:
+            output.close()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ready-fd", type=int, required=True)
+    parser.add_argument("paths", nargs="+")
+    args = parser.parse_args()
+    copy_stream(args.paths, args.ready_fd)
+
+
+if __name__ == "__main__":
+    main()
+'''
 
 
 TEST_FILE = r'''import errno
@@ -91,11 +143,17 @@ class ImmediateCloseTest(unittest.TestCase):
                 )
 
                 root = Path(tmp)
-                self.assertIn("stdout-marker", (root / "stdout.log").read_text())
-                self.assertIn("stderr-marker", (root / "stderr.log").read_text())
+                stdout_text = (root / "stdout.log").read_text()
+                stderr_text = (root / "stderr.log").read_text()
                 combined = (root / "combined.log").read_text()
+                terminal_text = terminal.decode(errors="replace")
+
+                self.assertIn("stdout-marker", stdout_text)
+                self.assertIn("stderr-marker", stderr_text)
                 self.assertIn("stdout-marker", combined)
                 self.assertIn("stderr-marker", combined)
+                self.assertIn("stdout-marker", terminal_text)
+                self.assertIn("stderr-marker", terminal_text)
 
 
 if __name__ == "__main__":
@@ -144,6 +202,13 @@ def main() -> None:
 
     tee = repo / "tee_output/__init__.py"
     parent = repo / "bin/parent-lifetime"
+    relay = repo / "tee_output/_relay.py"
+
+    replace_once(
+        tee,
+        "import os\nimport signal\n",
+        "import os\nimport select\nimport signal\n",
+    )
 
     replace_once(
         tee,
@@ -177,17 +242,15 @@ def main() -> None:
 ''',
         '''    def close(self):
         # Flush Python-level buffers before restoring the original descriptors.
-        # This is separate from draining the external tee processes below.
         sys.stdout.flush()
         sys.stderr.flush()
         self.pause()
         self._drain(self.stdout_pipe_proc, self.stderr_pipe_proc)
 
     def _drain(self, stdout_pipe_proc, stderr_pipe_proc):
-        # One sharp edge is that if you've spawned a subprocess with
-        # the redirected stdout/stderr, the tee processes will not die from EOF.
-        # Preserve bounded shutdown for that case, but do not interrupt the
-        # normal path before tee has had a chance to drain.
+        # Closing the writer delivers EOF to the bundled relay. Natural process
+        # completion is the drain acknowledgement; SIGINT is only a bounded
+        # fallback for inherited descriptors or a stuck reader.
         self._drain_one(stdout_pipe_proc)
         self._drain_one(stderr_pipe_proc)
 
@@ -198,21 +261,72 @@ def main() -> None:
 
         pipe, proc = pipe_proc
         pipe.close()
-
         try:
-            # Closing the final writer delivers EOF. Let tee consume the
-            # buffered PTY/pipe tail and exit naturally before using signals.
             proc.wait(timeout=2)
             return
         except subprocess.TimeoutExpired:
             pass
 
         try:
-            # Fallback for inherited descriptors or a stuck reader stack.
             os.kill(proc.pid, signal.SIGINT)
         except ProcessLookupError:
             return
         proc.wait()
+''',
+    )
+
+    replace_once(
+        tee,
+        '''    # TODO: fast exit
+    proc = subprocess.Popen(
+        ["parent-lifetime", "--term", "tee", "-a"] + list(to),
+        stdin=r,
+        start_new_session=True,
+        stderr=subprocess.DEVNULL,
+        stdout=stdout,
+        preexec_fn=set_ctty,
+    )
+    r.close()
+    return w, proc
+''',
+        '''    # The relay acknowledges only after every target has been opened. This
+    # distinguishes "process spawned" from "reader ready" and prevents the
+    # first write from racing external tee startup.
+    ready_r, ready_w = os.pipe()
+    proc = subprocess.Popen(
+        [
+            "parent-lifetime",
+            "--term",
+            sys.executable,
+            "-m",
+            "tee_output._relay",
+            "--ready-fd",
+            str(ready_w),
+        ]
+        + list(to),
+        stdin=r,
+        start_new_session=True,
+        stderr=subprocess.DEVNULL,
+        stdout=stdout,
+        preexec_fn=set_ctty,
+        pass_fds=(ready_w,),
+    )
+    r.close()
+    os.close(ready_w)
+
+    ready, _, _ = select.select([ready_r], [], [], 2)
+    marker = os.read(ready_r, 1) if ready else b""
+    os.close(ready_r)
+    if marker != b"1":
+        w.close()
+        try:
+            os.kill(proc.pid, signal.SIGINT)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+        raise RuntimeError("tee relay did not become ready")
+
+    return w, proc
 ''',
     )
 
@@ -239,6 +353,8 @@ def main() -> None:
 ''',
     )
 
+    relay.write_text(RELAY_FILE, encoding="utf-8")
+
     tests = repo / "tests"
     tests.mkdir(exist_ok=True)
     (tests / "test_immediate_close.py").write_text(TEST_FILE, encoding="utf-8")
@@ -254,6 +370,7 @@ def main() -> None:
             "py_compile",
             str(tee),
             str(parent),
+            str(relay),
             str(tests / "test_immediate_close.py"),
         ],
         check=True,
