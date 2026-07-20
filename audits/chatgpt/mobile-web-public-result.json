@@ -1,16 +1,20 @@
 {
   "schema_version": "liminalqa-public-mobile-web-result-v1",
   "case_id": "chatgpt-mobile-web-public-2026-07-21",
-  "generated_at": "2026-07-20T22:19:30Z",
+  "generated_at": "2026-07-20T22:25:36Z",
   "source": {
     "repository": "safal207/LiminalQAengineer",
     "pull_request": 106,
-    "exact_head": "6d77761f2f224afc8983660bcf095a39a243c385",
-    "workflow_run_id": 29783360123,
-    "artifact_id": 8477529579,
-    "artifact_name": "chatgpt-mobile-web-public-29783360123",
-    "artifact_sha256": "1be5ceda6b73ff4a92ff13fc793c22366a05c97069392ad2ac0ec4a3c5ae7316",
-    "packet_sha256": "b28f6ad07c93f6ddc7e0105b6ce4a9f773763957228d2e7f1dd9361ca7fa1a00"
+    "baseline_exact_head": "6d77761f2f224afc8983660bcf095a39a243c385",
+    "baseline_workflow_run_id": 29783360123,
+    "baseline_artifact_id": 8477529579,
+    "baseline_artifact_sha256": "1be5ceda6b73ff4a92ff13fc793c22366a05c97069392ad2ac0ec4a3c5ae7316",
+    "baseline_packet_sha256": "b28f6ad07c93f6ddc7e0105b6ce4a9f773763957228d2e7f1dd9361ca7fa1a00",
+    "diagnostic_exact_head": "e56e2e86770e4ed198380800d970a7198020d6e1",
+    "diagnostic_workflow_run_id": 29783766882,
+    "diagnostic_artifact_id": 8477666575,
+    "diagnostic_artifact_sha256": "dc76eadf08f34a03273f95aee2ff3a7256b39c1a600af5cef91c0c0fd799056c",
+    "diagnostic_packet_sha256": "545480af7621ee11a7c7bbaaca65c2d134791abab43cddddb1ae0a39a2357434"
   },
   "scope": {
     "surface": "ChatGPT public signed-out mobile web",
@@ -71,15 +75,20 @@
     {
       "id": "home-runtime-errors",
       "result": "PASS",
-      "claim": "No console or page runtime error was recorded on the public home page in either mobile-UA mobile round."
+      "claim": "No console or page runtime error was recorded on the public home page in either primary mobile round."
     },
     {
       "id": "layout-stability",
       "result": "PASS_IN_OBSERVATION_WINDOW",
       "claim": "Observed CLS ranged from 0 to 0.0004 across the public profiles."
+    },
+    {
+      "id": "mobile-event-delivery",
+      "result": "PASS_WITH_DETECTOR_CORRECTION",
+      "claim": "The event POSTs received successful HTTP 200 or 204 responses before CDP emitted net::ERR_ABORTED; the generic failed-request detector must not treat them as failed delivery."
     }
   ],
-  "observations": [
+  "confirmed_observations": [
     {
       "id": "mobile-user-agent-variant",
       "status": "CONFIRMED_ARCHITECTURE_NOT_DEFECT",
@@ -96,39 +105,42 @@
       "impact": "This confirms a separate mobile-web delivery branch. It is not a defect by itself, but fixes and experiments must be validated on both branches rather than inferred from viewport-only testing."
     },
     {
-      "id": "mobile-event-post-aborts",
-      "status": "REPEATED_USER_IMPACT_UNKNOWN",
-      "severity": "diagnostic",
-      "claim": "Six POST requests under /unauth-mweb/events/ were recorded as net::ERR_ABORTED in both rounds for each mobile-UA home profile.",
-      "adjudication": "The endpoints are event/telemetry routes and the evidence was captured around bounded page teardown. No visible user failure, missing content or HTTP error response was observed. Do not report as a product defect without a lifecycle experiment that proves loss before teardown."
-    },
+      "id": "mobile-login-console-error",
+      "status": "CONFIRMED_DIAGNOSTIC_USER_IMPACT_UNKNOWN",
+      "severity": "P3-diagnostic",
+      "claim": "The mobile login page emitted one stable first-party console.error in both rounds.",
+      "evidence": {
+        "console_text": "JSHandle@error",
+        "serialized_values": [{}, "undefined"],
+        "source": "https://chatgpt.com/cdn/assets/2340486e-dndlwhxa5s7p8x6d.js",
+        "line": 27,
+        "column": 11836,
+        "page_errors": 0,
+        "visible_login_failure": false
+      },
+      "impact": "No visible user-task failure is established. Preserve as a low-severity diagnostic finding, not a security or login-failure claim."
+    }
+  ],
+  "rejected_signals": [
     {
-      "id": "mobile-login-opaque-console-error",
-      "status": "REPEATED_USER_IMPACT_UNKNOWN",
-      "severity": "diagnostic",
-      "claim": "The mobile login page emitted one opaque console error represented as JSHandle@error in both rounds.",
-      "adjudication": "The current logger did not preserve the error object and no visible login-state failure was established. A focused diagnostic run must serialize console arguments before any defect claim."
+      "id": "mobile-event-post-aborts",
+      "status": "REJECTED_FALSE_NETWORK_FAILURE",
+      "reason": "Every recorded event request received HTTP 200 or 204 before the loading-aborted signal. No lifecycle event occurred before capture and no visible failure was observed."
     },
     {
       "id": "small-target-detector",
       "status": "ADJUDICATED_NOT_A_CONFIRMED_DEFECT",
-      "severity": "informational",
-      "claim": "The generic 44-pixel detector flagged the textarea content box, the 36-pixel-high suggestion CTA and legal links.",
-      "adjudication": "The composer has a larger 54-pixel form container and the critical icon buttons are 44x44. The standalone suggestion and legal links require standards-aware spacing/context review; the raw count must not be reported as an accessibility failure."
+      "reason": "The composer uses a larger container and critical icon buttons are 44x44. Suggestion and legal links require context/spacing review rather than raw 44-pixel counting."
     },
     {
       "id": "composer-overlap-detector",
       "status": "REJECTED_FALSE_POSITIVE",
-      "severity": "none",
-      "claim": "The geometry detector reported composer overlap with a fixed/sticky container.",
-      "adjudication": "Screenshots show the composer is not obscured. The detected container is an ancestor layout surface that naturally contains the composer. The detector must exclude ancestor/descendant pairs."
+      "reason": "Screenshots show no obstruction; the detected fixed/sticky surface was an ancestor container containing the composer."
     },
     {
       "id": "public-text-duplicate-heading-hypothesis",
       "status": "REJECTED_BY_BROWSER_MATRIX",
-      "severity": "none",
-      "claim": "A text-only public fetch suggested repeated start-state wording.",
-      "adjudication": "The browser matrix found no duplicate visible heading in any profile. Do not report the text-only signal as a defect."
+      "reason": "The controlled browser matrix found no duplicate visible heading in any profile."
     }
   ],
   "unknowns": [
@@ -138,16 +150,14 @@
     "Attachments, camera, image/file preview and permission recovery.",
     "Search sources, widgets, Projects, Work, custom GPTs and plan-limit states.",
     "TalkBack, browser zoom, external keyboard and switch-control behaviour.",
-    "The detailed object behind the repeated login-page JSHandle@error.",
-    "Whether mobile event POST aborts occur before lifecycle teardown or lose required analytics."
+    "The semantic meaning of the opaque Error object logged by the mobile login bundle."
   ],
   "recommended_next_tests": [
-    "Run a focused login console probe that serializes console argument values and stacks without submitting credentials.",
-    "Run pagehide/visibilitychange/beforeunload lifecycle timing for /unauth-mweb/events/ to distinguish expected teardown aborts from premature loss.",
+    "Map the public login bundle stack through first-party source maps and replace opaque console logging with an explicit error code/message if intentional.",
     "Run an authorised mobile account matrix for long chat, streaming, sidebar history, attachment tray and offline recovery.",
     "Run a real Android Chrome session with virtual keyboard and visualViewport tracing.",
     "Run TalkBack and 200% browser zoom task checks on the primary composer and login path."
   ],
-  "verdict": "ESCALATE_BOUNDED_FOLLOW_UP",
-  "verdict_meaning": "The public mobile web passes the basic route, overflow, compact-height and primary-control checks. Preserve the distinct mobile delivery branch and run focused diagnostics for two user-impact-unknown signals before any external defect report."
+  "verdict": "ONE_P3_DIAGNOSTIC_ONLY",
+  "verdict_meaning": "The signed-out mobile web passes the bounded route, overflow, compact-height, primary-control and event-delivery checks. One repeated public-login console diagnostic remains without demonstrated user impact."
 }
