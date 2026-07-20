@@ -8,7 +8,7 @@ on:
     paths:
       - .github/workflows/chatgpt-unauthenticated-mobile-chat-journey.yml
       - audits/chatgpt/unauthenticated-mobile-chat-journey-v1.json
-      - scripts/chatgpt_unauthenticated_mobile_chat_journey.mjs
+      - scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs
       - docs/audits/CHATGPT_UNAUTHENTICATED_MOBILE_CHAT_JOURNEY.md
       - tests/test_chatgpt_unauthenticated_mobile_chat_journey.py
   pull_request:
@@ -17,7 +17,7 @@ on:
     paths:
       - .github/workflows/chatgpt-unauthenticated-mobile-chat-journey.yml
       - audits/chatgpt/unauthenticated-mobile-chat-journey-v1.json
-      - scripts/chatgpt_unauthenticated_mobile_chat_journey.mjs
+      - scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs
       - docs/audits/CHATGPT_UNAUTHENTICATED_MOBILE_CHAT_JOURNEY.md
       - tests/test_chatgpt_unauthenticated_mobile_chat_journey.py
 
@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --check scripts/chatgpt_unauthenticated_mobile_chat_journey.mjs
+          node --check scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs
           chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           test -n "${chrome}"
           "${chrome}" --version
@@ -89,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf reports/chatgpt-unauth-mobile-chat
-          node scripts/chatgpt_unauthenticated_mobile_chat_journey.mjs \
+          node scripts/chatgpt_unauthenticated_mobile_chat_journey_v2.mjs \
             --config audits/chatgpt/unauthenticated-mobile-chat-journey-v1.json \
             --chrome "${{ steps.runtime.outputs.chrome }}" \
             --output-dir reports/chatgpt-unauth-mobile-chat
