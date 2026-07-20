@@ -289,8 +289,15 @@ def main() -> int:
     profiles = build_profiles(results) if results else {}
     checks: list[dict[str, Any]] = []
 
-    def add(name: str, passed: bool, detail: Any) -> None:
-        checks.append({"name": name, "passed": bool(passed), "detail": detail})
+    def add(name: str, passed: bool, detail: Any, *, blocking: bool = True) -> None:
+        checks.append(
+            {
+                "name": name,
+                "passed": bool(passed),
+                "blocking": blocking,
+                "detail": detail,
+            }
+        )
 
     systems = set(profiles)
     add("linux_and_macos_present", systems == {"Linux", "Darwin"}, sorted(systems))
@@ -301,15 +308,45 @@ def main() -> int:
     )
 
     for system, profile in profiles.items():
-        add(f"{system}_current_nonpty_passes", profile["nonpty_current"]["failures"] == 0, profile["nonpty_current"])
-        add(f"{system}_current_pty_reproduces", profile["pty_current"]["failures"] > 0, profile["pty_current"])
-        add(f"{system}_sleep100_pty_passes", profile["pty_sleep100"]["failures"] == 0, profile["pty_sleep100"])
-        add(f"{system}_supervisor_ack_gate_passes", profile["pty_supervisor_ack"]["gate_failures"] == 0, profile["pty_supervisor_ack"])
+        add(
+            f"{system}_current_nonpty_passes",
+            profile["nonpty_current"]["failures"] == 0,
+            profile["nonpty_current"],
+        )
+        add(
+            f"{system}_current_pty_reproduces",
+            profile["pty_current"]["failures"] > 0,
+            profile["pty_current"],
+        )
+        add(
+            f"{system}_sleep100_pty_all_pass",
+            profile["pty_sleep100"]["failures"] == 0,
+            profile["pty_sleep100"],
+            blocking=False,
+        )
+        add(
+            f"{system}_file_exists_pty_all_pass",
+            profile["pty_file_exists"]["failures"] == 0,
+            profile["pty_file_exists"],
+            blocking=False,
+        )
+        add(
+            f"{system}_supervisor_ack_gate_passes",
+            profile["pty_supervisor_ack"]["gate_failures"] == 0,
+            profile["pty_supervisor_ack"],
+        )
+        add(
+            f"{system}_supervisor_ack_output_passes",
+            profile["pty_supervisor_ack"]["failures"] == 0,
+            profile["pty_supervisor_ack"],
+            blocking=False,
+        )
 
     contracts = load(Path(args.component_contracts))
     add("component_contracts_pass", contracts.get("passed") is True, contracts)
 
-    blocking = [item for item in checks if not item["passed"]]
+    blocking = [item for item in checks if item["blocking"] and not item["passed"]]
+    diagnostics = [item for item in checks if not item["blocking"]]
     ack_clean = bool(profiles) and all(profile["pty_supervisor_ack"]["failures"] == 0 for profile in profiles.values())
     current_reproduced = bool(profiles) and all(profile["pty_current"]["failures"] > 0 for profile in profiles.values())
     if blocking:
@@ -335,6 +372,7 @@ def main() -> int:
         "profiles": profiles,
         "checks": checks,
         "blocking_checks": blocking,
+        "diagnostic_observations": diagnostics,
         "layers": {
             "lpi": {
                 "model": "Hello -> Mirror -> Bind -> Seal -> Flow adapted to process startup",
@@ -370,12 +408,14 @@ def main() -> int:
         "",
         f"- verdict: **{verdict}**",
         f"- blocking checks: `{len(blocking)}`",
+        f"- diagnostic observations: `{len(diagnostics)}`",
         f"- systems: `{', '.join(sorted(systems))}`",
         f"- T-Trace records: `{ttrace['records']}`",
         f"- TTM records: `{ttm['records']}`",
         f"- TTM replay errors: `{len(ttm['errors'])}`",
         f"- SDP selected: `{sdp['selected_hypothesis']}`",
         "",
+        "Fixed delay and file existence are diagnostic comparisons, not readiness authorization gates.",
         "The acknowledgement is supervisory: actual `tee` is alive and all target files exist.",
         "It is not an internal source-level acknowledgement from the `tee` read loop.",
         "",
