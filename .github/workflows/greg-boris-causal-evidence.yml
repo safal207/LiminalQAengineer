@@ -5,13 +5,17 @@ on:
   pull_request:
     branches:
       - main
+      - agent/greg-boris-open-work-review-2026-07-20
     paths:
       - .github/workflows/greg-boris-causal-evidence.yml
       - scripts/greg_tee_output_evidence.py
       - scripts/boris_open_work_evidence.py
       - scripts/validate_greg_boris_causal_graph.py
+      - scripts/validate_observer_trajectory_center.py
       - audits/reviews/greg-boris-open-work-result-2026-07-20.json
+      - audits/reviews/greg-boris-causal-gate-config-v1.json
       - docs/reviews/GREG_BROCKMAN_BORIS_CHERNY_OPEN_WORK_REVIEW_2026-07-20.md
+      - docs/reviews/GREG_BORIS_CAUSAL_GATE_PROTOCOL_2026-07-20.md
 
 permissions:
   contents: read
@@ -22,7 +26,7 @@ concurrency:
 
 jobs:
   evidence:
-    name: Space transition time causal gate
+    name: Observer trajectory and causal gate
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -36,18 +40,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
 
-      - name: Validate observer syntax
+      - name: Validate observer syntax and contracts
         shell: bash
         run: |
           set -euo pipefail
           python -m py_compile \
             scripts/greg_tee_output_evidence.py \
             scripts/boris_open_work_evidence.py \
-            scripts/validate_greg_boris_causal_graph.py
+            scripts/validate_greg_boris_causal_graph.py \
+            scripts/validate_observer_trajectory_center.py
           python -m json.tool \
             audits/reviews/greg-boris-open-work-result-2026-07-20.json \
+            >/dev/null
+          python -m json.tool \
+            audits/reviews/greg-boris-causal-gate-config-v1.json \
             >/dev/null
 
       - name: Checkout exact gdb tee-output source
@@ -60,13 +67,12 @@ jobs:
           git -C upstream-tee-output fetch --depth=1 origin c41f8ff383200320b746e953e92709ae1b505a71
           git -C upstream-tee-output checkout --detach FETCH_HEAD
           test "$(git -C upstream-tee-output rev-parse HEAD)" = "c41f8ff383200320b746e953e92709ae1b505a71"
-          git -C upstream-tee-output status --short
+          test -z "$(git -C upstream-tee-output status --short)"
 
       - name: Install exact tee-output package
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
           python -m pip install ./upstream-tee-output
           python - <<'PY'
           import tee_output
@@ -81,7 +87,7 @@ jobs:
           set -euo pipefail
           rm -rf reports/greg-tee-output
           # The exact upstream package exports Tee from tee_output.__init__.
-          # Correct only the observer import path; upstream source remains untouched.
+          # This adjusts only our observer import path; upstream remains untouched.
           sed -i 's/from tee_output\.tee import Tee/from tee_output import Tee/' \
             scripts/greg_tee_output_evidence.py
           python scripts/greg_tee_output_evidence.py \
@@ -118,21 +124,45 @@ jobs:
             --max-observation-age-minutes 60
           cat reports/causal-gate/causal-gate-summary.md >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Validate center orientation and observer trajectory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/observer-trajectory
+          python scripts/validate_observer_trajectory_center.py \
+            --greg-result reports/greg-tee-output/greg-tee-output-result.json \
+            --boris-result reports/boris-open-work/boris-open-work-result.json \
+            --causal-result reports/causal-gate/causal-gate-result.json \
+            --output-dir reports/observer-trajectory
+          cat reports/observer-trajectory/observer-trajectory-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Build exact-attempt portfolio
         if: always()
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf reports/greg-boris-portfolio
           mkdir -p reports/greg-boris-portfolio
-          cp -R reports/greg-tee-output reports/greg-boris-portfolio/
-          cp -R reports/boris-open-work reports/greg-boris-portfolio/
+          if test -d reports/greg-tee-output; then
+            cp -R reports/greg-tee-output reports/greg-boris-portfolio/
+          fi
+          if test -d reports/boris-open-work; then
+            cp -R reports/boris-open-work reports/greg-boris-portfolio/
+          fi
           if test -d reports/causal-gate; then
             cp -R reports/causal-gate reports/greg-boris-portfolio/
           fi
+          if test -d reports/observer-trajectory; then
+            cp -R reports/observer-trajectory reports/greg-boris-portfolio/
+          fi
           cp audits/reviews/greg-boris-open-work-result-2026-07-20.json \
             reports/greg-boris-portfolio/read-only-review-result.json
+          cp audits/reviews/greg-boris-causal-gate-config-v1.json \
+            reports/greg-boris-portfolio/causal-gate-config.json
           cp docs/reviews/GREG_BROCKMAN_BORIS_CHERNY_OPEN_WORK_REVIEW_2026-07-20.md \
             reports/greg-boris-portfolio/read-only-review.md
+          cp docs/reviews/GREG_BORIS_CAUSAL_GATE_PROTOCOL_2026-07-20.md \
+            reports/greg-boris-portfolio/causal-gate-protocol.md
           jq -n \
             --arg run_id "${{ github.run_id }}" \
             --arg run_attempt "${{ github.run_attempt }}" \
@@ -146,8 +176,10 @@ jobs:
               execution_sha:$execution_sha,
               head_sha:$head_sha,
               greg_upstream_sha:$upstream_sha,
+              observer:"N_READ_ONLY_EVIDENCE_OBSERVER",
+              origins:["O_GREG","O_BORIS"],
               generated_at:$generated_at,
-              authority:{external_state_change:false,approval:false,close:false,merge:false}
+              authority:{external_comments_only:true,external_state_change:false,approval:false,close:false,merge:false}
             }' > reports/greg-boris-portfolio/exact-attempt.json
           find reports/greg-boris-portfolio -type f ! -name ARTIFACT_SHA256SUMS.txt -print0 \
             | sort -z \
@@ -159,7 +191,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f reports/greg-boris-portfolio/causal-gate/causal-gate-result.json
+          causal="reports/greg-boris-portfolio/causal-gate/causal-gate-result.json"
+          trajectory="reports/greg-boris-portfolio/observer-trajectory/observer-trajectory-result.json"
+          test -f "${causal}"
+          test -f "${trajectory}"
           jq -e '
             .authority.external_notification_authorized_by_gate == true and
             .authority.external_state_change == false and
@@ -168,7 +203,17 @@ jobs:
             .authority.merge == false and
             (.blocking_checks | length) == 0 and
             (.overall_verdict | startswith("READY_TO_NOTIFY"))
-          ' reports/greg-boris-portfolio/causal-gate/causal-gate-result.json >/dev/null
+          ' "${causal}" >/dev/null
+          jq -e '
+            .notification_contract.permitted == true and
+            .notification_contract.comments_only == true and
+            .notification_contract.state_changes == false and
+            .notification_contract.approval == false and
+            .notification_contract.close == false and
+            .notification_contract.merge == false and
+            (.blocking_checks | length) == 0 and
+            .overall_verdict == "OBSERVER_TRAJECTORY_ALIGNED_READY_TO_NOTIFY"
+          ' "${trajectory}" >/dev/null
 
       - name: Upload exact evidence portfolio
         if: always()
