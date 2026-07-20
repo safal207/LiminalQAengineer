@@ -38,6 +38,42 @@ def failures(result: dict[str, Any], scenario: str, pty: int, delay: int, mode: 
     return int(bucket["failures"]), int(bucket["total"])
 
 
+def render_summary(stack: dict[str, Any]) -> str:
+    summary = stack["summary"]
+    profile = summary["profile"]
+    linux = profile["Linux"]
+    darwin = profile["Darwin"]
+    return "\n".join(
+        [
+            "# Greg tee-output full-stack evidence",
+            "",
+            f"- platform results: `{len(stack['platform_results'])}`",
+            f"- child trajectories: `{sum(item['result']['summary']['child_runs'] for item in stack['platform_results'])}`",
+            f"- baseline failures: `{summary['baseline_failures']}`",
+            f"- patched-shutdown failures: `{summary['patched_failures']}`",
+            f"- timeouts: `{summary['timeouts']}`",
+            f"- blocking checks: `{len(summary['blocking_checks'])}`",
+            f"- final verdict: **{summary['verdict']}**",
+            f"- symptom status: `{summary['symptom_status']}`",
+            f"- root-cause status: `{summary['root_cause_status']}`",
+            "",
+            "## Bounded PTY timing profile",
+            "",
+            f"- Linux non-PTY baseline failures: `{linux['nonpty_baseline_failures']}`",
+            f"- Linux PTY 0 ms baseline failures: `{linux['pty_zero_baseline_failures']}/{linux['pty_zero_baseline_total']}`",
+            f"- Linux PTY 100 ms baseline failures: `{linux['pty_hundred_baseline_failures']}`",
+            f"- macOS non-PTY baseline failures: `{darwin['nonpty_baseline_failures']}`",
+            f"- macOS PTY 0 ms baseline failures: `{darwin['pty_zero_baseline_failures']}/{darwin['pty_zero_baseline_total']}`",
+            f"- macOS PTY 100 ms baseline failures: `{darwin['pty_hundred_baseline_failures']}`",
+            "",
+            "The symptom is confirmed in this bounded matrix. The shutdown-order counterfactual is not clean, so a sole root cause is not claimed. Startup readiness remains a permitted next counterfactual, not a confirmed cause.",
+            "",
+            "Garden and LiminalDB are explicit contract adapters; LTP replay is deterministic; LiminalOSAI is advisory-only.",
+            "",
+        ]
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--result", required=True)
@@ -112,6 +148,11 @@ def main() -> int:
             }
         )
         result_path.write_text(json.dumps(stack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        summary_path = result_path.parent / "SUMMARY.md"
+        summary_path.write_text(render_summary(stack), encoding="utf-8")
+        rendered = summary_path.read_text(encoding="utf-8")
+        if VERDICT not in rendered or "root-cause status: `UNRESOLVED`" not in rendered:
+            raise RuntimeError("human-readable summary did not bind the final machine verdict")
 
     report = {
         "schema_version": "liminalqa-greg-tee-pty-timing-classification-v1",
@@ -128,10 +169,11 @@ def main() -> int:
             "startup_readiness_as_confirmed_cause": "prohibited",
             "startup_readiness_as_next_counterfactual": "permitted",
         },
+        "human_summary_bound": promoted,
     }
     Path(args.report).parent.mkdir(parents=True, exist_ok=True)
     Path(args.report).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({"promoted": promoted, "verdict": report["verdict"], "blocking": len(blocking)}))
+    print(json.dumps({"promoted": promoted, "verdict": report["verdict"], "blocking": len(blocking), "human_summary_bound": promoted}))
     return 0 if promoted else 1
 
 
