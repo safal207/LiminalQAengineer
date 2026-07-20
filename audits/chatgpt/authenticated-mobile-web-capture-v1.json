@@ -1,0 +1,126 @@
+{
+  "schema_version": "liminalqa-chatgpt-authenticated-mobile-web-capture-v1",
+  "case_id": "chatgpt-authenticated-mobile-web-2026-07-21",
+  "target_origin": "https://chatgpt.com",
+  "execution_mode": "local_attached_browser_only",
+  "required_state": "user_already_signed_in_in_the_attached_browser",
+  "source_public_audit": {
+    "repository": "safal207/LiminalQAengineer",
+    "pull_request": 106,
+    "exact_head": "2407be212e19a393fcd0d8dd33d9fe444aea663b",
+    "verdict": "ONE_P3_DIAGNOSTIC_ONLY"
+  },
+  "boundaries": {
+    "credential_collection": false,
+    "cookie_export": false,
+    "storage_state_export": false,
+    "raw_conversation_text_persistence": false,
+    "network_request_body_capture": false,
+    "network_response_body_capture": false,
+    "automatic_navigation": false,
+    "automatic_clicking": false,
+    "automatic_typing": false,
+    "automatic_prompt_submission": false,
+    "automatic_file_upload": false,
+    "microphone_permission_request": false,
+    "camera_permission_request": false,
+    "direct_application_api_testing": false,
+    "access_control_bypass": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  },
+  "privacy": {
+    "persist_message_lengths": true,
+    "persist_message_sha256": true,
+    "persist_message_text": false,
+    "persist_chat_titles": false,
+    "persist_user_identity": false,
+    "persist_account_email": false,
+    "persist_full_url": false,
+    "persist_url_path_sha256": true,
+    "screenshots_default": false,
+    "screenshots_require_explicit_acknowledgement": true,
+    "screenshots_apply_global_text_redaction": true,
+    "screenshots_blur_images_canvas_video": true
+  },
+  "allowed_observation": {
+    "attach_to_existing_chrome_debug_session": true,
+    "read_dom_geometry": true,
+    "read_accessible_control_names_with_allowlist": true,
+    "read_visual_viewport": true,
+    "read_scroll_metrics": true,
+    "read_performance_entries": true,
+    "read_console_and_page_errors_after_attach": true,
+    "read_first_party_status_and_failed_request_metadata": true,
+    "user_driven_checkpoints": true,
+    "optional_redacted_screenshot": true
+  },
+  "checkpoints": [
+    {
+      "id": "idle-long-chat",
+      "instruction": "Open an existing long conversation and leave the page idle near the middle of the thread."
+    },
+    {
+      "id": "return-to-latest",
+      "instruction": "Use the product UI to return to the latest message, then capture."
+    },
+    {
+      "id": "composer-multiline-keyboard-open",
+      "instruction": "Manually place a benign multi-line draft in the composer with the real virtual keyboard open. Do not submit it."
+    },
+    {
+      "id": "streaming-active",
+      "instruction": "In a dedicated non-sensitive test chat, manually submit a benign prompt and capture while the answer is streaming."
+    },
+    {
+      "id": "stream-stopped-or-complete",
+      "instruction": "Manually stop the stream or wait for completion, then capture the recovery state."
+    },
+    {
+      "id": "attachment-tray-open",
+      "instruction": "Open the attachment tray without selecting or uploading a file."
+    },
+    {
+      "id": "sidebar-history-open",
+      "instruction": "Open the sidebar/history surface and capture without opening a private title that should not be exposed."
+    },
+    {
+      "id": "search-widget-or-source-panel",
+      "instruction": "Open a non-sensitive Search result, widget, or source panel when available."
+    },
+    {
+      "id": "offline",
+      "instruction": "Use browser DevTools to go offline after preserving the current draft, then capture."
+    },
+    {
+      "id": "recovered-online",
+      "instruction": "Restore connectivity and capture the recovered state."
+    },
+    {
+      "id": "browser-zoom-200",
+      "instruction": "Set browser zoom or accessibility text scaling to the intended 200 percent test state, then capture."
+    }
+  ],
+  "stop_conditions": [
+    "attached page is not on chatgpt.com",
+    "signed-in state cannot be established",
+    "capture would require entering or exporting credentials",
+    "capture would persist raw private conversation text",
+    "browser debugging target is shared with an unrelated sensitive page",
+    "a challenge or access-control boundary appears",
+    "the user withdraws consent"
+  ],
+  "evidence_labels": [
+    "AUTHENTICATED_LOCAL_EVIDENCE",
+    "USER_DRIVEN_CHECKPOINT",
+    "PRIVATE_TEXT_REDACTED",
+    "NEEDS_REAL_DEVICE_EVIDENCE",
+    "USER_IMPACT_UNKNOWN",
+    "HUMAN_REVIEW_REQUIRED"
+  ],
+  "verdict_before_capture": "PENDING_AUTHORIZED_LOCAL_EVIDENCE"
+}
