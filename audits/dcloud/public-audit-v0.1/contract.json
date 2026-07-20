@@ -59,11 +59,7 @@
         {
           "id": "current_ru_identity",
           "type": "all_of",
-          "markers": [
-            "20+",
-            "клиентов",
-            "Оставьте заявку"
-          ]
+          "markers": ["20+", "клиентов", "Оставьте заявку"]
         }
       ]
     },
@@ -75,10 +71,7 @@
         {
           "id": "current_contact_identity",
           "type": "all_of",
-          "markers": [
-            "hr@dcloud.tech",
-            "© 2025 DCloud"
-          ]
+          "markers": ["hr@dcloud.tech", "© 2025 DCloud"]
         }
       ]
     },
@@ -108,11 +101,11 @@
           "id": "legacy_team_template_markers",
           "type": "all_of",
           "markers": [
-            "A TRUE NORTHERN PLAYA",
-            "Finnish Lakeland",
             "Badoo",
             "Ashley Richadson",
-            "digitalcloud.tilda.ws"
+            "Full-Stack.net (C#) Developer",
+            "Location",
+            "2014–2022"
           ]
         }
       ]
@@ -178,12 +171,10 @@
       "id": "DCL-001",
       "title": "Unfinished team template remains publicly reachable on the canonical domain",
       "severity": "HIGH",
-      "evidence_refs": [
-        "legacy-team-template:legacy_team_template_markers"
-      ],
+      "evidence_refs": ["legacy-team-template:legacy_team_template_markers"],
       "quality_lens": "Public content integrity and release hygiene failure.",
       "system_lens": "Published-page inventory and retirement controls do not reliably exclude stale Tilda assets.",
-      "business_lens": "A candidate or client can encounter unrelated Badoo, Finland, placeholder staff, and template vacancy content, reducing trust.",
+      "business_lens": "A candidate or client can encounter unrelated Badoo copy, repeated placeholder staff, and template vacancies, reducing trust.",
       "initial_state": "PRODUCT_SIGNAL",
       "promotion_rule": "Confirm visible impact in settled desktop and mobile browser captures before CONFIRMED_PRODUCT_DEFECT."
     },
@@ -219,9 +210,7 @@
       "id": "DCL-004",
       "title": "Multiple specialist roles reuse the Backend/Fullstack Team Lead description",
       "severity": "MEDIUM",
-      "evidence_refs": [
-        "ru-about:role_description_copy"
-      ],
+      "evidence_refs": ["ru-about:role_description_copy"],
       "quality_lens": "Role labels and role descriptions are semantically mismatched.",
       "system_lens": "The content model lacks per-role required fields and duplication checks.",
       "business_lens": "Customers and candidates receive a weaker signal of actual multidisciplinary expertise.",
@@ -232,9 +221,7 @@
       "id": "DCL-005",
       "title": "English commercial copy contains repeated mistranslation and placeholder-like terminology",
       "severity": "MEDIUM",
-      "evidence_refs": [
-        "en-home:en_localization_markers"
-      ],
+      "evidence_refs": ["en-home:en_localization_markers"],
       "quality_lens": "Visible English copy contains spelling, grammar, and semantic quality signals.",
       "system_lens": "Localization lacks an editorial acceptance gate and source-language parity checks.",
       "business_lens": "International prospects may infer weak delivery quality from the public English storefront.",
