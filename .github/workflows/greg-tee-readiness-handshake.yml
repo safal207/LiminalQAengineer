@@ -149,11 +149,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install exact Python validation dependencies
+      - name: Install exact validation dependencies
         run: |
           set -euo pipefail
           python -m pip install pytest jsonschema
           python -m pip install -e 'components/lpi/packages/python-lri[dev]'
+          npm ci --prefix components/lpi --ignore-scripts --no-audit --no-fund
       - name: Verify LPI exact SHA
         run: test "$(git -C components/lpi rev-parse HEAD)" = "0683ca3731256d5fc06f60c14a3deb9e9c149d19"
       - name: LPI — build vocabulary artifacts
@@ -222,7 +223,7 @@ jobs:
               "execution_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
               "passed": True,
               "components": {
-                  "lpi": {"sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19", "validation": "vocab_build+vocab_test+python_sdk_subset+LHS_contract"},
+                  "lpi": {"sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19", "validation": "locked_node_install+vocab_build+vocab_test+python_sdk_subset+LHS_contract"},
                   "capu": {"sha": "babd2945046d2564e1110a76741827560c57fcca", "validation": "cmc_core_cargo_test+maturity_contract"},
                   "ttrace": {"sha": "6a0755dbe8a89decd325298ec4563b9bb16adc62", "validation": "pytest+reference_validator"},
                   "ttm_db": {"sha": "eeded6bf5666512a23a7477eb8cda6485dfd173a", "validation": "rust_cargo_test"},
