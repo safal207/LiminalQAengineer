@@ -1,0 +1,89 @@
+name: ChatGPT Authenticated Mobile-Web Capture Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/chatgpt-authenticated-mobile-web-capture-v0-1
+    paths:
+      - .github/workflows/chatgpt-authenticated-mobile-web-contract.yml
+      - audits/chatgpt/authenticated-mobile-web-capture-v1.json
+      - scripts/chatgpt_authenticated_mobile_web_capture.mjs
+      - docs/audits/CHATGPT_AUTHENTICATED_MOBILE_WEB_CAPTURE.md
+      - tests/test_chatgpt_authenticated_mobile_web_capture.py
+  pull_request:
+    branches:
+      - agent/chatgpt-mobile-web-audit-v0-1
+    paths:
+      - .github/workflows/chatgpt-authenticated-mobile-web-contract.yml
+      - audits/chatgpt/authenticated-mobile-web-capture-v1.json
+      - scripts/chatgpt_authenticated_mobile_web_capture.mjs
+      - docs/audits/CHATGPT_AUTHENTICATED_MOBILE_WEB_CAPTURE.md
+      - tests/test_chatgpt_authenticated_mobile_web_capture.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chatgpt-authenticated-mobile-web-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Validate private-safe local capture contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/chatgpt/authenticated-mobile-web-capture-v1.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            (.target_origin == "https://chatgpt.com") and
+            (.execution_mode == "local_attached_browser_only") and
+            (.required_state == "user_already_signed_in_in_the_attached_browser") and
+            (.boundaries.credential_collection == false) and
+            (.boundaries.cookie_export == false) and
+            (.boundaries.storage_state_export == false) and
+            (.boundaries.raw_conversation_text_persistence == false) and
+            (.boundaries.automatic_navigation == false) and
+            (.boundaries.automatic_clicking == false) and
+            (.boundaries.automatic_typing == false) and
+            (.boundaries.automatic_prompt_submission == false) and
+            (.boundaries.automatic_file_upload == false) and
+            (.boundaries.direct_application_api_testing == false) and
+            (.boundaries.access_control_bypass == false) and
+            (.boundaries.external_submission == false) and
+            (.privacy.persist_message_text == false) and
+            (.privacy.persist_chat_titles == false) and
+            (.privacy.screenshots_default == false) and
+            ((.checkpoints | length) == 11) and
+            (.verdict_before_capture == "PENDING_AUTHORIZED_LOCAL_EVIDENCE")
+          ' "${config}" >/dev/null
+
+      - name: Run contract regression tests
+        run: python3 -m unittest discover -s tests -p 'test_chatgpt_authenticated_mobile_web_capture.py'
+
+      - name: Install pinned CDP client
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate observer syntax
+        run: node --check scripts/chatgpt_authenticated_mobile_web_capture.mjs
+
+      - name: Confirm no authenticated execution exists in CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "chatgpt_authenticated_mobile_web_capture.mjs" .github/workflows \
+            | grep -v "node --check" \
+            | grep -v "paths:" \
+            | grep -v "chatgpt-authenticated-mobile-web-contract.yml"
