@@ -1,0 +1,79 @@
+{
+  "schema_version": "liminalqa-company-public-audit-v1",
+  "company": {
+    "name": "Cursor",
+    "audit_name": "Public product, pricing, security, onboarding, CLI, and accessibility baseline"
+  },
+  "allowed_origins": [
+    "https://cursor.com",
+    "https://docs.cursor.com"
+  ],
+  "allowed_query_keys": [],
+  "targets": [
+    {
+      "id": "home",
+      "url": "https://cursor.com/home",
+      "kind": "product"
+    },
+    {
+      "id": "pricing",
+      "url": "https://cursor.com/pricing",
+      "kind": "pricing"
+    },
+    {
+      "id": "security",
+      "url": "https://cursor.com/en-US/security",
+      "kind": "security-documentation"
+    },
+    {
+      "id": "quickstart",
+      "url": "https://docs.cursor.com/en/get-started/quickstart",
+      "kind": "onboarding"
+    },
+    {
+      "id": "cli-overview",
+      "url": "https://docs.cursor.com/en/cli/overview",
+      "kind": "documentation"
+    }
+  ],
+  "profiles": [
+    "desktop",
+    "mobile"
+  ],
+  "settings": {
+    "settle_ms": 6000,
+    "keyboard_tab_steps": 30,
+    "lighthouse_runs": 1,
+    "max_parallel": 2,
+    "retain_body_sample": false
+  },
+  "category_thresholds": {
+    "performance": 0.55,
+    "accessibility": 0.9,
+    "best-practices": 0.85,
+    "seo": 0.85
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "credentials_or_secrets": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "publishing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Official Cursor and Cursor documentation public pages only.",
+    "No download, installer, CLI command, account, subscription, model request, codebase indexing, agent execution, Bugbot review, or cloud-agent action is used.",
+    "Security-page observations are public content-quality evidence and are not vulnerability testing."
+  ]
+}
