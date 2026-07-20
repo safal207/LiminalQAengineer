@@ -1,8 +1,6 @@
 name: Company public audit request
 description: Request onboarding to the bounded LiminalQA self-service public quality audit
 title: "[Company audit] "
-labels:
-  - audit-request
 body:
   - type: markdown
     attributes:
