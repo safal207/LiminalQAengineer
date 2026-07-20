@@ -2,11 +2,6 @@ name: Greg Readiness CaPU Diagnostic
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - agent/greg-tee-full-stack-v0-1
-    paths:
-      - .github/workflows/greg-capu-diagnostic.yml
 
 permissions:
   contents: read
@@ -18,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/checkout@v6
         with:
@@ -26,7 +21,7 @@ jobs:
           ref: babd2945046d2564e1110a76741827560c57fcca
           path: components/capu
           persist-credentials: false
-      - name: Run canonical CaPU Rust command and capture complete output
+      - name: Run conflicting nested-workspace coordinate and capture output
         id: cargo
         shell: bash
         run: |
@@ -47,7 +42,8 @@ jobs:
               "execution_sha": os.environ["GITHUB_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-              "command": "cd rust/cmc-core && cargo test --all --locked"
+              "command": "cd components/capu/rust/cmc-core && cargo test --all --locked",
+              "boundary": "Diagnostic of the conflicting nested parent-workspace coordinate; not the canonical isolated CaPU validation path."
           }, indent=2, sort_keys=True) + "\n")
           PY
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
@@ -60,6 +56,6 @@ jobs:
           path: reports/capu-diagnostic/
           if-no-files-found: error
           retention-days: 30
-      - name: Preserve canonical exit code
+      - name: Preserve diagnostic exit code
         if: always()
         run: exit "${{ steps.cargo.outputs.exit_code }}"
