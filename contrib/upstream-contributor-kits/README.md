@@ -43,22 +43,36 @@ gdb/tee-output
 c41f8ff383200320b746e953e92709ae1b505a71
 ```
 
-Problem boundary:
+Observed lifecycle boundary:
 
 ```text
-write end closes
-  -> SIGINT is sent immediately to parent-lifetime
-  -> underlying tee may be interrupted before startup/tail drain completes
+process spawned is not reader ready
+reader ready is not output drained
+closing a PTY master can discard an unread tail
 ```
 
-Candidate contract:
+The first shutdown-only candidate failed on all four OS/Python coordinates. A
+READY-only bundled relay then passed most runs but still produced an intermittent
+empty stdout log on macOS. The final candidate therefore uses two ordered
+acknowledgements:
 
 ```text
-flush Python streams
-close writer and deliver EOF
-wait for natural reader completion
-use SIGINT only as a bounded fallback
+open every output target
+  -> READY acknowledgement
+  -> permit normal writes
+  -> flush Python streams
+  -> append a random sentinel to the same PTY/pipe byte stream
+  -> relay persists every byte before the sentinel
+  -> relay removes the sentinel from user-visible output
+  -> DRAIN acknowledgement on a separate status pipe
+  -> restore descriptors and close the writer
+  -> wait for natural process completion
+  -> use SIGINT only as a bounded fallback
 ```
+
+Because the drain sentinel follows user bytes in the same stream, the
+acknowledgement establishes ordering rather than relying on a sleep, file
+existence, or process liveness.
 
 The generated patch adds a PTY regression test for:
 
@@ -66,7 +80,14 @@ The generated patch adds a PTY regression test for:
 print -> traceback -> immediate Tee.close()
 ```
 
-and runs it on Linux and macOS.
+Validation matrix:
+
+```text
+Linux + macOS
+Python 3.11 + 3.13
+25 rounds per coordinate
+100 total immediate-close trajectories
+```
 
 ## Authority boundary
 
