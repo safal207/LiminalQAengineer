@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     branches:
-      - agent/company-self-service-audit-v0-1
+      - agent/ai-coding-companies-public-audit-v0-1
     paths:
       - .github/workflows/openai-codex-public-audit.yml
       - .github/workflows/company-public-audit.yml
