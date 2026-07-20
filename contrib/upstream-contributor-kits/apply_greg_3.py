@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Apply the bounded READY-handshake + EOF-drain candidate for gdb/tee-output#3.
+# Apply the bounded READY + in-stream DRAIN-ACK candidate for gdb/tee-output#3.
 # Every source replacement must match once against the pinned upstream revision.
 
 from __future__ import annotations
@@ -17,26 +17,36 @@ def replace_once(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-RELAY_FILE = r'''"""Small binary relay used by :mod:`tee_output`.
-
-The relay opens every output target before acknowledging readiness, then copies
-stdin to the original stream and all targets until EOF. Exiting only after the
-read loop finishes gives ``Tee.close()`` a concrete drain-completion boundary.
-"""
+RELAY_FILE = r'''"""Binary relay with explicit readiness and drain acknowledgements."""
 
 import argparse
 import errno
 import os
 
 
-def copy_stream(paths, ready_fd):
-    outputs = [open(path, "ab", buffering=0) for path in paths]
-    try:
-        os.write(ready_fd, b"1")
-    finally:
-        os.close(ready_fd)
+def write_all(fd, data):
+    view = memoryview(data)
+    while view:
+        written = os.write(fd, view)
+        view = view[written:]
 
+
+def emit(outputs, data):
+    if not data:
+        return
+    write_all(1, data)
+    for output in outputs:
+        write_all(output.fileno(), data)
+
+
+def copy_stream(paths, status_fd, drain_token):
+    outputs = [open(path, "ab", buffering=0) for path in paths]
+    pending = b""
+    drain_acknowledged = False
     try:
+        # READY means every output target is open and the relay can read stdin.
+        write_all(status_fd, b"R")
+
         while True:
             try:
                 chunk = os.read(0, 65536)
@@ -48,20 +58,39 @@ def copy_stream(paths, ready_fd):
             if not chunk:
                 break
 
-            os.write(1, chunk)
-            for output in outputs:
-                output.write(chunk)
+            pending += chunk
+            marker_index = pending.find(drain_token)
+            if marker_index >= 0:
+                emit(outputs, pending[:marker_index])
+                pending = pending[marker_index + len(drain_token) :]
+                write_all(status_fd, b"D")
+                drain_acknowledged = True
+                continue
+
+            # Keep enough suffix bytes to detect a token split across reads.
+            keep = max(0, len(drain_token) - 1)
+            if len(pending) > keep:
+                emit(outputs, pending[:-keep] if keep else pending)
+                pending = pending[-keep:] if keep else b""
+
+        emit(outputs, pending)
+        if not drain_acknowledged:
+            # EOF without a sentinel is valid for callers that never close via
+            # Tee.close(), but no false DRAIN acknowledgement is emitted.
+            pass
     finally:
         for output in outputs:
             output.close()
+        os.close(status_fd)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ready-fd", type=int, required=True)
+    parser.add_argument("--status-fd", type=int, required=True)
+    parser.add_argument("--drain-token", required=True)
     parser.add_argument("paths", nargs="+")
     args = parser.parse_args()
-    copy_stream(args.paths, args.ready_fd)
+    copy_stream(args.paths, args.status_fd, bytes.fromhex(args.drain_token))
 
 
 if __name__ == "__main__":
@@ -120,7 +149,7 @@ def read_terminal(master):
 
 class ImmediateCloseTest(unittest.TestCase):
     def test_print_traceback_immediate_close_preserves_all_outputs(self):
-        for round_id in range(10):
+        for round_id in range(25):
             with self.subTest(round=round_id), tempfile.TemporaryDirectory() as tmp:
                 master, slave = pty.openpty()
                 try:
@@ -241,16 +270,38 @@ def main() -> None:
             proc.wait()
 ''',
         '''    def close(self):
-        # Flush Python-level buffers before restoring the original descriptors.
+        # Flush Python-level buffers, then place an in-stream sentinel after
+        # every prior byte. The relay acknowledges only after persisting all
+        # bytes before that sentinel.
         sys.stdout.flush()
         sys.stderr.flush()
+        self._request_drain(self.stdout_pipe_proc, sys.stdout.fileno())
+        self._request_drain(self.stderr_pipe_proc, sys.stderr.fileno())
+        stdout_drained = self._wait_for_drain(self.stdout_pipe_proc)
+        stderr_drained = self._wait_for_drain(self.stderr_pipe_proc)
+
         self.pause()
         self._drain(self.stdout_pipe_proc, self.stderr_pipe_proc)
 
+        if not stdout_drained or not stderr_drained:
+            raise RuntimeError("tee relay did not acknowledge drain")
+
+    @staticmethod
+    def _request_drain(pipe_proc, fd):
+        if pipe_proc is not None:
+            os.write(fd, pipe_proc[3])
+
+    @staticmethod
+    def _wait_for_drain(pipe_proc):
+        if pipe_proc is None:
+            return True
+        status_r = pipe_proc[2]
+        ready, _, _ = select.select([status_r], [], [], 2)
+        return bool(ready and os.read(status_r, 1) == b"D")
+
     def _drain(self, stdout_pipe_proc, stderr_pipe_proc):
         # Closing the writer delivers EOF to the bundled relay. Natural process
-        # completion is the drain acknowledgement; SIGINT is only a bounded
-        # fallback for inherited descriptors or a stuck reader.
+        # completion is the final boundary; SIGINT remains a bounded fallback.
         self._drain_one(stdout_pipe_proc)
         self._drain_one(stderr_pipe_proc)
 
@@ -259,19 +310,18 @@ def main() -> None:
         if pipe_proc is None:
             return
 
-        pipe, proc = pipe_proc
+        pipe, proc, status_r, _ = pipe_proc
         pipe.close()
         try:
             proc.wait(timeout=2)
-            return
         except subprocess.TimeoutExpired:
-            pass
-
-        try:
-            os.kill(proc.pid, signal.SIGINT)
-        except ProcessLookupError:
-            return
-        proc.wait()
+            try:
+                os.kill(proc.pid, signal.SIGINT)
+            except ProcessLookupError:
+                pass
+            proc.wait()
+        finally:
+            os.close(status_r)
 ''',
     )
 
@@ -289,10 +339,11 @@ def main() -> None:
     r.close()
     return w, proc
 ''',
-        '''    # The relay acknowledges only after every target has been opened. This
-    # distinguishes "process spawned" from "reader ready" and prevents the
-    # first write from racing external tee startup.
-    ready_r, ready_w = os.pipe()
+        '''    # The relay opens every output target before READY. A random sentinel
+    # later provides an ordered post-write drain acknowledgement on the same
+    # PTY/pipe byte stream without leaking control bytes to the output.
+    status_r, status_w = os.pipe()
+    drain_token = b"\\x00tee-output-drain:" + os.urandom(16) + b"\\x00"
     proc = subprocess.Popen(
         [
             "parent-lifetime",
@@ -300,8 +351,10 @@ def main() -> None:
             sys.executable,
             "-m",
             "tee_output._relay",
-            "--ready-fd",
-            str(ready_w),
+            "--status-fd",
+            str(status_w),
+            "--drain-token",
+            drain_token.hex(),
         ]
         + list(to),
         stdin=r,
@@ -309,16 +362,16 @@ def main() -> None:
         stderr=subprocess.DEVNULL,
         stdout=stdout,
         preexec_fn=set_ctty,
-        pass_fds=(ready_w,),
+        pass_fds=(status_w,),
     )
     r.close()
-    os.close(ready_w)
+    os.close(status_w)
 
-    ready, _, _ = select.select([ready_r], [], [], 2)
-    marker = os.read(ready_r, 1) if ready else b""
-    os.close(ready_r)
-    if marker != b"1":
+    ready, _, _ = select.select([status_r], [], [], 2)
+    marker = os.read(status_r, 1) if ready else b""
+    if marker != b"R":
         w.close()
+        os.close(status_r)
         try:
             os.kill(proc.pid, signal.SIGINT)
         except ProcessLookupError:
@@ -326,7 +379,7 @@ def main() -> None:
         proc.wait()
         raise RuntimeError("tee relay did not become ready")
 
-    return w, proc
+    return w, proc, status_r, drain_token
 ''',
     )
 
