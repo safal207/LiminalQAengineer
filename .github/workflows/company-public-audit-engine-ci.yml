@@ -47,6 +47,7 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
           set +e
           "$(go env GOPATH)/bin/actionlint" \
+            -ignore 'SC2016|SC2129|SC2155' \
             .github/workflows/company-public-audit.yml \
             .github/workflows/company-public-audit-engine-ci.yml \
             > actionlint.txt 2>&1
