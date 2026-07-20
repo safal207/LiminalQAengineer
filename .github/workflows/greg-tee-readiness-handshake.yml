@@ -71,9 +71,12 @@ jobs:
             --timeout 25
           cat "reports/readiness/${{ matrix.slug }}/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Bind exact attempt and checksums
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ROOT: reports/readiness/${{ matrix.slug }}
         run: |
           set -euo pipefail
-          ROOT="reports/readiness/${{ matrix.slug }}" python - <<'PY'
+          python - <<'PY'
           import hashlib, json, os, time
           from pathlib import Path
           root = Path(os.environ["ROOT"])
@@ -91,8 +94,6 @@ jobs:
                   lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
           (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
           PY
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - uses: actions/upload-artifact@v4
         with:
           name: greg-readiness-${{ matrix.slug }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -148,24 +149,42 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install Python validation dependencies
+      - name: Install exact Python validation dependencies
         run: |
           set -euo pipefail
           python -m pip install pytest jsonschema
           python -m pip install -e 'components/lpi/packages/python-lri[dev]'
-      - name: Validate LPI exact handshake contract
+      - name: Verify LPI exact SHA
+        run: test "$(git -C components/lpi rev-parse HEAD)" = "0683ca3731256d5fc06f60c14a3deb9e9c149d19"
+      - name: LPI — build vocabulary artifacts
+        working-directory: components/lpi
+        run: node tools/build-vocab.mjs
+      - name: LPI — verify vocabulary artifacts
+        working-directory: components/lpi
+        run: node --test tests/vocab.artifacts.test.mjs
+      - name: LPI — run Python SDK validation subset
+        working-directory: components/lpi/packages/python-lri
+        run: python -m pytest -q tests/test_lri.py tests/test_lss.py tests/test_validator.py
+      - name: LPI — verify LHS state and timing contract
         run: |
-          set -euo pipefail
-          test "$(git -C components/lpi rev-parse HEAD)" = "0683ca3731256d5fc06f60c14a3deb9e9c149d19"
-          python components/lpi/scripts/validate_project.py
-          node --test components/lpi/tests/vocab.artifacts.test.mjs
-          grep -q "Hello.*Mirror.*Bind.*Seal.*Flow" components/lpi/docs/specs/lhs.md
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("components/lpi/docs/specs/lhs.md").read_text(encoding="utf-8")
+          for token in ("Hello", "Mirror", "Bind", "Seal", "Flow", "Timing Expectations", "Timeout Window"):
+              assert token in text, token
+          assert text.index("Hello") < text.index("Mirror") < text.index("Bind") < text.index("Seal") < text.index("Flow")
+          PY
       - name: Validate CaPU maturity gate
         run: |
           set -euo pipefail
           test "$(git -C components/capu rev-parse HEAD)" = "babd2945046d2564e1110a76741827560c57fcca"
           cargo test --manifest-path components/capu/rust/cmc-core/Cargo.toml
-          grep -q "Gate.*Incubate.*Commit.*Execute" components/capu/README.md
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("components/capu/README.md").read_text(encoding="utf-8")
+          for token in ("Gate", "Incubate", "Commit", "Execute"):
+              assert token in text, token
+          PY
       - name: Validate T-Trace acknowledgements
         run: |
           set -euo pipefail
@@ -189,6 +208,8 @@ jobs:
           python -m pytest -q components/drp/tests
           python components/drp/tools/drp_validator.py components/drp/examples/minimal_valid.json --json
       - name: Build exact component receipt
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           mkdir -p reports/readiness-components
@@ -201,26 +222,22 @@ jobs:
               "execution_sha": os.environ.get("PR_HEAD_SHA") or os.environ["GITHUB_SHA"],
               "passed": True,
               "components": {
-                  "lpi": {"sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19", "validation": "validate_project+node_vocab_test+LHS_contract"},
+                  "lpi": {"sha": "0683ca3731256d5fc06f60c14a3deb9e9c149d19", "validation": "vocab_build+vocab_test+python_sdk_subset+LHS_contract"},
                   "capu": {"sha": "babd2945046d2564e1110a76741827560c57fcca", "validation": "cmc_core_cargo_test+maturity_contract"},
                   "ttrace": {"sha": "6a0755dbe8a89decd325298ec4563b9bb16adc62", "validation": "pytest+reference_validator"},
                   "ttm_db": {"sha": "eeded6bf5666512a23a7477eb8cda6485dfd173a", "validation": "rust_cargo_test"},
                   "sdp": {"sha": "f1903aecb1f9196414c49784558f6ed9f40d8bda", "validation": "cargo_test_workspace"},
-                  "drp": {"sha": "92e63d7d4eeb55f8eb61956da002dc8951bab1c6", "validation": "pytest+reference_validator"},
+                  "drp": {"sha": "92e63d7d4eeb55f8eb61956da002dc8951bab1c6", "validation": "pytest+reference_validator"}
               },
               "boundaries": {
                   "lpi": "process-handshake adaptation, not network protocol conformance",
                   "capu": "write-gate adaptation, not production side-effect enforcement",
                   "ttm_db": "append-only adapter, not a live production service",
-                  "sdp": "deterministic evidence collapse, advisory only",
-              },
+                  "sdp": "deterministic evidence collapse, advisory only"
+              }
           }
-          Path("reports/readiness-components/component-contracts.json").write_text(
-              json.dumps(value, indent=2, sort_keys=True) + "\n"
-          )
+          Path("reports/readiness-components/component-contracts.json").write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
           PY
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - uses: actions/upload-artifact@v4
         with:
           name: greg-readiness-components-${{ github.run_id }}-${{ github.run_attempt }}
@@ -279,8 +296,7 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          path = Path("reports/readiness-final/greg-readiness-full-stack-result.json")
-          result = json.loads(path.read_text())
+          result = json.loads(Path("reports/readiness-final/greg-readiness-full-stack-result.json").read_text())
           assert not result["blocking_checks"], result["blocking_checks"]
           contract = result["notification_contract"]
           verdict = result["summary"]["verdict"]
@@ -294,9 +310,12 @@ jobs:
           assert "not an internal source-level acknowledgement" in summary
           PY
       - name: Bind exact attempt and checksums
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ROOT: reports/readiness-final
         run: |
           set -euo pipefail
-          ROOT="reports/readiness-final" python - <<'PY'
+          python - <<'PY'
           import hashlib, json, os, time
           from pathlib import Path
           root = Path(os.environ["ROOT"])
@@ -313,8 +332,6 @@ jobs:
                   lines.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root)}")
           (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
           PY
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - name: Publish summary
         run: cat reports/readiness-final/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
