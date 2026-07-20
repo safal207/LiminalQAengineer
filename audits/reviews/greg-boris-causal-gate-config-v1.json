@@ -1,5 +1,22 @@
 {
   "schema_version": "liminalqa-greg-boris-causal-gate-config-v1",
+  "observer": {
+    "id": "N_READ_ONLY_EVIDENCE_OBSERVER",
+    "position": "outside third-party repositories and product runtimes",
+    "origins": {
+      "greg": "exact source SHA + issue #3 + isolated Linux runtime + observation time",
+      "boris": "exact fork/upstream PRs + exact Claude issues + current GitHub lifecycle observation"
+    },
+    "axes": {
+      "X": "object space",
+      "Y": "state transition",
+      "Z": "execution and authority context",
+      "T": "time",
+      "tau": "ordered evidence trajectory"
+    },
+    "prohibit_role_mutation": true,
+    "require_explicit_coordinate_frame_edges": true
+  },
   "greg": {
     "repository": "gdb/tee-output",
     "issue": 3,
@@ -15,11 +32,20 @@
     "followup_sha": "b474e098d15d8a0936153118adb6e28255b9071e",
     "claude_code_issues": [21151, 4937, 1554]
   },
-  "dimensions": ["space", "transition", "time", "causality"],
+  "dimensions": [
+    "observer_center",
+    "space",
+    "transition",
+    "environment",
+    "time",
+    "trajectory",
+    "causality"
+  ],
   "maximum_observation_age_minutes": 60,
   "notification_policy": {
     "require_zero_blocking_checks": true,
     "require_ready_to_notify_prefix": true,
+    "require_observer_trajectory_alignment": true,
     "permit_external_comments": true,
     "permit_external_state_changes": false,
     "permit_approval": false,
