@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "audits" / "chatgpt" / "unauthenticated-mobile-chat-journey-v1.json"
-SCRIPT = ROOT / "scripts" / "chatgpt_unauthenticated_mobile_chat_journey.mjs"
+SCRIPT = ROOT / "scripts" / "chatgpt_unauthenticated_mobile_chat_journey_v2.mjs"
 DOC = ROOT / "docs" / "audits" / "CHATGPT_UNAUTHENTICATED_MOBILE_CHAT_JOURNEY.md"
 
 
@@ -47,21 +47,25 @@ class ChatGPTUnauthenticatedMobileChatJourneyTest(unittest.TestCase):
 
     def test_script_has_one_prompt_entry_and_one_send_click(self) -> None:
         self.assertEqual(self.script.count("page.keyboard.type(config.prompt"), 1)
-        self.assertEqual(self.script.count("await sendHandle.click()"), 1)
-        self.assertNotIn("page.goto('https://chatgpt.com/auth/login", self.script)
+        self.assertEqual(self.script.count("await send.click()"), 1)
+        self.assertNotIn("auth/login", self.script)
         self.assertNotIn("request.postData(", self.script)
         self.assertNotIn("response.text(", self.script)
         self.assertNotIn("response.json(", self.script)
-        self.assertNotIn("page.setRequestInterception", self.script)
-        self.assertNotIn("browserContext.cookies(", self.script)
-        self.assertNotIn("page.cookies(", self.script)
+        self.assertNotIn("setRequestInterception", self.script)
+        self.assertNotIn("cookies(", self.script)
+
+    def test_detector_uses_exact_visible_response_not_prompt_substring(self) -> None:
+        self.assertIn("=== expectedText", self.script)
+        self.assertIn("expected_exact_visible", self.script)
+        self.assertIn("expected_exact_smallest_rect", self.script)
+        self.assertIn("UNAUTHENTICATED_MOBILE_CHAT_PASS", self.script)
 
     def test_result_does_not_persist_raw_response_text(self) -> None:
         self.assertIn("response_text_sha256", self.script)
         self.assertIn("response_text_length", self.script)
-        self.assertNotIn("response_text: responseText", self.script)
-        self.assertIn("text_sha256", self.script)
-        self.assertIn("UNAUTHENTICATED_MOBILE_CHAT_PASS", self.script)
+        self.assertNotIn("response_text:", self.script)
+        self.assertNotIn("body_inner_text", self.script)
 
     def test_document_keeps_interaction_and_claim_boundary_explicit(self) -> None:
         for term in {
