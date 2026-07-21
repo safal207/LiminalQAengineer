@@ -1,0 +1,26 @@
+{
+  "schema_version": "gpt56-review-profile-v1",
+  "repository": "safal207/LiminalQAengineer",
+  "profile_id": "evidence-acquisition",
+  "required_roles": [
+    "causal_architect",
+    "temporal_provenance",
+    "adversarial_semantics",
+    "authority_safety",
+    "ci_reliability"
+  ],
+  "required_claim_kinds": ["fact", "observation", "hypothesis"],
+  "focus": [
+    "Separate reproduced defects from observations, hypotheses, recommendations, and untested authenticated journeys.",
+    "Require exact target, environment, steps, observed result, expected result, and retained evidence for confirmed findings.",
+    "Attack one-root-cause claims with bounded counterfactuals and preserve unresolved alternative explanations.",
+    "Keep passive testing, authenticated testing, disclosure, external submission, and remediation authority separate.",
+    "Fail closed when capture artifacts, platform lanes, timestamps, or exact-head bindings are missing or stale."
+  ],
+  "authority": {
+    "can_execute": false,
+    "can_approve": false,
+    "can_merge": false,
+    "can_deploy": false
+  }
+}
