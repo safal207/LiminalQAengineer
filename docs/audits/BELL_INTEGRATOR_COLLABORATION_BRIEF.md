@@ -20,11 +20,15 @@ Different pages on the current domain show seven or nine offices/representative 
 
 **Potential effect:** clients and candidates receive inconsistent signals while assessing company maturity and operating scale.
 
-### 3. Candidate-facing pages contain stale and defective copy
+### 3. Candidate-facing pages contain visible editorial defects
 
-The careers and vacancy surfaces include time-relative employee stories and visible spelling, grammar, and spacing defects.
+The careers page and current technical vacancies expose visible grammar, mixed-script, inflection, and spelling defects in desktop and mobile views.
 
 **Potential effect:** senior candidates may infer that vacancy and employer-brand content passes through weak acceptance controls.
+
+## Evidence discipline
+
+The audit separates source-level observations from user-visible defects. Hidden employee-story text and a source-parser spacing artifact were not promoted after browser review. Only evidence reproduced in settled desktop and mobile views is included in the collaboration case.
 
 ## Proposed pilot
 
