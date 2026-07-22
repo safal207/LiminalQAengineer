@@ -2,7 +2,7 @@
   "schema_version": "liminalqa-takeprofit-causal-rerun-v1",
   "audit_id": "TP-CAUSAL-RERUN-2026-07-23",
   "name": "TakeProfit exact-time causal deep audit",
-  "execution_revision": "2026-07-23T00:00:00+03:00",
+  "execution_revision": "2026-07-23T01:00:00+03:00",
   "canonical_origin": "https://takeprofit.com",
   "baseline": {
     "pull_request": 87,
@@ -34,7 +34,7 @@
     },
     {
       "id": "terms",
-      "url": "https://takeprofit.com/terms",
+      "url": "https://takeprofit.com/terms-and-conditions",
       "surface": "public product and legal scope description"
     },
     {
