@@ -1,0 +1,137 @@
+{
+  "schema_version": "liminalqa-takeprofit-causal-rerun-v1",
+  "audit_id": "TP-CAUSAL-RERUN-2026-07-23",
+  "name": "TakeProfit exact-time causal deep audit",
+  "execution_revision": "2026-07-23T01:00:00+03:00",
+  "canonical_origin": "https://takeprofit.com",
+  "baseline": {
+    "pull_request": 87,
+    "head_sha": "f2d203753b0bc1182c46febb1d25e1e7d40c803d",
+    "historical_findings": [
+      "ChartStore required-field validation family",
+      "icon-only quote connectivity loss",
+      "missing textual freshness boundary during prolonged browser outage",
+      "USERNAME_NOT_SET public author identity",
+      "invalid preload href warnings",
+      "directional public performance degradation"
+    ]
+  },
+  "targets": [
+    {
+      "id": "home",
+      "url": "https://takeprofit.com/",
+      "surface": "marketing and public community discovery"
+    },
+    {
+      "id": "platform",
+      "url": "https://takeprofit.com/platform",
+      "surface": "public platform capability and activation entry"
+    },
+    {
+      "id": "rewards",
+      "url": "https://takeprofit.com/rewards",
+      "surface": "cashback, referral and creator monetization"
+    },
+    {
+      "id": "terms",
+      "url": "https://takeprofit.com/terms-and-conditions",
+      "surface": "public product and legal scope description"
+    },
+    {
+      "id": "indicators",
+      "url": "https://takeprofit.com/indicators",
+      "surface": "public indicator marketplace"
+    },
+    {
+      "id": "indicator-detail",
+      "url": "https://takeprofit.com/indicator/atr-super-trend-multi-source-57",
+      "surface": "published indicator detail and public chart"
+    },
+    {
+      "id": "feed",
+      "url": "https://takeprofit.com/feed",
+      "surface": "public community feed"
+    },
+    {
+      "id": "docs-overview",
+      "url": "https://takeprofit.com/docs/guide/getting-started/Overview",
+      "surface": "public product documentation"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "desktop",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "hasTouch": false
+      }
+    },
+    {
+      "id": "mobile",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "deviceScaleFactor": 2.625,
+        "isMobile": true,
+        "hasTouch": true
+      }
+    }
+  ],
+  "sentinels": {
+    "placeholder_username": "USERNAME_NOT_SET",
+    "freshness_terms": [
+      "offline",
+      "stale",
+      "delayed",
+      "disconnected",
+      "connection lost",
+      "no connection",
+      "reconnecting"
+    ],
+    "chartstore_terms": [
+      "ChartStore",
+      "required"
+    ],
+    "reward_no_minimum": "No minimum, no cap",
+    "reward_withdrawal_threshold": "$200",
+    "terms_crypto_scope": "cryptocurrency holdings"
+  },
+  "navigation_timeout_ms": 90000,
+  "settle_ms": 6000,
+  "outage": {
+    "enabled": true,
+    "target_id": "indicator-detail",
+    "profile_id": "desktop",
+    "duration_ms": 90000,
+    "recovery_ms": 8000
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "browser_level_network_counterfactual_only": true,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "personal_data_access": false,
+    "form_submission": false,
+    "financial_operations": false,
+    "order_entry": false,
+    "alert_creation": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "external_submission": false
+  },
+  "stop_conditions": [
+    "authentication is requested",
+    "a challenge or access-control boundary appears",
+    "the final origin leaves https://takeprofit.com",
+    "a workflow step would submit a form or change server state",
+    "the configured observation budget is exhausted"
+  ]
+}
