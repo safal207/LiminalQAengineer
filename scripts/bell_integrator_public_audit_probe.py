@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Bounded passive public-content probe for the Bell Integrator outside-in audit.
 
-The probe performs sequential unauthenticated GET requests only. It records
-reproducible public evidence and does not submit forms, authenticate, enumerate,
-fuzz, load test, make a vulnerability claim, contact the company, deploy, or merge.
+The probe performs sequential unauthenticated GET requests only. Redirects are
+checked before they are followed, so an off-origin response is never loaded.
+The probe records reproducible public evidence and does not submit forms,
+authenticate, enumerate, fuzz, load test, make a vulnerability claim, contact
+the company, deploy, or merge.
 """
 
 from __future__ import annotations
@@ -69,6 +71,39 @@ def canonical_origin(raw_url: str) -> str:
     if not default_port:
         return f"{parsed.scheme}://{parsed.hostname}:{port}"
     return f"{parsed.scheme}://{parsed.hostname}"
+
+
+class BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject a cross-origin redirect before urllib opens its destination."""
+
+    def __init__(self, expected_origin: str) -> None:
+        super().__init__()
+        self.expected_origin = expected_origin
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        resolved_url = urllib.parse.urljoin(req.full_url, newurl)
+        redirect_origin = canonical_origin(resolved_url)
+        if redirect_origin != self.expected_origin:
+            raise urllib.error.HTTPError(
+                resolved_url,
+                code,
+                f"Redirect outside bounded origin: {resolved_url}",
+                headers,
+                fp,
+            )
+        return super().redirect_request(req, fp, code, msg, headers, resolved_url)
+
+
+def build_bounded_opener(expected_origin: str) -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(BoundedRedirectHandler(expected_origin))
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -252,8 +287,35 @@ class Observation:
         return self.__dict__.copy()
 
 
+def failed_observation(target: dict[str, Any], exc: BaseException) -> Observation:
+    return Observation(
+        slug=target["slug"],
+        requested_url=target["url"],
+        final_url=getattr(exc, "url", None),
+        status=getattr(exc, "code", None),
+        error=str(exc),
+        content_type=None,
+        response_bytes=0,
+        body_sha256=None,
+        visible_text_sha256=None,
+        visible_text_length=0,
+        visible_text_sample="",
+        origin_stayed_bounded=False,
+        assertions=[
+            {
+                "id": item["id"],
+                "type": item["type"],
+                "passed": False,
+                "error": "target_observation_failed",
+            }
+            for item in target["assertions"]
+        ],
+    )
+
+
 def observe_target(contract: dict[str, Any], target: dict[str, Any]) -> Observation:
     runtime = contract["runtime"]
+    expected_origin = contract["target"]["canonical_origin"]
     request = urllib.request.Request(
         target["url"],
         method="GET",
@@ -262,10 +324,13 @@ def observe_target(contract: dict[str, Any], target: dict[str, Any]) -> Observat
             "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
         },
     )
+    opener = build_bounded_opener(expected_origin)
 
     try:
-        with urllib.request.urlopen(request, timeout=runtime["timeout_seconds"]) as response:
+        with opener.open(request, timeout=runtime["timeout_seconds"]) as response:
             final_url = response.geturl()
+            if canonical_origin(final_url) != expected_origin:
+                raise ValueError(f"Final URL outside bounded origin: {final_url}")
             status = getattr(response, "status", None)
             content_type = response.headers.get("Content-Type")
             body = response.read(runtime["max_response_bytes"] + 1)
@@ -287,33 +352,11 @@ def observe_target(contract: dict[str, Any], target: dict[str, Any]) -> Observat
             visible_text_sha256=sha256_bytes(visible_text.encode("utf-8")),
             visible_text_length=len(visible_text),
             visible_text_sample=visible_text[:5000],
-            origin_stayed_bounded=canonical_origin(final_url) == contract["target"]["canonical_origin"],
+            origin_stayed_bounded=True,
             assertions=assertions,
         )
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
-        return Observation(
-            slug=target["slug"],
-            requested_url=target["url"],
-            final_url=None,
-            status=getattr(exc, "code", None),
-            error=str(exc),
-            content_type=None,
-            response_bytes=0,
-            body_sha256=None,
-            visible_text_sha256=None,
-            visible_text_length=0,
-            visible_text_sample="",
-            origin_stayed_bounded=False,
-            assertions=[
-                {
-                    "id": item["id"],
-                    "type": item["type"],
-                    "passed": False,
-                    "error": "target_observation_failed",
-                }
-                for item in target["assertions"]
-            ],
-        )
+        return failed_observation(target, exc)
 
 
 def aggregate(contract: dict[str, Any], observations: list[Observation]) -> dict[str, Any]:
@@ -409,6 +452,8 @@ def render_summary(packet: dict[str, Any]) -> str:
             "",
             "> A public marker match is a product signal, not proof of internal root cause or measured commercial loss.",
             "",
+            "> Redirects are checked before follow-up; an off-origin destination is blocked before loading.",
+            "",
             "> Evidence only. No authentication, form submission, direct API testing, active security testing,",
             "> external contact, delivery, deployment, or merge is authorized.",
             "",
@@ -449,6 +494,7 @@ def main(argv: list[str] | None = None) -> int:
             "source_head_sha": source_head_sha,
             "workflow_sha": os.getenv("GITHUB_SHA") or "local",
             "contract_sha256": sha256_bytes(args.contract.read_bytes()),
+            "redirect_policy": "same_origin_preflight_fail_closed",
         },
         "observations": [item.to_dict() for item in observations],
         "aggregate": aggregate_result,
