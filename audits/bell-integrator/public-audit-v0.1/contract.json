@@ -6,8 +6,7 @@
     "organization": "Bell Integrator",
     "canonical_origin": "https://bellintegrator.ru",
     "engagement_kind": "independent_outside_in",
-    "authorization_basis": "public_pages_passive_observation_only",
-    "trigger": "HH.ru resume view for Senior QA Engineer (Manual / API / FinTech)"
+    "authorization_basis": "public_pages_passive_observation_only"
   },
   "coordinate_model": {
     "O": "official public URL + unauthenticated state + observation time",
@@ -64,12 +63,9 @@
           "id": "home_company_metrics",
           "type": "all_of",
           "markers": [
-            "7",
-            "Офисов",
-            "20",
-            "лет в ИТ-бизнесе",
-            "2700+",
-            "сотрудников"
+            "7 Офисов",
+            "20 лет в ИТ-бизнесе",
+            "2700+ сотрудников"
           ]
         }
       ]
@@ -113,12 +109,9 @@
           "id": "careers_metrics",
           "type": "all_of",
           "markers": [
-            "7",
-            "представительств",
-            "20",
-            "лет в бизнесе",
-            "2700+",
-            "сотрудников в компании"
+            "7 представительств",
+            "20 лет в бизнесе",
+            "2700+ сотрудников в компании"
           ]
         },
         {
@@ -212,7 +205,7 @@
       ],
       "quality_lens": "Candidate-facing content contains stale duration claims and visible grammar or spelling errors.",
       "system_lens": "Long-lived career content lacks date-aware rendering and an editorial acceptance gate.",
-      "business_lens": "The employer-brand page can reduce confidence among senior candidates, including the resume owner Bell Integrator viewed on HH.ru.",
+      "business_lens": "The employer-brand page can reduce confidence among senior candidates evaluating the company's delivery culture.",
       "initial_state": "PRODUCT_SIGNAL",
       "promotion_rule": "Confirm rendered visibility and distinguish archived storytelling from intentionally current copy."
     },
