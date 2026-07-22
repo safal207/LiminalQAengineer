@@ -1,0 +1,136 @@
+name: Tradernet Fourth Exact-Time Rerun
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - agent/causal-deep-audit-skills-v0-1
+    paths:
+      - .github/workflows/tradernet-fourth-exact-rerun-pr.yml
+      - scripts/tradernet_fourth_chart_route_matrix.mjs
+      - scripts/tradernet_fourth_build_packet.py
+      - scripts/tradernet_terminal_loading_observer.mjs
+      - scripts/tradernet_terminal_image_visibility_probe.mjs
+      - audits/tradernet/terminal-loading-public.json
+      - audits/lighthouse/tradernet/**
+      - schemas/causal-deep-audit-packet.schema.json
+      - skills/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-fourth-exact-rerun-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Reproduce four historical findings
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      OUT: reports/tradernet-fourth-exact-rerun
+
+    steps:
+      - name: Checkout exact pull-request revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate causal deep-audit skill family
+        run: |
+          set -euo pipefail
+          python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
+          python3 scripts/validate_audit_skills.py
+          python3 -m unittest tests/test_audit_skills_contract.py -v
+          python3 -m py_compile scripts/tradernet_fourth_build_packet.py
+          node --check scripts/tradernet_fourth_chart_route_matrix.mjs
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Chart route matrix
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          node scripts/tradernet_fourth_chart_route_matrix.mjs \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir "${OUT}/chart-route"
+
+      - name: Mobile homepage Lighthouse
+        continue-on-error: true
+        env:
+          LIGHTHOUSE_TARGET_URL: https://tradernet.ru/
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci reports/lighthouse
+          mkdir -p "${OUT}/lighthouse"
+          npx --yes @lhci/cli@0.15.1 autorun --config=audits/lighthouse/tradernet/lighthouserc.cjs
+          python3 scripts/lighthouse_to_liminalqa.py report \
+            --policy audits/lighthouse/tradernet/policy.json \
+            --input-dir .lighthouseci \
+            --output-dir "${OUT}/lighthouse"
+          if [[ -d reports/lighthouse/raw ]]; then
+            cp -R reports/lighthouse/raw "${OUT}/lighthouse/raw"
+          fi
+
+      - name: Public terminal loading
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          node scripts/tradernet_terminal_loading_observer.mjs \
+            --config audits/tradernet/terminal-loading-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir "${OUT}/terminal-loading"
+
+      - name: Hidden mobile asset
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          node scripts/tradernet_terminal_image_visibility_probe.mjs \
+            --config audits/tradernet/terminal-loading-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir "${OUT}/terminal-image"
+
+      - name: Build and validate causal packet
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 scripts/tradernet_fourth_build_packet.py \
+            --output-dir "${OUT}" \
+            --workflow-sha "${GITHUB_SHA}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}"
+          python3 -m pip install --disable-pip-version-check --quiet jsonschema==4.25.1
+          python3 - <<'PY'
+          import json
+          import os
+          from jsonschema import Draft202012Validator, FormatChecker
+          schema = json.load(open("schemas/causal-deep-audit-packet.schema.json", encoding="utf-8"))
+          packet = json.load(open(os.path.join(os.environ["OUT"], "causal-deep-audit-packet.json"), encoding="utf-8"))
+          Draft202012Validator(schema, format_checker=FormatChecker()).validate(packet)
+          print("causal deep-audit packet: schema valid")
+          PY
+          find "${OUT}" -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > "${OUT}/SHA256SUMS"
+          cat "${OUT}/summary.md" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-fourth-exact-rerun-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/tradernet-fourth-exact-rerun/
+          if-no-files-found: error
+          retention-days: 30
