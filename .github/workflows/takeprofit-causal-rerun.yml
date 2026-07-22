@@ -8,7 +8,7 @@ on:
     paths:
       - .github/workflows/takeprofit-causal-rerun.yml
       - audits/browser/takeprofit/causal-rerun-2026-07-23.json
-      - scripts/takeprofit_causal_rerun.mjs
+      - scripts/takeprofit_causal_rerun_v2.mjs
       - schemas/causal-deep-audit-packet.schema.json
       - skills/**
   pull_request:
@@ -17,7 +17,7 @@ on:
     paths:
       - .github/workflows/takeprofit-causal-rerun.yml
       - audits/browser/takeprofit/causal-rerun-2026-07-23.json
-      - scripts/takeprofit_causal_rerun.mjs
+      - scripts/takeprofit_causal_rerun_v2.mjs
       - schemas/causal-deep-audit-packet.schema.json
       - skills/**
 
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           config="audits/browser/takeprofit/causal-rerun-2026-07-23.json"
           python3 -m json.tool "${config}" >/dev/null
-          node --check scripts/takeprofit_causal_rerun.mjs
+          node --check scripts/takeprofit_causal_rerun_v2.mjs
           jq -e '
             .schema_version == "liminalqa-takeprofit-causal-rerun-v1" and
             .canonical_origin == "https://takeprofit.com" and
@@ -103,7 +103,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/takeprofit_causal_rerun.mjs \
+          node scripts/takeprofit_causal_rerun_v2.mjs \
             --config audits/browser/takeprofit/causal-rerun-2026-07-23.json \
             --chrome "${{ steps.chrome.outputs.path }}" \
             --output reports/takeprofit-causal-rerun
