@@ -9,6 +9,8 @@ description: Translate supported defects into user, trust, conversion, support, 
 
 Explain why a supported finding matters in the real journey, while keeping measured facts, modeled scenarios, and unknowns separate.
 
+Impact analysis is evidence and advice. It does not grant authority to change pricing, contact a company, publish a claim, deploy a fix, or commit business resources.
+
 ## Impact chain
 
 ```text
@@ -60,7 +62,7 @@ For every impact statement, choose one:
 - `QUALITATIVE` — supported by the journey and human-factors reasoning, without a numeric estimate;
 - `UNKNOWN` — data is missing.
 
-Do not convert `MODELED` or `QUALITATIVE` into a factual loss number.
+Do not convert `MODELED` or `QUALITATIVE` into a factual loss number. Missing load-bearing data keeps the impact claim in `NEEDS_EVIDENCE` or `INCOMPLETE`.
 
 ## Scenario model
 
@@ -104,6 +106,7 @@ Return:
 - assumptions and uncertainty;
 - measurement plan;
 - cheapest high-value experiment or fix candidate;
-- success metric and guardrail metric.
+- success metric and guardrail metric;
+- required decision owner and authority boundary.
 
 Recommendations remain hypotheses until implementation and measurement confirm them.
