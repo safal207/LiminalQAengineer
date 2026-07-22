@@ -34,14 +34,16 @@ jobs:
       OUT: reports/tradernet-fourth-exact-rerun
 
     steps:
-      - name: Checkout exact pull-request revision
+      - name: Checkout exact pull-request head
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      - name: Validate causal deep-audit skill family
+      - name: Validate causal deep-audit skill family and identity
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
           python3 scripts/validate_audit_skills.py
           python3 -m unittest tests/test_audit_skills_contract.py -v
@@ -110,7 +112,7 @@ jobs:
           set -euo pipefail
           python3 scripts/tradernet_fourth_build_packet.py \
             --output-dir "${OUT}" \
-            --workflow-sha "${GITHUB_SHA}" \
+            --workflow-sha "${{ github.event.pull_request.head.sha }}" \
             --run-id "${GITHUB_RUN_ID}" \
             --run-attempt "${GITHUB_RUN_ATTEMPT}"
           python3 -m pip install --disable-pip-version-check --quiet jsonschema==4.25.1
