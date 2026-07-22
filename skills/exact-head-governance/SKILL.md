@@ -9,6 +9,8 @@ description: Bind repository and pull-request audit conclusions to one exact com
 
 Prevent a correct-looking report from describing code that has already changed.
 
+This skill has evidence and advisory authority only. It cannot approve, merge, push, deploy, dismiss review concerns, or impersonate a repository owner.
+
 ## Required identity
 
 Record:
@@ -97,6 +99,7 @@ Return:
 - stale or missing evidence;
 - artifact integrity status;
 - advisory risk scorecard;
+- authority boundary;
 - human decisions still required.
 
 The final status must preserve the worst load-bearing state. A mostly green matrix with one unknown required check is not fully green.
