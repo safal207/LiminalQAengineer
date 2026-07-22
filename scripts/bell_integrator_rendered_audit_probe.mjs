@@ -28,8 +28,7 @@ async function loadJson(filePath) {
 }
 
 function canonicalOrigin(rawUrl) {
-  const url = new URL(rawUrl);
-  return `${url.protocol}//${url.hostname}`;
+  return new URL(rawUrl).origin;
 }
 
 function sanitizeUrl(rawUrl) {
@@ -38,6 +37,67 @@ function sanitizeUrl(rawUrl) {
     return `${url.protocol}//${url.host}${url.pathname}`;
   } catch {
     return String(rawUrl || "").slice(0, 500);
+  }
+}
+
+function shouldBlockTopLevelNavigation(rawUrl, expectedOrigin, isNavigationRequest, isMainFrame) {
+  if (!isNavigationRequest || !isMainFrame) return false;
+  try {
+    return canonicalOrigin(rawUrl) !== expectedOrigin;
+  } catch {
+    return true;
+  }
+}
+
+function runRedirectGuardSelfTest(expectedOrigin) {
+  const cases = [
+    {
+      name: "same-origin navigation",
+      url: `${expectedOrigin}/company`,
+      navigation: true,
+      mainFrame: true,
+      blocked: false,
+    },
+    {
+      name: "cross-origin redirect",
+      url: "https://example.com/collect",
+      navigation: true,
+      mainFrame: true,
+      blocked: true,
+    },
+    {
+      name: "HTTPS downgrade",
+      url: "http://bellintegrator.ru/company",
+      navigation: true,
+      mainFrame: true,
+      blocked: true,
+    },
+    {
+      name: "third-party subresource",
+      url: "https://cdn.example.com/app.js",
+      navigation: false,
+      mainFrame: true,
+      blocked: false,
+    },
+    {
+      name: "iframe navigation",
+      url: "https://example.com/embed",
+      navigation: true,
+      mainFrame: false,
+      blocked: false,
+    },
+  ];
+
+  for (const item of cases) {
+    const actual = shouldBlockTopLevelNavigation(
+      item.url,
+      expectedOrigin,
+      item.navigation,
+      item.mainFrame,
+    );
+    if (actual !== item.blocked) {
+      throw new Error(`Redirect guard self-test failed: ${item.name}`);
+    }
   }
 }
 
@@ -63,6 +123,8 @@ function validate(config, contract) {
   if (expectedOrigin !== "https://bellintegrator.ru") {
     throw new Error("Bell Integrator canonical origin must be exact");
   }
+  runRedirectGuardSelfTest(expectedOrigin);
+
   const allowedPaths = new Set(contract.allowed_paths || []);
   for (const target of contract.targets) {
     const url = new URL(target.url);
@@ -318,15 +380,72 @@ async function inspectDom(page, config) {
   }, {maxVisibleLinks: config.max_visible_links});
 }
 
+function emptyDom() {
+  return {
+    title: "",
+    html_lang: "",
+    visible_text_length: 0,
+    visible_links: [],
+    visible_link_count: 0,
+    visible_button_count: 0,
+    visible_form_count: 0,
+    visible_input_count: 0,
+    visible_image_count: 0,
+    missing_alt_visible_image_count: 0,
+    unnamed_visible_buttons: [],
+    unnamed_visible_links: [],
+    unlabeled_visible_inputs: [],
+    duplicate_ids: [],
+    headings: [],
+    h1_count: 0,
+    main_landmark_count: 0,
+    navigation_landmark_count: 0,
+    anti_bot_terms: [],
+    visible_text_sha256: sha256(""),
+    visible_text_sample: "",
+  };
+}
+
+function failedAssertions(target, error) {
+  return target.assertions.map((assertion) => ({
+    id: assertion.id,
+    type: assertion.type,
+    passed: false,
+    error,
+  }));
+}
+
 async function observeTarget(browser, config, contract, profile, target, outputDir) {
   const page = await browser.newPage();
   page.setDefaultNavigationTimeout(config.navigation_timeout_ms);
   await page.setUserAgent(profile.user_agent);
   await page.setViewport(profile.viewport);
+  await page.setRequestInterception(true);
 
+  const expectedOrigin = contract.target.canonical_origin;
+  const blockedNavigationUrls = [];
   const consoleEntries = [];
   const failedRequests = [];
   const responses = [];
+
+  page.on("request", (request) => {
+    const isMainFrame = request.frame() === page.mainFrame();
+    if (
+      shouldBlockTopLevelNavigation(
+        request.url(),
+        expectedOrigin,
+        request.isNavigationRequest(),
+        isMainFrame,
+      )
+    ) {
+      if (blockedNavigationUrls.length < 20) {
+        blockedNavigationUrls.push(sanitizeUrl(request.url()));
+      }
+      void request.abort("blockedbyclient").catch(() => {});
+      return;
+    }
+    void request.continue().catch(() => {});
+  });
   page.on("console", (message) => {
     if (consoleEntries.length >= config.max_console_entries) return;
     consoleEntries.push({type: message.type(), text: message.text().slice(0, 1000)});
@@ -366,37 +485,58 @@ async function observeTarget(browser, config, contract, profile, target, outputD
     const settledAt = Date.now();
 
     const finalUrl = page.url();
-    const finalOrigin = canonicalOrigin(finalUrl);
-    const originStayedBounded = finalOrigin === contract.target.canonical_origin;
-    const dom = await inspectDom(page, config);
-    const visibleText = dom.visible_text;
-    const visibleLinks = dom.visible_links;
-    const assertions = target.assertions.map((assertion) =>
-      evaluateAssertion(assertion, visibleText, visibleLinks),
-    );
-    dom.visible_text_sha256 = sha256(visibleText);
-    dom.visible_text_sample = visibleText.slice(0, config.max_body_sample_chars);
-    delete dom.visible_text;
+    let finalOrigin = null;
+    try {
+      finalOrigin = canonicalOrigin(finalUrl);
+    } catch {
+      finalOrigin = null;
+    }
+    const originStayedBounded =
+      blockedNavigationUrls.length === 0 && finalOrigin === expectedOrigin;
 
-    const accessibilityTree = await page.accessibility.snapshot({interestingOnly: false}).catch(() => null);
-    const accessibility = walkAccessibility(accessibilityTree);
-    const keyboard = await keyboardTrace(page, config.keyboard_tab_steps).catch(() => []);
+    let dom = emptyDom();
+    let assertions = failedAssertions(target, "bounded_navigation_failed");
+    let accessibility = {nodes: 0, unnamedInteractive: 0, names: []};
+    let keyboard = [];
+    let screenshotName = null;
+    let screenshotSha256 = null;
+    let screenshotError = null;
+
+    if (originStayedBounded) {
+      dom = await inspectDom(page, config);
+      const visibleText = dom.visible_text;
+      const visibleLinks = dom.visible_links;
+      assertions = target.assertions.map((assertion) =>
+        evaluateAssertion(assertion, visibleText, visibleLinks),
+      );
+      dom.visible_text_sha256 = sha256(visibleText);
+      dom.visible_text_sample = visibleText.slice(0, config.max_body_sample_chars);
+      delete dom.visible_text;
+
+      const accessibilityTree = await page.accessibility.snapshot({interestingOnly: false}).catch(() => null);
+      accessibility = walkAccessibility(accessibilityTree);
+      keyboard = await keyboardTrace(page, config.keyboard_tab_steps).catch(() => []);
+
+      screenshotName = `${profile.id}-${target.slug}.png`;
+      const screenshotPath = path.join(outputDir, screenshotName);
+      try {
+        await page.screenshot({path: screenshotPath, fullPage: true});
+        screenshotSha256 = sha256(await fs.readFile(screenshotPath));
+      } catch (error) {
+        screenshotError = String(error?.message || error);
+      }
+    } else if (blockedNavigationUrls.length > 0) {
+      navigationError = navigationError ||
+        `Blocked off-origin top-level navigation before load: ${blockedNavigationUrls.join(", ")}`;
+    } else {
+      navigationError = navigationError || `Final URL outside bounded origin: ${sanitizeUrl(finalUrl)}`;
+    }
+
     const uniqueFocusTargets = new Set(
       keyboard
         .filter(Boolean)
         .map((item) => `${item.tag}|${item.role || ""}|${item.label}|${item.href || ""}`),
     );
-
-    const screenshotName = `${profile.id}-${target.slug}.png`;
-    const screenshotPath = path.join(outputDir, screenshotName);
-    let screenshotSha256 = null;
-    let screenshotError = null;
-    try {
-      await page.screenshot({path: screenshotPath, fullPage: true});
-      screenshotSha256 = sha256(await fs.readFile(screenshotPath));
-    } catch (error) {
-      screenshotError = String(error?.message || error);
-    }
 
     result = {
       profile: profile.id,
@@ -405,6 +545,7 @@ async function observeTarget(browser, config, contract, profile, target, outputD
       requested_url: target.url,
       final_url: sanitizeUrl(finalUrl),
       origin_stayed_bounded: originStayedBounded,
+      blocked_navigation_urls: blockedNavigationUrls,
       navigation_status: navigationResponse?.status() ?? null,
       navigation_error: navigationError,
       started_at: new Date(startedAt).toISOString(),
@@ -456,6 +597,7 @@ function aggregate(config, contract, observations) {
         passed:
           assertion.passed &&
           observation.origin_stayed_bounded &&
+          observation.blocked_navigation_urls.length === 0 &&
           observation.navigation_status !== null &&
           observation.navigation_status >= 200 &&
           observation.navigation_status < 400 &&
@@ -497,7 +639,10 @@ function aggregate(config, contract, observations) {
 
   const expectedObservationCount = contract.targets.length * config.profiles.length;
   const complete = observations.length === expectedObservationCount;
-  const bounded = observations.every((observation) => observation.origin_stayed_bounded);
+  const bounded = observations.every(
+    (observation) =>
+      observation.origin_stayed_bounded && observation.blocked_navigation_urls.length === 0,
+  );
   const candidateCount = findings.filter(
     (finding) => finding.state === "CONFIRMED_PRODUCT_DEFECT_CANDIDATE",
   ).length;
@@ -527,6 +672,7 @@ function aggregate(config, contract, observations) {
       profile: observation.profile,
       target_slug: observation.target_slug,
       status: observation.navigation_status,
+      blocked_navigation_count: observation.blocked_navigation_urls.length,
       console_errors: observation.console.error_count,
       network_4xx: observation.network.status_4xx_count,
       network_5xx: observation.network.status_5xx_count,
@@ -560,6 +706,7 @@ function renderSummary(packet) {
     lines.push(
       `- **${observation.profile} · ${observation.target_slug}** — HTTP \`${observation.navigation_status}\`, ` +
         `assertions \`${passed}/${observation.assertions.length}\`, ` +
+        `blocked redirects \`${observation.blocked_navigation_urls.length}\`, ` +
         `console errors \`${observation.console.error_count}\`, failed requests \`${observation.network.failed_request_count}\``,
     );
   }
@@ -569,6 +716,8 @@ function renderSummary(packet) {
     "",
     "> Desktop/mobile reproduction may promote a claim to a product-defect candidate.",
     "> It does not prove internal root cause or quantify candidate or sales conversion loss.",
+    "",
+    "> Off-origin top-level navigation is intercepted and aborted before destination content loads.",
     "",
     "> Evidence only. No authentication, control activation, form submission, direct API testing,",
     "> external contact, security claim, delivery, deployment, or merge is authorized.",
@@ -620,6 +769,7 @@ async function main() {
       config_sha256: sha256(await fs.readFile(configPath)),
       contract_sha256: sha256(await fs.readFile(contractPath)),
       browser: "chromium_via_puppeteer_core",
+      redirect_policy: "top_level_same_origin_preload_fail_closed",
     },
     coordinate_model: contract.coordinate_model,
     observations,
