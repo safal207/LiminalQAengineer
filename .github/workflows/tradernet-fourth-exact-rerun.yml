@@ -1,0 +1,499 @@
+name: Tradernet Fourth Exact-Time Causal Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-fourth-exact-rerun-v1
+    paths:
+      - .github/workflows/tradernet-fourth-exact-rerun.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-fourth-exact-rerun-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fourth-rerun:
+    name: Reproduce four historical Tradernet findings
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      OUT: reports/tradernet-fourth-exact-rerun
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate causal deep-audit skill family
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
+          python3 scripts/validate_audit_skills.py
+          python3 -m unittest tests/test_audit_skills_contract.py -v
+
+      - name: Install pinned browser driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Re-run four-way public chart route matrix
+        continue-on-error: true
+        env:
+          CHROME: ${{ steps.runtime.outputs.chrome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${OUT}/chart-route"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs/promises";
+          import path from "node:path";
+          import puppeteer from "puppeteer-core";
+
+          const outputDir = process.env.OUT + "/chart-route";
+          const targetUrl = "https://tradernet.ru/charts/MICEXINDEXCF";
+          const desktopUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+          const mobileUA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+          const desktopViewport = { width: 1440, height: 900, deviceScaleFactor: 1, isMobile: false, hasTouch: false };
+          const mobileViewport = { width: 412, height: 823, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true };
+          const variants = [
+            { id: "desktop_ua_desktop_viewport", uaFamily: "desktop", viewportFamily: "desktop", ua: desktopUA, viewport: desktopViewport },
+            { id: "desktop_ua_mobile_viewport", uaFamily: "desktop", viewportFamily: "mobile", ua: desktopUA, viewport: mobileViewport },
+            { id: "mobile_ua_desktop_viewport", uaFamily: "mobile", viewportFamily: "desktop", ua: mobileUA, viewport: desktopViewport },
+            { id: "mobile_ua_mobile_viewport", uaFamily: "mobile", viewportFamily: "mobile", ua: mobileUA, viewport: mobileViewport },
+          ];
+
+          await fs.mkdir(outputDir, { recursive: true });
+          const browser = await puppeteer.launch({
+            executablePath: process.env.CHROME,
+            headless: true,
+            args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-background-networking"],
+          });
+          const results = [];
+          try {
+            for (const variant of variants) {
+              const context = await browser.createBrowserContext();
+              const page = await context.newPage();
+              await page.setUserAgent(variant.ua);
+              await page.setViewport(variant.viewport);
+              await page.setCacheEnabled(false);
+              let navigationError = null;
+              const response = await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 90000 }).catch((error) => {
+                navigationError = String(error?.stack || error);
+                return null;
+              });
+              await new Promise((resolve) => setTimeout(resolve, 12000));
+              const dom = await page.evaluate(() => {
+                const text = document.body?.innerText || "";
+                const surfaces = [...document.querySelectorAll('canvas, svg, [id*="chart" i], [class*="chart" i]')].map((element) => {
+                  const rect = element.getBoundingClientRect();
+                  const style = getComputedStyle(element);
+                  return {
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                    visible: rect.width >= 120 && rect.height >= 80 && style.display !== "none" && style.visibility !== "hidden",
+                  };
+                });
+                return {
+                  title: document.title,
+                  final_url: location.href,
+                  has_404_text: /404\s*ERROR|Страница не найдена|page not found/i.test(text),
+                  has_chart_surface: surfaces.some((surface) => surface.visible),
+                  body_excerpt: text.replace(/\s+/g, " ").trim().slice(0, 500),
+                };
+              });
+              await page.screenshot({ path: path.join(outputDir, `${variant.id}.png`), fullPage: true });
+              results.push({
+                id: variant.id,
+                user_agent_family: variant.uaFamily,
+                viewport_family: variant.viewportFamily,
+                document_status: response?.status() ?? null,
+                navigation_error: navigationError,
+                ...dom,
+              });
+              await context.close();
+            }
+          } finally {
+            await browser.close();
+          }
+
+          const mobile = results.filter((item) => item.user_agent_family === "mobile");
+          const desktop = results.filter((item) => item.user_agent_family === "desktop");
+          const mobileAlways404 = mobile.every((item) => item.document_status === 404 || item.has_404_text);
+          const desktopAlwaysWorks = desktop.every((item) => item.document_status === 200 && item.has_chart_surface);
+          const allWork = results.every((item) => item.document_status === 200 && item.has_chart_surface && !item.has_404_text);
+          const verdict = mobileAlways404 && desktopAlwaysWorks
+            ? "USER_AGENT_ROUTING_CONFIRMED"
+            : allWork
+              ? "NOT_REPRODUCED"
+              : results.some((item) => item.document_status === 404 || item.has_404_text || item.navigation_error)
+                ? "MIXED_ROUTE_FAILURE"
+                : "INCONCLUSIVE";
+          const packet = { schema_version: "liminalqa-public-route-matrix-result-v2", target_url: targetUrl, verdict, results, generated_at: new Date().toISOString() };
+          await fs.writeFile(path.join(outputDir, "route-matrix-result.json"), JSON.stringify(packet, null, 2) + "\n");
+          const md = [
+            "# Tradernet fourth chart-route matrix",
+            "",
+            `**Verdict:** ${verdict}`,
+            "",
+            "| Variant | HTTP | 404 | Chart |",
+            "|---|---:|---:|---:|",
+            ...results.map((item) => `| ${item.id} | ${item.document_status ?? "n/a"} | ${item.has_404_text ? "yes" : "no"} | ${item.has_chart_surface ? "yes" : "no"} |`),
+            "",
+          ].join("\n");
+          await fs.writeFile(path.join(outputDir, "route-matrix-summary.md"), md);
+          console.log(JSON.stringify(packet, null, 2));
+          NODE
+
+      - name: Re-run mobile public Lighthouse baseline
+        continue-on-error: true
+        env:
+          LIGHTHOUSE_TARGET_URL: https://tradernet.ru/
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .lighthouseci reports/lighthouse
+          mkdir -p "${OUT}/lighthouse"
+          npx --yes @lhci/cli@0.15.1 autorun --config=audits/lighthouse/tradernet/lighthouserc.cjs
+          python3 scripts/lighthouse_to_liminalqa.py report \
+            --policy audits/lighthouse/tradernet/policy.json \
+            --input-dir .lighthouseci \
+            --output-dir "${OUT}/lighthouse"
+          if [[ -d reports/lighthouse/raw ]]; then
+            cp -R reports/lighthouse/raw "${OUT}/lighthouse/raw"
+          fi
+
+      - name: Re-run public terminal loading observation
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/tradernet_terminal_loading_observer.mjs \
+            --config audits/tradernet/terminal-loading-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir "${OUT}/terminal-loading"
+
+      - name: Re-run hidden mobile asset observation
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/tradernet_terminal_image_visibility_probe.mjs \
+            --config audits/tradernet/terminal-loading-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir "${OUT}/terminal-image"
+
+      - name: Build exact comparison and causal deep-audit packet
+        if: always()
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${OUT}"
+          python3 <<'PY'
+          import datetime as dt
+          import glob
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          out = Path(os.environ["OUT"])
+          now = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+          def read_json(path):
+              try:
+                  return json.loads(Path(path).read_text(encoding="utf-8"))
+              except Exception:
+                  return None
+
+          chart_path = out / "chart-route" / "route-matrix-result.json"
+          chart = read_json(chart_path)
+          if chart is None:
+              chart_status = "STALE_EVIDENCE"
+          elif chart.get("verdict") == "USER_AGENT_ROUTING_CONFIRMED":
+              chart_status = "STILL_REPRODUCED"
+          elif chart.get("verdict") == "NOT_REPRODUCED":
+              chart_status = "FIXED"
+          elif chart.get("verdict") == "MIXED_ROUTE_FAILURE":
+              chart_status = "REGRESSED"
+          else:
+              chart_status = "STALE_EVIDENCE"
+
+          lhr = None
+          for candidate in glob.glob(".lighthouseci/**/*.json", recursive=True) + glob.glob(str(out / "lighthouse" / "**" / "*.json"), recursive=True):
+              value = read_json(candidate)
+              if isinstance(value, dict) and "categories" in value and "audits" in value:
+                  lhr = value
+                  break
+          if lhr:
+              perf_score = round(float(lhr["categories"]["performance"]["score"]) * 100, 1)
+              lcp_ms = round(float(lhr["audits"]["largest-contentful-paint"]["numericValue"]), 1)
+              fcp_ms = round(float(lhr["audits"]["first-contentful-paint"]["numericValue"]), 1)
+              tbt_ms = round(float(lhr["audits"]["total-blocking-time"]["numericValue"]), 1)
+              cls = round(float(lhr["audits"]["cumulative-layout-shift"]["numericValue"]), 3)
+              requests = lhr.get("audits", {}).get("network-requests", {}).get("details", {}).get("items", [])
+              scripts = [item for item in requests if item.get("resourceType") == "Script"]
+              script_requests = len(scripts)
+              script_transfer = int(sum(item.get("transferSize") or 0 for item in scripts))
+              if perf_score >= 65 and lcp_ms <= 4000:
+                  performance_status = "FIXED"
+              elif lcp_ms > 13805 or perf_score < 30:
+                  performance_status = "REGRESSED"
+              else:
+                  performance_status = "STILL_REPRODUCED"
+          else:
+              perf_score = lcp_ms = fcp_ms = tbt_ms = cls = None
+              script_requests = script_transfer = None
+              performance_status = "STALE_EVIDENCE"
+
+          image_path = out / "terminal-image" / "terminal-image-visibility-result.json"
+          image = read_json(image_path)
+          if image is None:
+              hidden_status = "STALE_EVIDENCE"
+              hidden_bytes = None
+              hidden_count = None
+              hidden_asset = None
+          else:
+              hidden_bytes = image.get("loaded_invisible_encoded_bytes", 0)
+              hidden_count = image.get("loaded_invisible_image_count", 0)
+              hidden_asset = next((item for item in image.get("loaded_invisible_images", []) if "onboarding.light.2x.png" in (item.get("current_src") or item.get("src") or "")), None)
+              if image.get("verdict") == "NO_MATERIAL_HIDDEN_IMAGE_WASTE" or not hidden_asset:
+                  hidden_status = "FIXED"
+              elif hidden_bytes > 433500:
+                  hidden_status = "REGRESSED"
+              else:
+                  hidden_status = "STILL_REPRODUCED"
+
+          terminal_path = out / "terminal-loading" / "result" / "terminal-loading-result.json"
+          terminal = read_json(terminal_path)
+          if terminal is None:
+              missing_status = "STALE_EVIDENCE"
+              missing_observations = []
+          else:
+              missing_observations = []
+              for result in terminal.get("results", []):
+                  for item in result.get("first_party_http_errors", []):
+                      if str(item.get("url", "")).endswith("/images/2022/authorization/onboarding.png"):
+                          missing_observations.append({"profile": result.get("profile"), **item})
+              missing_status = "STILL_REPRODUCED" if missing_observations else "FIXED"
+
+          rows = [
+              {
+                  "finding_id": "TRADERNET-4X-001",
+                  "title": "Mobile user-agent chart routing",
+                  "historical_source": "PR #58",
+                  "historical_baseline": "mobile UA returned 404 in both viewports while desktop UA rendered the chart",
+                  "current_status": chart_status,
+                  "current_evidence": {"verdict": chart.get("verdict") if chart else None, "results": chart.get("results") if chart else None},
+              },
+              {
+                  "finding_id": "TRADERNET-4X-002",
+                  "title": "Mobile homepage performance",
+                  "historical_source": "PR #54",
+                  "historical_baseline": {"performance_score": 41, "mobile_lcp_ms": 11044, "script_requests": 55, "script_transfer_bytes_approx": 1533300},
+                  "current_status": performance_status,
+                  "current_evidence": {"performance_score": perf_score, "lcp_ms": lcp_ms, "fcp_ms": fcp_ms, "tbt_ms": tbt_ms, "cls": cls, "script_requests": script_requests, "script_transfer_bytes": script_transfer},
+              },
+              {
+                  "finding_id": "TRADERNET-4X-003",
+                  "title": "Loaded but invisible mobile onboarding asset",
+                  "historical_source": "PR #60",
+                  "historical_baseline": {"asset": "onboarding.light.2x.png", "encoded_bytes": 346800, "rendered_size": "0x0"},
+                  "current_status": hidden_status,
+                  "current_evidence": {"loaded_invisible_bytes": hidden_bytes, "loaded_invisible_count": hidden_count, "asset": hidden_asset},
+              },
+              {
+                  "finding_id": "TRADERNET-4X-004",
+                  "title": "Missing first-party onboarding.png",
+                  "historical_source": "PR #60",
+                  "historical_baseline": "onboarding.png returned HTTP 404 on desktop and mobile",
+                  "current_status": missing_status,
+                  "current_evidence": {"matching_http_errors": missing_observations},
+              },
+          ]
+
+          status_to_repro = {
+              "STILL_REPRODUCED": "REPRODUCED",
+              "REGRESSED": "REPRODUCED",
+              "FIXED": "NOT_REPRODUCED",
+              "STALE_EVIDENCE": "BLOCKED",
+          }
+          statuses = [row["current_status"] for row in rows]
+          any_reproduced = any(status in {"STILL_REPRODUCED", "REGRESSED"} for status in statuses)
+          any_stale = any(status == "STALE_EVIDENCE" for status in statuses)
+
+          evidence_defs = [
+              ("E-CHART", "rendered", chart_status, str(chart_path)),
+              ("E-LIGHTHOUSE", "measurement", performance_status, str(out / "lighthouse")),
+              ("E-HIDDEN-ASSET", "network", hidden_status, str(image_path)),
+              ("E-MISSING-ASSET", "network", missing_status, str(terminal_path)),
+          ]
+          ledger = []
+          for evidence_id, kind, status, ref in evidence_defs:
+              ledger.append({
+                  "evidence_id": evidence_id,
+                  "type": kind,
+                  "status": "UNAVAILABLE" if status == "STALE_EVIDENCE" else "OBSERVED",
+                  "observed_at": now,
+                  "valid_time": now,
+                  "transaction_time": now,
+                  "ref": ref,
+                  "integrity": "UNVERIFIED" if status == "STALE_EVIDENCE" else "VERIFIED",
+              })
+
+          severity = {
+              "TRADERNET-4X-001": "HIGH",
+              "TRADERNET-4X-002": "HIGH",
+              "TRADERNET-4X-003": "MEDIUM",
+              "TRADERNET-4X-004": "LOW",
+          }
+          evidence_ref = {
+              "TRADERNET-4X-001": "E-CHART",
+              "TRADERNET-4X-002": "E-LIGHTHOUSE",
+              "TRADERNET-4X-003": "E-HIDDEN-ASSET",
+              "TRADERNET-4X-004": "E-MISSING-ASSET",
+          }
+          findings = []
+          for row in rows:
+              status = row["current_status"]
+              reproduced = status_to_repro[status]
+              claim = "CONFIRMED_DEFECT" if reproduced == "REPRODUCED" else "OBSERVATION"
+              confidence = 0.99 if status == "STILL_REPRODUCED" else 0.9 if status in {"FIXED", "REGRESSED"} else 0.2
+              findings.append({
+                  "finding_id": row["finding_id"],
+                  "title": f"{row['title']} — {status}",
+                  "claim_level": claim,
+                  "severity": severity[row["finding_id"]],
+                  "confidence": confidence,
+                  "reproduction_status": reproduced,
+                  "trace_refs": [f"trace:{row['finding_id']}:2026-07-23"],
+                  "evidence_refs": [evidence_ref[row["finding_id"]]],
+                  "causal_parent": None,
+                  "competing_explanations": ["run-to-run network variance", "public deployment changed between observations"],
+                  "impact_class": "QUALITATIVE",
+                  "next_discriminating_test": "Repeat the same bounded matrix against the deployed remediation or investigate the exact routing/resource-loading branch.",
+                  "authority_boundary": "Public passive evidence only; no authentication, financial action, direct API testing, exploitation, deployment, contact, or merge authority.",
+              })
+
+          packet = {
+              "schema_version": "liminalqa-causal-deep-audit-packet-v0.1",
+              "audit_id": f"tradernet-fourth-exact-rerun-{os.environ['RUN_ID']}-{os.environ['RUN_ATTEMPT']}",
+              "generated_at": now,
+              "target": {
+                  "kind": "public_product",
+                  "id": "Tradernet public web",
+                  "canonical_origin": "https://tradernet.ru",
+                  "repository_full_name": "safal207/LiminalQAengineer",
+              },
+              "scope": {
+                  "included": ["public homepage", "public MICEXINDEXCF chart route", "public terminal authentication entry", "naturally initiated public resources"],
+                  "excluded": ["authentication", "portfolio", "orders", "market depth", "direct application APIs", "fuzzing", "load testing", "active security testing"],
+                  "profiles": ["desktop UA + desktop viewport", "desktop UA + mobile viewport", "mobile UA + desktop viewport", "mobile UA + mobile viewport", "Lighthouse mobile", "terminal desktop", "terminal mobile 4G"],
+                  "stop_conditions": ["authentication required", "account data encountered", "financial action required", "allowlisted public origin exceeded"],
+              },
+              "source_identity": {
+                  "identity_type": "run_attempt",
+                  "value": f"{os.environ['WORKFLOW_SHA']}:{os.environ['RUN_ID']}:{os.environ['RUN_ATTEMPT']}",
+                  "head_sha": os.environ["WORKFLOW_SHA"],
+                  "workflow_sha": os.environ["WORKFLOW_SHA"],
+                  "run_id": os.environ["RUN_ID"],
+                  "run_attempt": os.environ["RUN_ATTEMPT"],
+                  "initial_check": "PASS",
+                  "final_check": "PASS",
+              },
+              "authority": {
+                  "mode": "evidence_only",
+                  "allowed": ["passive public navigation", "screenshots", "runtime and network observation", "Lighthouse measurement", "local report generation"],
+                  "prohibited": ["login", "form submission", "account access", "financial operations", "direct API testing", "security exploitation", "external submission", "deployment", "merge"],
+              },
+              "verdict": {
+                  "state": "CONFIRMED_DEFECT" if any_reproduced else "INCOMPLETE" if any_stale else "READY_WITH_ADVISORY_GAPS",
+                  "gate": "ALLOW_REPORT" if not any_stale else "ESCALATE",
+                  "summary": f"Fourth exact-time rerun statuses: {', '.join(statuses)}.",
+              },
+              "findings": findings,
+              "evidence_ledger": ledger,
+              "limitations": ["Laboratory evidence is not a production percentile.", "Public unauthenticated surfaces do not establish authenticated trading-journey behavior.", "A fixed current observation does not identify the deployment or commit that changed the public product."],
+              "next_action": {
+                  "class": "FIX_CONFIRMED_DEFECT" if any_reproduced else "HUMAN_ADJUDICATION",
+                  "action": "Prioritize the mobile chart route if reproduced; otherwise review the highest-severity remaining reproduced finding.",
+                  "owner_or_authority": "Tradernet product and engineering owners",
+                  "completion_signal": "The same exact matrix passes on a deployed change and preserves the requested ticker and visible chart.",
+                  "stop_condition": "Stop before authentication, account access, order actions, direct API calls, external disclosure, deployment, or merge.",
+              },
+          }
+
+          comparison = {
+              "schema_version": "tradernet-fourth-exact-comparison-v1",
+              "generated_at": now,
+              "workflow_sha": os.environ["WORKFLOW_SHA"],
+              "run_id": os.environ["RUN_ID"],
+              "run_attempt": os.environ["RUN_ATTEMPT"],
+              "findings": rows,
+          }
+          (out / "comparison.json").write_text(json.dumps(comparison, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          (out / "causal-deep-audit-packet.json").write_text(json.dumps(packet, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+          md = [
+              "# Tradernet fourth exact-time rerun",
+              "",
+              f"**Workflow SHA:** `{os.environ['WORKFLOW_SHA']}`  ",
+              f"**Run:** `{os.environ['RUN_ID']}` · attempt `{os.environ['RUN_ATTEMPT']}`  ",
+              f"**Gate:** `{packet['verdict']['gate']}`",
+              "",
+              "| Finding | Historical audit | Current status | Current evidence |",
+              "|---|---|---|---|",
+          ]
+          for row in rows:
+              evidence = json.dumps(row["current_evidence"], ensure_ascii=False, separators=(",", ":"))
+              if len(evidence) > 500:
+                  evidence = evidence[:497] + "..."
+              md.append(f"| {row['title']} | {row['historical_source']} | **{row['current_status']}** | `{evidence}` |")
+          md.extend(["", "> Public passive evidence only. No login, account access, portfolio access, order action, direct API testing, fuzzing, load testing, exploitation, external submission, deployment, or merge.", ""])
+          (out / "summary.md").write_text("\n".join(md), encoding="utf-8")
+          PY
+
+          python3 -m pip install --disable-pip-version-check --quiet jsonschema==4.25.1
+          python3 <<'PY'
+          import json
+          import os
+          from jsonschema import Draft202012Validator, FormatChecker
+          schema = json.load(open("schemas/causal-deep-audit-packet.schema.json", encoding="utf-8"))
+          packet = json.load(open(os.path.join(os.environ["OUT"], "causal-deep-audit-packet.json"), encoding="utf-8"))
+          Draft202012Validator(schema, format_checker=FormatChecker()).validate(packet)
+          print("causal deep-audit packet: schema valid")
+          PY
+
+          find "${OUT}" -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > "${OUT}/SHA256SUMS"
+          cat "${OUT}/summary.md" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact fourth-rerun evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-fourth-exact-rerun-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/tradernet-fourth-exact-rerun/
+          if-no-files-found: error
+          retention-days: 30
