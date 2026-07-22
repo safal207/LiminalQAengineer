@@ -1,0 +1,153 @@
+name: TakeProfit Causal Deep-Audit Rerun
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/takeprofit-causal-rerun-2026-07-23
+    paths:
+      - .github/workflows/takeprofit-causal-rerun.yml
+      - audits/browser/takeprofit/causal-rerun-2026-07-23.json
+      - scripts/takeprofit_causal_rerun.mjs
+      - schemas/causal-deep-audit-packet.schema.json
+      - skills/**
+  pull_request:
+    branches:
+      - agent/causal-deep-audit-skills-v0-1
+    paths:
+      - .github/workflows/takeprofit-causal-rerun.yml
+      - audits/browser/takeprofit/causal-rerun-2026-07-23.json
+      - scripts/takeprofit_causal_rerun.mjs
+      - schemas/causal-deep-audit-packet.schema.json
+      - skills/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeprofit-causal-rerun-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Public desktop/mobile causal rerun
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      BASE_SHA: 9973aa5f10ba10e3f62307c4fb735c527548d843
+
+    steps:
+      - name: Checkout exact proposed revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Bind exact source identity
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "${actual}" = "${expected}"
+          echo "head=${actual}" >> "${GITHUB_OUTPUT}"
+          echo "SOURCE_HEAD=${actual}" >> "${GITHUB_ENV}"
+
+      - name: Validate bounded configuration and observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/takeprofit/causal-rerun-2026-07-23.json"
+          python3 -m json.tool "${config}" >/dev/null
+          node --check scripts/takeprofit_causal_rerun.mjs
+          jq -e '
+            .schema_version == "liminalqa-takeprofit-causal-rerun-v1" and
+            .canonical_origin == "https://takeprofit.com" and
+            (.targets | length) == 8 and
+            (.profiles | length) == 2 and
+            .outage.enabled == true and
+            .outage.duration_ms == 90000 and
+            .boundaries.public_pages_only == true and
+            .boundaries.browser_level_network_counterfactual_only == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.form_submission == false and
+            .boundaries.financial_operations == false and
+            .boundaries.order_entry == false and
+            .boundaries.alert_creation == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.server_state_change == false and
+            .boundaries.external_submission == false and
+            ([.targets[].url | startswith("https://takeprofit.com/")] | all)
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Locate Chrome
+        id: chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "path=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Observe current public trajectories
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/takeprofit_causal_rerun.mjs \
+            --config audits/browser/takeprofit/causal-rerun-2026-07-23.json \
+            --chrome "${{ steps.chrome.outputs.path }}" \
+            --output reports/takeprofit-causal-rerun
+          cat reports/takeprofit-causal-rerun/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate packet, evidence and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool reports/takeprofit-causal-rerun/causal-packet.json >/dev/null
+          python3 -m json.tool reports/takeprofit-causal-rerun/raw-observations.json >/dev/null
+          python3 -m pip install --disable-pip-version-check --quiet 'jsonschema==4.25.1'
+          python3 - <<'PY'
+          import json
+          from jsonschema import Draft202012Validator, FormatChecker
+
+          with open('schemas/causal-deep-audit-packet.schema.json', encoding='utf-8') as handle:
+              schema = json.load(handle)
+          with open('reports/takeprofit-causal-rerun/causal-packet.json', encoding='utf-8') as handle:
+              packet = json.load(handle)
+          Draft202012Validator(schema, format_checker=FormatChecker()).validate(packet)
+          PY
+          jq -e \
+            --arg head "${{ steps.source.outputs.head }}" \
+            '.source_identity.head_sha == $head and
+             .source_identity.workflow_sha == $head and
+             .source_identity.initial_check == "PASS" and
+             .source_identity.final_check == "PASS" and
+             .authority.mode == "evidence_only" and
+             (.authority.prohibited | index("external submission")) != null and
+             (.authority.prohibited | index("merge")) != null and
+             (.findings | length) == 6' \
+            reports/takeprofit-causal-rerun/causal-packet.json >/dev/null
+          jq -e 'length == 16' reports/takeprofit-causal-rerun/raw-observations.json >/dev/null
+          (cd reports/takeprofit-causal-rerun && sha256sum -c SHA256SUMS)
+          ! grep -R -E -i 'authorization:|cookie:|set-cookie:|access_token|refresh_token|password=' \
+            reports/takeprofit-causal-rerun \
+            --exclude='*.png'
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeprofit-causal-rerun-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/takeprofit-causal-rerun/
+          if-no-files-found: error
+          retention-days: 30
