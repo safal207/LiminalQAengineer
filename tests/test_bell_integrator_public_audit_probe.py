@@ -5,6 +5,8 @@ import importlib.util
 import json
 import sys
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 MODULE_PATH = Path("scripts/bell_integrator_public_audit_probe.py")
@@ -66,6 +68,50 @@ class BellIntegratorAuditContractTests(unittest.TestCase):
         changed["targets"][0]["url"] = "https://bellintegrator.ru/?debug=true"
         with self.assertRaisesRegex(ValueError, "query or fragment"):
             probe.validate_contract(changed)
+
+    def test_same_origin_redirect_is_allowed(self) -> None:
+        handler = probe.BoundedRedirectHandler("https://bellintegrator.ru")
+        request = urllib.request.Request("https://bellintegrator.ru/company")
+        redirected = handler.redirect_request(
+            request,
+            None,
+            302,
+            "Found",
+            {},
+            "https://bellintegrator.ru/information/careers",
+        )
+        self.assertIsNotNone(redirected)
+        assert redirected is not None
+        self.assertEqual(
+            redirected.full_url,
+            "https://bellintegrator.ru/information/careers",
+        )
+
+    def test_off_origin_redirect_is_blocked_before_follow(self) -> None:
+        handler = probe.BoundedRedirectHandler("https://bellintegrator.ru")
+        request = urllib.request.Request("https://bellintegrator.ru/company")
+        with self.assertRaisesRegex(urllib.error.HTTPError, "Redirect outside bounded origin"):
+            handler.redirect_request(
+                request,
+                None,
+                302,
+                "Found",
+                {},
+                "https://example.com/collect",
+            )
+
+    def test_https_downgrade_redirect_is_blocked_before_follow(self) -> None:
+        handler = probe.BoundedRedirectHandler("https://bellintegrator.ru")
+        request = urllib.request.Request("https://bellintegrator.ru/company")
+        with self.assertRaisesRegex(urllib.error.HTTPError, "Redirect outside bounded origin"):
+            handler.redirect_request(
+                request,
+                None,
+                302,
+                "Found",
+                {},
+                "http://bellintegrator.ru/company",
+            )
 
 
 if __name__ == "__main__":
