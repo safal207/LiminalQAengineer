@@ -27,9 +27,9 @@ Allowlisted public routes:
 - `/vacancy/2495`;
 - `/vacancy/2496`.
 
-The initial probe performs one sequential unauthenticated GET per route. It records final URL, HTTP status, response and visible-text SHA-256 values, bounded marker contexts, and the resulting tri-lens judgment.
+The raw probe performs one sequential unauthenticated GET per route. The rendered probe observes each route in desktop and mobile profiles. Together they record final URL, HTTP status, visible text, bounded marker contexts, accessibility state, console/network summaries, screenshots, and SHA-256 integrity values.
 
-## Initial claims under test
+## Claims under test
 
 ### BELL-001 · QA service copy maps to ABS modernization
 
@@ -50,26 +50,35 @@ The current domain contains these public claims:
 
 In July 2026, a fixed 20-year metric does not align with a 2003 start date. Final judgment must still distinguish offices from representative offices and confirm whether the difference is intentional.
 
-### BELL-003 · Career content has time and editorial debt
+### BELL-003 · Visible grammar defect on the careers page
 
-The careers page contains time-relative employee stories and editorial markers including:
+The rendered careers page exposes the phrase:
 
-- `не разу`;
-- `за восемь с половиной лет` in a story that says the employee joined in 2011;
-- `Мы предоставляет`;
-- `вэб-сервиса`.
+```text
+Мы предоставляет полный набор услуг
+```
 
-This is tested as a current employer-brand signal, not as proof of internal hiring-process quality.
+This is treated as a candidate-facing editorial defect, not as proof of internal hiring-process quality.
 
-### BELL-004 · Vacancy publishing exposes copy defects
+### BELL-004 · Vacancy publishing exposes visible copy defects
 
-Current engineering vacancy pages contain candidate-facing wording such as:
+The rendered engineering vacancies expose candidate-facing wording including:
 
-- `с огласованных лимитов`;
+- mixed Cyrillic/Latin script in `QА`;
 - `особенностей управление памятью`;
 - `инстуменами отладки`.
 
-The first audit treats these as editorial product signals. A systemic root-cause claim requires additional evidence.
+These are treated as editorial product signals. A systemic root-cause claim requires additional evidence.
+
+## Source-to-rendered adjudication
+
+The first raw pass also observed older employee-story text and a split `с огласованных` sequence in source-derived text. Browser evidence changed the judgment:
+
+- the older employee stories were present in the document source but were not visible in settled desktop or mobile `innerText`;
+- the browser rendered `согласованных` as one normal word, so the raw spacing marker was a parser-boundary artifact rather than a user-visible defect;
+- visible defects such as `Мы предоставляет`, mixed-script `QА`, and the iOS vacancy wording remained reproducible.
+
+The contract was therefore narrowed to user-visible evidence instead of promoting hidden or parser-created signals.
 
 ## Evidence ladder
 
@@ -101,7 +110,7 @@ The audit explicitly does **not** authorize:
 
 ## Expected artifacts
 
-The workflow produces:
+Raw evidence:
 
 ```text
 reports/bell-integrator/public-audit-v0.1/result.json
@@ -110,11 +119,21 @@ reports/bell-integrator/public-audit-v0.1/exact-attempt.json
 reports/bell-integrator/public-audit-v0.1/ARTIFACT_SHA256SUMS.txt
 ```
 
-A later browser slice may add desktop/mobile screenshots, accessibility state, keyboard focus traces, console/network summaries, and rendered evidence hashes.
+Rendered evidence:
+
+```text
+reports/bell-integrator/rendered-v0.2/bell-integrator-rendered-result.json
+reports/bell-integrator/rendered-v0.2/bell-integrator-rendered-summary.md
+reports/bell-integrator/rendered-v0.2/desktop-*.png
+reports/bell-integrator/rendered-v0.2/mobile-*.png
+reports/bell-integrator/rendered-v0.2/exact-attempt.json
+reports/bell-integrator/rendered-v0.2/ARTIFACT_SHA256SUMS.txt
+```
 
 ## Judgment limitations
 
 - Public copy does not reveal the internal CMS, ownership model, or release process.
 - Corporate metrics may use different business definitions; this must be reviewed before final severity.
 - A visible typo does not by itself quantify candidate loss or sales conversion impact.
+- Accessibility and runtime observations are supporting signals unless promoted through a separate bounded finding contract.
 - External reporting remains blocked until a human reviews the evidence and decides whether collaboration outreach is appropriate.
