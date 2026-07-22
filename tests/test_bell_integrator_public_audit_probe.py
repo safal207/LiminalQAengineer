@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import sys
 import unittest
 from pathlib import Path
 
@@ -10,6 +11,7 @@ MODULE_PATH = Path("scripts/bell_integrator_public_audit_probe.py")
 SPEC = importlib.util.spec_from_file_location("bell_integrator_probe", MODULE_PATH)
 assert SPEC and SPEC.loader
 probe = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = probe
 SPEC.loader.exec_module(probe)
 
 CONTRACT_PATH = Path("audits/bell-integrator/public-audit-v0.1/contract.json")
