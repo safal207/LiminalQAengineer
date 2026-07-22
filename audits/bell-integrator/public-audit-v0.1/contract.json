@@ -115,20 +115,10 @@
           ]
         },
         {
-          "id": "careers_stale_story_copy",
+          "id": "careers_visible_grammar",
           "type": "all_of",
           "markers": [
-            "В компанию я пришел в 2009 году и не разу об этом не пожалел",
-            "Мой путь в компании начался в 2011 году",
-            "за восемь с половиной лет"
-          ]
-        },
-        {
-          "id": "careers_grammar_signal",
-          "type": "all_of",
-          "markers": [
-            "Мы предоставляет полный набор услуг",
-            "вэб-сервиса"
+            "Мы предоставляет полный набор услуг"
           ]
         }
       ]
@@ -139,11 +129,10 @@
       "role": "senior QA candidate acquisition surface",
       "assertions": [
         {
-          "id": "qa_vacancy_copy_signal",
+          "id": "qa_vacancy_mixed_script_signal",
           "type": "all_of",
           "markers": [
             "Ведущий инженер по автотестированию",
-            "с огласованных лимитов",
             "Опыт работы в QА от 6 лет"
           ]
         }
@@ -197,31 +186,30 @@
     },
     {
       "id": "BELL-003",
-      "title": "The careers page contains stale time-relative stories and visible editorial defects",
-      "severity": "MEDIUM",
+      "title": "The careers page contains a visible editorial defect in the software-development section",
+      "severity": "LOW",
       "evidence_refs": [
-        "careers:careers_stale_story_copy",
-        "careers:careers_grammar_signal"
+        "careers:careers_visible_grammar"
       ],
-      "quality_lens": "Candidate-facing content contains stale duration claims and visible grammar or spelling errors.",
-      "system_lens": "Long-lived career content lacks date-aware rendering and an editorial acceptance gate.",
-      "business_lens": "The employer-brand page can reduce confidence among senior candidates evaluating the company's delivery culture.",
+      "quality_lens": "Candidate-facing content contains a visible subject-verb agreement defect.",
+      "system_lens": "Long-lived employer-brand content appears to lack an editorial acceptance gate.",
+      "business_lens": "A visible grammar defect can weaken confidence among senior candidates evaluating the company's delivery culture.",
       "initial_state": "PRODUCT_SIGNAL",
-      "promotion_rule": "Confirm rendered visibility and distinguish archived storytelling from intentionally current copy."
+      "promotion_rule": "Confirm the wording is visible in settled desktop and mobile renders."
     },
     {
       "id": "BELL-004",
-      "title": "Current engineering vacancies contain candidate-facing copy defects",
+      "title": "Current engineering vacancies contain visible editorial defects",
       "severity": "LOW",
       "evidence_refs": [
-        "qa-vacancy:qa_vacancy_copy_signal",
+        "qa-vacancy:qa_vacancy_mixed_script_signal",
         "ios-vacancy:ios_vacancy_copy_signal"
       ],
-      "quality_lens": "Senior technical vacancies expose spacing, inflection, and spelling defects.",
+      "quality_lens": "Senior technical vacancies expose mixed-script, inflection, and spelling defects.",
       "system_lens": "Vacancy publishing lacks automated language checks and role-template acceptance criteria.",
       "business_lens": "Editorial defects weaken perceived process quality at the exact point where the company evaluates senior specialists.",
       "initial_state": "PRODUCT_SIGNAL",
-      "promotion_rule": "Confirm both vacancies remain active and the text is visible in desktop and mobile views."
+      "promotion_rule": "Confirm both vacancies remain active and the wording is visible in desktop and mobile views."
     }
   ],
   "lotus_policy": {
