@@ -7,6 +7,7 @@ on:
       - agent/chatapp-outside-in-audit-v0-1
     paths:
       - .github/workflows/chatapp-outside-in-audit-v0-1.yml
+      - .github/workflows/chatapp-rendered-audit-v0-2.yml
       - audits/chatapp/public-audit-v0.1/contract.json
       - scripts/chatapp_public_audit_probe.py
       - tests/test_chatapp_public_audit_probe.py
@@ -17,6 +18,7 @@ on:
       - main
     paths:
       - .github/workflows/chatapp-outside-in-audit-v0-1.yml
+      - .github/workflows/chatapp-rendered-audit-v0-2.yml
       - audits/chatapp/public-audit-v0.1/contract.json
       - scripts/chatapp_public_audit_probe.py
       - tests/test_chatapp_public_audit_probe.py
