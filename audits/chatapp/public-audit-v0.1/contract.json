@@ -44,7 +44,7 @@
     "/",
     "/about/",
     "/price/",
-    "/blog/new-price025/",
+    "/blog/new-price-2025/",
     "/developers/",
     "/developers/chatapp-developer/"
   ],
@@ -105,7 +105,7 @@
     },
     {
       "slug": "price-blog",
-      "url": "https://chatapp.online/blog/new-price025/",
+      "url": "https://chatapp.online/blog/new-price-2025/",
       "role": "dated pricing announcement and conversion surface",
       "assertions": [
         {
