@@ -44,7 +44,7 @@
     "/",
     "/about/",
     "/price/",
-    "/blog/new-price-2025/",
+    "/blog/new-price025/",
     "/developers/",
     "/developers/chatapp-developer/"
   ],
@@ -93,20 +93,19 @@
       "role": "current commercial pricing surface",
       "assertions": [
         {
-          "id": "current_price_markers",
+          "id": "price_route_identity",
           "type": "all_of",
           "markers": [
-            "Профессиональный",
-            "3 200 ₽",
-            "Максимальный",
-            "4 800 ₽"
+            "Тарифы",
+            "Ваш пакет",
+            "Сейчас корзина пуста"
           ]
         }
       ]
     },
     {
       "slug": "price-blog",
-      "url": "https://chatapp.online/blog/new-price-2025/",
+      "url": "https://chatapp.online/blog/new-price025/",
       "role": "dated pricing announcement and conversion surface",
       "assertions": [
         {
@@ -130,8 +129,8 @@
           "id": "developer_root_identity",
           "type": "all_of",
           "markers": [
-            "Разработчикам",
-            "Интеграция с ChatApp"
+            "Интеграторы",
+            "Партнерская программа для интеграторов"
           ]
         }
       ]
@@ -187,14 +186,13 @@
       "title": "A dated pricing article presents an expired campaign as an immediate future action",
       "severity": "MEDIUM",
       "evidence_refs": [
-        "price:current_price_markers",
         "price-blog:stale_future_pricing_cta"
       ],
       "quality_lens": "An article dated October 2025 says a May 2025 change will occur and urges action before April 2025.",
       "system_lens": "Time-sensitive commercial copy lacks expiry-aware rendering, archival labeling, or freshness validation.",
       "business_lens": "Expired urgency on a pricing journey can confuse buyers and weaken trust in current commercial terms.",
       "initial_state": "PRODUCT_SIGNAL",
-      "promotion_rule": "Confirm current pricing and the expired call-to-action are visibly rendered; final severity requires archive-context review."
+      "promotion_rule": "Confirm the expired call-to-action is visibly rendered; final severity requires archive-context review."
     },
     {
       "id": "CHAT-003",
