@@ -1,6 +1,7 @@
 {
   "schema_version": "liminalqa-chatapp-public-audit-v1",
   "audit_id": "CHATAPP-OUTSIDE-IN-2026-07-23-V0.1",
+  "observation_date": "2026-07-23",
   "name": "ChatApp public quality, system, and business audit",
   "target": {
     "organization": "ChatApp",
