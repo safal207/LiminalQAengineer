@@ -2,35 +2,33 @@
 
 ## Why this brief exists
 
-A bounded outside-in review of ChatApp's public website identified several quality signals that may affect how buyers, developers, partners, and senior candidates perceive the product.
+A bounded outside-in review of ChatApp's public website identified reproducible quality signals that may affect how buyers, developers, partners, and senior candidates perceive the product.
 
 The purpose is not to assign blame, test protected systems, or claim internal access. It is to demonstrate how a compact independent QA, system-analysis, and business-analysis pilot could improve public product integrity.
 
-## Strongest observations under verification
+## Three confirmed observations
 
 ### 1. Legal and trust-building copy contains conflicting variants
 
-The company disclosure page presents the legal-entity phrase once with an incorrect grammatical form and later with the correct form.
+The company disclosure page presents the legal-entity phrase once with an incorrect grammatical form and later with the correct form. Both variants were reproduced in settled desktop and mobile views.
 
 **Potential effect:** a visible inconsistency in a legal-information block can weaken confidence during vendor due diligence.
 
-### 2. An expired pricing campaign remains written as an immediate future action
+### 2. The developer partner journey uses one label for two different operating models
 
-A pricing article dated October 2025 tells readers that a May 2025 change will occur and urges action before April 2025.
-
-**Potential effect:** buyers can struggle to distinguish an archived campaign from current commercial guidance.
-
-### 3. The developer partner journey uses one label for two different operating models
-
-The developer page presents both a full-service, revenue-generating integrator model and a referral-only, non-earning model under the Integrator label.
+The developer page presents both a full-service, revenue-generating integrator model and a referral-only, non-earning model under the Integrator label. The contrasting descriptions were reproduced in desktop and mobile views.
 
 **Potential effect:** prospective partners may misunderstand support ownership, responsibilities, and revenue entitlement.
 
-### 4. Acquisition pages expose visible language-quality signals
+### 3. Acquisition pages expose visible language-quality signals
 
-Commercial CRM/API positioning contains wording that may reduce perceived editorial and integration maturity.
+Commercial CRM/API positioning contains case-agreement, sentence-structure, and terminology defects visible in desktop and mobile views.
 
 **Potential effect:** small copy defects become more important when they appear on pages selling communication quality, automation, and API integration.
+
+## Unresolved public-index signal
+
+A search-indexed pricing article contains an October 2025 publication date alongside a May 2025 future-tense change and an April 2025 deadline. The exact browser audit received HTTP 404 for the route, so this item remains `NEEDS_EVIDENCE` and is not presented as a confirmed visible-page defect.
 
 ## Proposed pilot
 
@@ -40,13 +38,13 @@ A compact pilot can cover:
 2. developer and partner acquisition;
 3. desktop/mobile consistency;
 4. accessibility and keyboard-navigation basics;
-5. content ownership, taxonomy, and freshness controls;
+5. content ownership, taxonomy, routing, and freshness controls;
 6. conversion hypotheses separated from measured facts.
 
 ## Deliverables
 
 - prioritized QA findings with reproduction steps;
-- a system map of duplicated, stale, or ambiguous content sources;
+- a system map of duplicated, stale, ambiguous, or inconsistently routed content;
 - buyer, partner, and candidate journey risks;
 - desktop/mobile evidence pack with integrity hashes;
 - a remediation backlog of quick wins and structural controls;
@@ -62,7 +60,7 @@ A compact pilot can cover:
 
 ## Suggested next step
 
-A 15–20 minute introductory call to review the strongest confirmed observations, validate whether they are already known, and agree on a small pilot scope.
+A 15–20 minute introductory call to review the three confirmed observations, validate whether they are already known, and agree on a small pilot scope.
 
 ---
 
