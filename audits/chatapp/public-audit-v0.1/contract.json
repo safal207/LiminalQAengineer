@@ -1,0 +1,236 @@
+{
+  "schema_version": "liminalqa-chatapp-public-audit-v1",
+  "audit_id": "CHATAPP-OUTSIDE-IN-2026-07-23-V0.1",
+  "name": "ChatApp public quality, system, and business audit",
+  "target": {
+    "organization": "ChatApp",
+    "canonical_origin": "https://chatapp.online",
+    "engagement_kind": "independent_outside_in",
+    "authorization_basis": "public_pages_passive_observation_only"
+  },
+  "coordinate_model": {
+    "O": "official public URL + unauthenticated state + observation time",
+    "N": "passive external observer",
+    "X": "domain -> route -> content block -> claim",
+    "Y": "current -> duplicated -> contradictory -> stale -> unclear",
+    "Z": "raw public response first; rendered desktop/mobile confirmation second",
+    "T": "navigation -> settled response -> normalization -> human judgment"
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_get_navigation_only": true,
+    "authentication": false,
+    "form_submission": false,
+    "button_clicks": false,
+    "email_or_external_contact": false,
+    "direct_api_testing": false,
+    "active_security_testing": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "runtime": {
+    "timeout_seconds": 35,
+    "max_response_bytes": 4000000,
+    "max_parallel": 1,
+    "user_agent": "LiminalQA-Passive-Public-Audit/0.1"
+  },
+  "allowed_paths": [
+    "/",
+    "/about/",
+    "/price/",
+    "/blog/new-price-2025/",
+    "/developers/",
+    "/developers/chatapp-developer/"
+  ],
+  "targets": [
+    {
+      "slug": "home",
+      "url": "https://chatapp.online/",
+      "role": "current Russian commercial landing",
+      "assertions": [
+        {
+          "id": "home_crm_case_defect",
+          "type": "all_of",
+          "markers": [
+            "Интеграция с вашей системой управления взаимоотношения с клиентами",
+            "через интерфейс подключения (API)"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "about",
+      "url": "https://chatapp.online/about/",
+      "role": "company and legal disclosure surface",
+      "assertions": [
+        {
+          "id": "legal_entity_grammar_defect",
+          "type": "all_of",
+          "markers": [
+            "Раскрытие информации о компании",
+            "Общество с ограниченной ответственность «ЧатАпп»"
+          ]
+        },
+        {
+          "id": "legal_entity_correct_variant",
+          "type": "all_of",
+          "markers": [
+            "Правовая информация о юридическом лице",
+            "Общество с ограниченной ответственностью «ЧатАпп»"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "price",
+      "url": "https://chatapp.online/price/",
+      "role": "current commercial pricing surface",
+      "assertions": [
+        {
+          "id": "current_price_markers",
+          "type": "all_of",
+          "markers": [
+            "Профессиональный",
+            "3 200 ₽",
+            "Максимальный",
+            "4 800 ₽"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "price-blog",
+      "url": "https://chatapp.online/blog/new-price-2025/",
+      "role": "dated pricing announcement and conversion surface",
+      "assertions": [
+        {
+          "id": "stale_future_pricing_cta",
+          "type": "all_of",
+          "markers": [
+            "16 октября 2025",
+            "С 1 мая 2025 года в ChatApp произойдет обновление тарифов",
+            "Только до 30 апреля 2025 года",
+            "Успейте продлить ChatApp на 1 год"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "developers-root",
+      "url": "https://chatapp.online/developers/",
+      "role": "developer navigation surface",
+      "assertions": [
+        {
+          "id": "developer_root_identity",
+          "type": "all_of",
+          "markers": [
+            "Разработчикам",
+            "Интеграция с ChatApp"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "developer-detail",
+      "url": "https://chatapp.online/developers/chatapp-developer/",
+      "role": "developer and partner acquisition surface",
+      "assertions": [
+        {
+          "id": "integrator_label_repetition",
+          "type": "occurrence",
+          "marker": "Интегратор",
+          "min_occurrences": 4
+        },
+        {
+          "id": "integrator_model_conflict",
+          "type": "all_of",
+          "markers": [
+            "Полностью сопровождает клиентов",
+            "Просто делится реферальной ссылкой",
+            "интегратор не зарабатывает"
+          ]
+        },
+        {
+          "id": "developer_copy_defects",
+          "type": "all_of",
+          "markers": [
+            "Как подключиться пример подключения через pusher.js",
+            "входящий/исходящий вэбхук"
+          ]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "CHAT-001",
+      "title": "The legal disclosure contains conflicting correct and incorrect company-name grammar",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "about:legal_entity_grammar_defect",
+        "about:legal_entity_correct_variant"
+      ],
+      "quality_lens": "The same legal page publishes both an incorrect and a correct legal-entity phrase.",
+      "system_lens": "Legal disclosure content appears duplicated without a shared validated source or editorial acceptance gate.",
+      "business_lens": "A visible error in a legal and trust-building section can reduce confidence during vendor due diligence.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm both variants are visible in settled desktop and mobile renders. Do not infer legal invalidity."
+    },
+    {
+      "id": "CHAT-002",
+      "title": "A dated pricing article presents an expired campaign as an immediate future action",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "price:current_price_markers",
+        "price-blog:stale_future_pricing_cta"
+      ],
+      "quality_lens": "An article dated October 2025 says a May 2025 change will occur and urges action before April 2025.",
+      "system_lens": "Time-sensitive commercial copy lacks expiry-aware rendering, archival labeling, or freshness validation.",
+      "business_lens": "Expired urgency on a pricing journey can confuse buyers and weaken trust in current commercial terms.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm current pricing and the expired call-to-action are visibly rendered; final severity requires archive-context review."
+    },
+    {
+      "id": "CHAT-003",
+      "title": "The developer partner page labels two materially different models as Integrator",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "developer-detail:integrator_label_repetition",
+        "developer-detail:integrator_model_conflict"
+      ],
+      "quality_lens": "Two different partner journeys use the same Integrator label while describing opposite earning and support models.",
+      "system_lens": "Partner type, responsibility, support ownership, and revenue entitlement are not expressed as a clear typed taxonomy.",
+      "business_lens": "Prospective partners may misunderstand which operating model generates revenue and who supports the client.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the duplicate labels and contrasting descriptions in desktop and mobile; human review must account for visual grouping."
+    },
+    {
+      "id": "CHAT-004",
+      "title": "Core commercial and developer pages contain visible language-quality defects",
+      "severity": "LOW",
+      "evidence_refs": [
+        "home:home_crm_case_defect",
+        "developer-detail:developer_copy_defects"
+      ],
+      "quality_lens": "Public acquisition pages expose case-agreement, sentence-structure, and terminology defects.",
+      "system_lens": "Commercial and developer publishing lacks a consistent language-quality acceptance gate.",
+      "business_lens": "Copy defects on CRM and API positioning pages can reduce perceived product and integration maturity.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm exact wording is visible in settled desktop and mobile, not only present in source markup."
+    }
+  ],
+  "lotus_policy": {
+    "search_snippet_only": "NEEDS_EVIDENCE",
+    "public_response_marker_reproduced": "PRODUCT_SIGNAL",
+    "desktop_and_mobile_rendered_reproduction": "CONFIRMED_PRODUCT_DEFECT_CANDIDATE",
+    "root_cause_without_counterfactual": "HYPOTHESIS_ONLY",
+    "business_impact_without_metrics": "PLAUSIBLE_NOT_MEASURED",
+    "security_claim_without_scoped_impact": "BLOCK",
+    "external_reporting": "BLOCK_UNTIL_HUMAN_REVIEW"
+  }
+}
