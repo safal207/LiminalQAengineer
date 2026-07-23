@@ -7,17 +7,23 @@ on:
       - agent/chatapp-outside-in-audit-v0-1
     paths:
       - .github/workflows/chatapp-rendered-audit-v0-2.yml
+      - .github/workflows/chatapp-outside-in-audit-v0-1.yml
       - audits/browser/chatapp/public-rendered-matrix-v0.2.json
       - audits/chatapp/public-audit-v0.1/contract.json
       - scripts/chatapp_rendered_audit_probe.mjs
+      - docs/audits/CHATAPP_OUTSIDE_IN_AUDIT_V0_1.md
+      - docs/audits/CHATAPP_COLLABORATION_BRIEF.md
   pull_request:
     branches:
       - main
     paths:
       - .github/workflows/chatapp-rendered-audit-v0-2.yml
+      - .github/workflows/chatapp-outside-in-audit-v0-1.yml
       - audits/browser/chatapp/public-rendered-matrix-v0.2.json
       - audits/chatapp/public-audit-v0.1/contract.json
       - scripts/chatapp_rendered_audit_probe.mjs
+      - docs/audits/CHATAPP_OUTSIDE_IN_AUDIT_V0_1.md
+      - docs/audits/CHATAPP_COLLABORATION_BRIEF.md
 
 permissions:
   contents: read
