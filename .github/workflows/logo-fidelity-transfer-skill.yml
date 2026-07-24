@@ -40,6 +40,7 @@ jobs:
       - name: Checkout exact revision
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Bind exact source identity
