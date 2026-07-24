@@ -1,0 +1,60 @@
+{
+  "schema_version": "logo-fidelity-transfer-v0.1",
+  "audit_id": "BRAND-LOGO-001",
+  "reference": {
+    "path": "references/approved-logo.png",
+    "role": "approved_primary_lockup",
+    "provenance": "human-confirmed brand reference",
+    "sha256": "REQUIRED_AT_RUNTIME",
+    "crop": null,
+    "background": "#FFFFFF"
+  },
+  "target": {
+    "repository_full_name": "owner/repository",
+    "source_sha": "REQUIRED_AT_RUNTIME",
+    "base_url": "http://127.0.0.1:4173",
+    "route": "/",
+    "selector": "[data-brand-lockup='primary']"
+  },
+  "profiles": [
+    {
+      "id": "desktop-chromium",
+      "browser": "chromium",
+      "viewport": {"width": 1440, "height": 1000},
+      "device_scale_factor": 1
+    },
+    {
+      "id": "mobile-chromium",
+      "browser": "chromium",
+      "viewport": {"width": 412, "height": 915},
+      "device_scale_factor": 2
+    }
+  ],
+  "comparison": {
+    "engine": "pixelmatch",
+    "threshold": 0.05,
+    "include_antialias": false,
+    "max_mismatch_ratio": 0.001,
+    "structural_mismatch_always_blocks": true
+  },
+  "svg_contract": {
+    "path_only_wordmark": true,
+    "preserve_aspect_ratio": true,
+    "canonical_colors": ["#111111", "#E21B23", "#FFFFFF"],
+    "required_lockups": ["primary", "compact", "header", "mark"],
+    "geometry_invariants": []
+  },
+  "authority": {
+    "reference_use_confirmed": false,
+    "repository_write_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "stop_conditions": [
+    "reference provenance is missing",
+    "selector is not unique and visible",
+    "source SHA changes during collection",
+    "normalization would distort aspect ratio",
+    "the workflow would deploy or merge without human approval"
+  ]
+}
