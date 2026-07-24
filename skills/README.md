@@ -9,10 +9,15 @@ causal-deep-audit
   -> evidence-capture
   -> causal-adjudication
   -> exact-head-governance       (when a repository or PR is in scope)
+  -> logo-fidelity-transfer      (when an approved brand reference must match a site)
   -> replay-memory
   -> product-impact
   -> transition-next-action
 ```
+
+## Specialized skill
+
+`logo-fidelity-transfer` binds an approved logo reference to canonical SVG geometry and browser-rendered selector captures. It uses Playwright for deterministic desktop/mobile evidence and Pixelmatch for expected/actual/diff artifacts, while preserving human brand approval and repository authority boundaries.
 
 ## Repository responsibilities
 
@@ -26,6 +31,8 @@ causal-deep-audit
 | `LiminalDB` | Event-sourced replay and durable memory without decision authority |
 | `transition-intelligence-protocol` | Checked readiness and the smallest justified next transition |
 | `LiminalOSAI` / Lotus principles | Advisory synthesis, human authorship, no authority escalation |
+| `microsoft/playwright` | Browser engines, stable locator screenshots, viewport matrix, traces |
+| `mapbox/pixelmatch` | Pixel-level expected/actual comparison and diff generation |
 
 ## Non-negotiable boundaries
 
@@ -36,6 +43,7 @@ causal-deep-audit
 5. Automated output is advisory-only unless an explicitly separate enforcement system is in scope.
 6. Public-surface audits remain passive and bounded unless the owner has explicitly authorized a broader test.
 7. Commercial impact is a model or hypothesis until measured.
+8. Pixel similarity cannot grant trademark, design, deployment, or merge approval.
 
 ## Canonical result states
 
