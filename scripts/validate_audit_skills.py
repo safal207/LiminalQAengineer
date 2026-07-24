@@ -16,17 +16,30 @@ SKILLS = {
     "evidence-capture": ROOT / "skills/evidence-capture/SKILL.md",
     "causal-adjudication": ROOT / "skills/causal-adjudication/SKILL.md",
     "exact-head-governance": ROOT / "skills/exact-head-governance/SKILL.md",
+    "logo-fidelity-transfer": ROOT / "skills/logo-fidelity-transfer/SKILL.md",
     "replay-memory": ROOT / "skills/replay-memory/SKILL.md",
     "product-impact": ROOT / "skills/product-impact/SKILL.md",
     "transition-next-action": ROOT / "skills/transition-next-action/SKILL.md",
 }
 
 SCHEMA = ROOT / "schemas/causal-deep-audit-packet.schema.json"
+LOGO_EXAMPLE = ROOT / "skills/logo-fidelity-transfer/example.config.json"
 
 REQUIRED_GLOBAL_TERMS = (
     "authority",
     "evidence",
 )
+
+SPECIALIZED_REQUIRED_TERMS = {
+    "logo-fidelity-transfer": (
+        "playwright",
+        "pixelmatch",
+        "reference",
+        "selector",
+        "aspect ratio",
+        "human",
+    ),
+}
 
 FORBIDDEN_AUTHORITY_CLAIMS = (
     "the audit may merge",
@@ -76,6 +89,9 @@ def validate_skill_text(expected_name: str, text: str) -> list[str]:
     for term in REQUIRED_GLOBAL_TERMS:
         if term not in lowered:
             errors.append(f"required global term missing: {term}")
+    for term in SPECIALIZED_REQUIRED_TERMS.get(expected_name, ()):
+        if term not in lowered:
+            errors.append(f"specialized required term missing: {term}")
     for claim in FORBIDDEN_AUTHORITY_CLAIMS:
         if claim in lowered:
             errors.append(f"forbidden authority claim present: {claim}")
@@ -83,6 +99,45 @@ def validate_skill_text(expected_name: str, text: str) -> list[str]:
     if not re.search(r"\b(not_run|needs_evidence|incomplete|blocked|hold)\b", lowered):
         errors.append("skill must preserve at least one explicit uncertainty/fail-closed state")
 
+    return errors
+
+
+def validate_logo_example(config: dict) -> list[str]:
+    errors: list[str] = []
+    if config.get("schema_version") != "logo-fidelity-transfer-v0.1":
+        errors.append("logo example schema_version must be logo-fidelity-transfer-v0.1")
+
+    comparison = config.get("comparison") or {}
+    if comparison.get("engine") != "pixelmatch":
+        errors.append("logo comparison engine must be pixelmatch")
+    threshold = comparison.get("threshold")
+    if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
+        errors.append("logo comparison threshold must be between 0 and 1")
+    if comparison.get("structural_mismatch_always_blocks") is not True:
+        errors.append("structural logo mismatch must fail closed")
+
+    target = config.get("target") or {}
+    for field in ("repository_full_name", "source_sha", "route", "selector"):
+        if not target.get(field):
+            errors.append(f"logo target missing required field: {field}")
+
+    profiles = config.get("profiles") or []
+    profile_ids = {item.get("id") for item in profiles if isinstance(item, dict)}
+    if not {"desktop-chromium", "mobile-chromium"}.issubset(profile_ids):
+        errors.append("logo example must include desktop and mobile Chromium profiles")
+
+    authority = config.get("authority") or {}
+    for field in (
+        "reference_use_confirmed",
+        "repository_write_authorized",
+        "deployment_authorized",
+        "merge_authorized",
+    ):
+        if authority.get(field) is not False:
+            errors.append(f"logo example authority must default {field} to false")
+
+    if not config.get("stop_conditions"):
+        errors.append("logo example must define stop conditions")
     return errors
 
 
@@ -138,6 +193,18 @@ def validate_repository() -> list[str]:
             errors.append(f"invalid schema JSON: {exc}")
         else:
             errors.extend(f"schema: {error}" for error in validate_schema(schema))
+
+    if not LOGO_EXAMPLE.is_file():
+        errors.append(f"missing logo example: {LOGO_EXAMPLE.relative_to(ROOT)}")
+    else:
+        try:
+            config = json.loads(LOGO_EXAMPLE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            errors.append(f"invalid logo example JSON: {exc}")
+        else:
+            errors.extend(
+                f"logo example: {error}" for error in validate_logo_example(config)
+            )
 
     orchestrator = SKILLS["causal-deep-audit"]
     if orchestrator.is_file():
