@@ -85,7 +85,7 @@ jobs:
             .schema_version == "liminalqa-hi-rockits-public-rendered-result-v1" and
             .aggregate.expected_observation_count == 8 and
             .aggregate.observed_route_profile_count == 8 and
-            (.aggregate.findings | length) == 4 and
+            (.aggregate.findings | length) == 6 and
             .authority.mode == "evidence_only" and
             .authority.grants.external_submission == false and
             .authority.grants.deployment == false and
