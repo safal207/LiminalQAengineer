@@ -1,0 +1,202 @@
+{
+  "schema_version": "liminalqa-hi-rockits-public-audit-v1",
+  "audit_id": "HI-ROCKITS-OUTSIDE-IN-2026-07-25-V0.1",
+  "observation_date": "2026-07-25",
+  "name": "Hi, Rockits! public quality, system, and business audit",
+  "target": {
+    "organization": "Hi, Rockits!",
+    "canonical_origins": [
+      "https://rockits.ru",
+      "https://hirockits.com"
+    ],
+    "engagement_kind": "independent_outside_in",
+    "authorization_basis": "public_pages_passive_observation_only"
+  },
+  "coordinate_model": {
+    "O": "official public URL + unauthenticated state + observation time",
+    "N": "passive external observer",
+    "X": "domain -> route -> content block -> claim",
+    "Y": "current -> duplicated -> contradictory -> ambiguous -> unclear",
+    "Z": "raw public response first; rendered desktop/mobile confirmation second",
+    "T": "navigation -> settled response -> normalization -> human judgment"
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_get_navigation_only": true,
+    "authentication": false,
+    "form_submission": false,
+    "button_clicks": false,
+    "resume_upload": false,
+    "email_or_external_contact": false,
+    "direct_api_testing": false,
+    "active_security_testing": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "runtime": {
+    "timeout_seconds": 35,
+    "max_response_bytes": 4000000,
+    "max_parallel": 1,
+    "user_agent": "Mozilla/5.0 (compatible; LiminalQA-Passive-Public-Audit/0.1; +https://github.com/safal207/LiminalQAengineer)"
+  },
+  "allowed_paths": {
+    "https://rockits.ru": [
+      "/",
+      "/candidate",
+      "/it-salary-analytics"
+    ],
+    "https://hirockits.com": [
+      "/"
+    ]
+  },
+  "targets": [
+    {
+      "slug": "ru-home",
+      "url": "https://rockits.ru/",
+      "role": "current Russian buyer acquisition surface",
+      "assertions": [
+        {
+          "id": "client_count_conflict",
+          "type": "all_of",
+          "markers": [
+            "1742 компании, которые нам доверяют",
+            "Уже 1740 компаний являются нашими клиентами"
+          ]
+        },
+        {
+          "id": "offer_acceptance_conflict",
+          "type": "all_of",
+          "markers": [
+            "73% принимаемость наших офферов",
+            "72% офферов / предложений о работе принимают кандидаты"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "candidate",
+      "url": "https://rockits.ru/candidate",
+      "role": "candidate acquisition and resume-submission surface",
+      "assertions": [
+        {
+          "id": "duplicated_candidate_testimonial",
+          "type": "occurrence",
+          "marker": "Хотела написать, что я за 3 дня успешно оформилась в компании",
+          "min_occurrences": 2
+        },
+        {
+          "id": "candidate_copy_defects",
+          "type": "all_of",
+          "markers": [
+            "не интересуютсяПриятно было взаимодействовать",
+            "Инфрастуктура"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "salary-analytics",
+      "url": "https://rockits.ru/it-salary-analytics",
+      "role": "salary analytics commercial surface",
+      "assertions": [
+        {
+          "id": "pricing_unit_signal",
+          "type": "all_of",
+          "markers": [
+            "от 50 000 т.р.",
+            "от 530 000 т.р.",
+            "от 690 000 т.р."
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "en-home",
+      "url": "https://hirockits.com/",
+      "role": "international buyer acquisition surface",
+      "assertions": [
+        {
+          "id": "english_copy_and_language_mix",
+          "type": "all_of",
+          "markers": [
+            "Person behind CV is more important, than the text in it.",
+            "resumes in the our database",
+            "pervious stages",
+            "we werelooking for",
+            "нужного специалиста"
+          ]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "ROCK-001",
+      "title": "Buyer-facing performance metrics are inconsistent on the same page",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "ru-home:client_count_conflict",
+        "ru-home:offer_acceptance_conflict"
+      ],
+      "quality_lens": "The landing page publishes different values for the same client-count and offer-acceptance concepts.",
+      "system_lens": "Marketing KPIs appear duplicated across page blocks without a shared source or freshness rule.",
+      "business_lens": "Conflicting proof metrics can weaken trust during agency comparison and procurement review.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm both value pairs in settled desktop and mobile renders; human review must confirm the intended metric definitions."
+    },
+    {
+      "id": "ROCK-002",
+      "title": "Salary analytics prices use a potentially mis-scaled monetary unit",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "salary-analytics:pricing_unit_signal"
+      ],
+      "quality_lens": "Several prices are displayed with the suffix т.р., which conventionally denotes thousands of rubles and may multiply the intended amounts by 1,000.",
+      "system_lens": "Price amount and currency/unit formatting are not protected by a typed display contract.",
+      "business_lens": "Ambiguous pricing can interrupt purchase intent and create avoidable clarification work for sales.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the exact labels in desktop and mobile; do not claim the intended commercial amount without company context."
+    },
+    {
+      "id": "ROCK-003",
+      "title": "The candidate journey contains duplicated social proof and visible copy defects",
+      "severity": "LOW",
+      "evidence_refs": [
+        "candidate:duplicated_candidate_testimonial",
+        "candidate:candidate_copy_defects"
+      ],
+      "quality_lens": "Candidate testimonials repeat and nearby candidate-facing text contains spacing and spelling defects.",
+      "system_lens": "Carousel/content blocks and specialization taxonomy lack deduplication and editorial acceptance checks.",
+      "business_lens": "Defects on the resume-submission journey can reduce confidence among senior candidates.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm duplication and exact wording in settled desktop and mobile renders."
+    },
+    {
+      "id": "ROCK-004",
+      "title": "The English acquisition surface contains mixed-language and editorial defects",
+      "severity": "LOW",
+      "evidence_refs": [
+        "en-home:english_copy_and_language_mix"
+      ],
+      "quality_lens": "The English page contains grammatical defects, concatenated words, a wrong word, and a Russian phrase.",
+      "system_lens": "Localization content lacks a language-consistency and proofreading gate.",
+      "business_lens": "International buyers may infer lower delivery maturity from the English storefront.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm every marker is visible in desktop and mobile, not only present in source markup."
+    }
+  ],
+  "lotus_policy": {
+    "search_snippet_only": "NEEDS_EVIDENCE",
+    "public_response_marker_reproduced": "PRODUCT_SIGNAL",
+    "desktop_and_mobile_rendered_reproduction": "CONFIRMED_PRODUCT_DEFECT_CANDIDATE",
+    "root_cause_without_counterfactual": "HYPOTHESIS_ONLY",
+    "business_impact_without_metrics": "PLAUSIBLE_NOT_MEASURED",
+    "legal_or_security_claim_without_scoped_impact": "BLOCK",
+    "external_reporting": "BLOCK_UNTIL_HUMAN_REVIEW"
+  }
+}
