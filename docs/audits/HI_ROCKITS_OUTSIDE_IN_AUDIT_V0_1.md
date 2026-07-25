@@ -32,36 +32,30 @@ The raw probe performs one sequential unauthenticated GET per route. The rendere
 
 ## Source-to-rendered adjudication
 
-The first exact run demonstrated why raw source and settled browser evidence are kept separate:
+The exact runs demonstrated why raw source and settled browser evidence are kept separate:
 
 - KPI values `1740` and `72%` were present in the public response but not visible without opening a closed FAQ accordion;
-- salary analytics pricing markers were reproducible through raw HTTP, while Chromium received HTTP `403` for that route;
-- repeated testimonial and copy markers existed at source level, while the settled candidate UI displayed one testimonial and omitted the selected defects;
-- the English page exposed several errors, but one desktop-only block made an over-broad combined assertion fail on mobile.
+- the salary analytics route initially returned Chromium `403`, then reproduced its price labels in the final exact run on both desktop and mobile;
+- repeated testimonial and copy markers existed at source level, while the settled candidate UI displayed one tested testimonial and omitted the selected defects;
+- the original English assertion was too broad because one block was desktop-only, so it was split into wording reproduced in both profiles.
 
-The contract therefore preserves the first three items as lower-level signals and narrows promotion to wording reproduced in both desktop and mobile.
+The final contract therefore confirms four user-visible candidates and preserves two lower-level signals.
 
-## Findings
+## Confirmed rendered candidates
 
-### ROCK-001 · KPI consistency — lower-level signal
+### ROCK-002 · Salary analytics monetary unit
 
-The Russian public response contains different values for client count (`1742` and `1740`) and offer acceptance (`73%` and `72%`). The closed FAQ values were not visible in the passive settled UI, so this remains below confirmed-candidate level.
+The salary analytics page visibly presents prices such as `от 50 000 т.р.`, `от 530 000 т.р.`, and `от 690 000 т.р.` in desktop and mobile.
 
-### ROCK-002 · Salary analytics monetary unit — lower-level signal
-
-The raw salary analytics response presents prices such as `от 50 000 т.р.` and `от 530 000 т.р.`. In common Russian notation, `т.р.` means thousands of rubles, but Chromium received `403`; intended pricing and user-visible reproduction remain unconfirmed.
-
-### ROCK-003 · Candidate source/UI divergence — needs evidence
-
-The source-level candidate content includes duplicate and editorial signals. The settled desktop/mobile page showed only one tested testimonial and did not expose the selected copy markers. No user-visible defect is claimed from source alone.
+In common Russian notation, `т.р.` denotes thousands of rubles. The display therefore appears to scale the intended amounts by 1,000, although the intended commercial price must be confirmed with Hi, Rockits! before any final severity or loss claim.
 
 ### ROCK-004 · Russian proof-metric grammar
 
-The buyer landing visibly publishes `4,76 процент замен кандидатов`. The value and unit label form an externally visible copy-quality signal.
+The buyer landing visibly publishes `4,76 процент замен кандидатов` in desktop and mobile. The metric value and unit label form an externally visible copy-quality signal.
 
 ### ROCK-005 · English editorial defects
 
-The English acquisition page visibly contains:
+The English acquisition page visibly contains in both profiles:
 
 - `Person behind CV is more important, than the text in it.`;
 - `pervious stages`;
@@ -69,7 +63,17 @@ The English acquisition page visibly contains:
 
 ### ROCK-006 · English language-mix residue
 
-The Russian phrase `нужного специалиста` is embedded in the English workflow description.
+The Russian phrase `нужного специалиста` is embedded in the English workflow description in desktop and mobile.
+
+## Lower-level signals
+
+### ROCK-001 · KPI consistency — needs rendered evidence
+
+The Russian public response contains different values for client count (`1742` and `1740`) and offer acceptance (`73%` and `72%`). The closed FAQ values were not visible in the passive settled UI, so this remains below confirmed-candidate level.
+
+### ROCK-003 · Candidate source/UI divergence — needs evidence
+
+The source-level candidate content includes duplicate and editorial signals. The settled desktop/mobile page showed only one tested testimonial and did not expose the selected copy markers. No user-visible defect is claimed from source alone.
 
 ## Evidence ladder
 
@@ -126,6 +130,6 @@ reports/hi-rockits/rendered-audit-v0.2/ARTIFACT_SHA256SUMS.txt
 
 - Public copy does not reveal internal CMS ownership or release processes.
 - Different KPI values may refer to different time windows or definitions.
-- The intended price unit cannot be inferred conclusively without company context.
+- The intended salary-analytics price cannot be inferred conclusively without company context.
 - Hidden source content is not equivalent to a user-visible product defect.
 - Business impact remains plausible but unmeasured.
