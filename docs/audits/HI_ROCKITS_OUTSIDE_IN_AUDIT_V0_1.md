@@ -30,23 +30,46 @@ https://hirockits.com/
 
 The raw probe performs one sequential unauthenticated GET per route. The rendered slice observes each route in desktop and mobile Chromium, captures full-page screenshots, visible-text hashes, bounded console/network summaries, structure metrics, and keyboard Tab traces.
 
-## Claims under test
+## Source-to-rendered adjudication
 
-### ROCK-001 · KPI consistency
+The first exact run demonstrated why raw source and settled browser evidence are kept separate:
 
-The Russian home page presents different values for client count (`1742` and `1740`) and offer acceptance (`73%` and `72%`). The audit treats this as a content-governance signal, not proof that either value is false.
+- KPI values `1740` and `72%` were present in the public response but not visible without opening a closed FAQ accordion;
+- salary analytics pricing markers were reproducible through raw HTTP, while Chromium received HTTP `403` for that route;
+- repeated testimonial and copy markers existed at source level, while the settled candidate UI displayed one testimonial and omitted the selected defects;
+- the English page exposed several errors, but one desktop-only block made an over-broad combined assertion fail on mobile.
 
-### ROCK-002 · Salary analytics monetary unit
+The contract therefore preserves the first three items as lower-level signals and narrows promotion to wording reproduced in both desktop and mobile.
 
-The salary analytics page presents prices such as `от 50 000 т.р.` and `от 530 000 т.р.`. In common Russian notation, `т.р.` means thousands of rubles, so the displayed unit may multiply the intended amount by 1,000. Final judgment requires company context about the intended amount and suffix.
+## Findings
 
-### ROCK-003 · Candidate journey quality
+### ROCK-001 · KPI consistency — lower-level signal
 
-The candidate page appears to repeat the same testimonial block and contains visible editorial signals including `Инфрастуктура` and concatenated words in a testimonial. The browser layer must distinguish source duplication from actual rendered duplication.
+The Russian public response contains different values for client count (`1742` and `1740`) and offer acceptance (`73%` and `72%`). The closed FAQ values were not visible in the passive settled UI, so this remains below confirmed-candidate level.
 
-### ROCK-004 · English localization quality
+### ROCK-002 · Salary analytics monetary unit — lower-level signal
 
-The English acquisition page contains grammatical errors, concatenated words, a wrong word (`pervious`), and a Russian phrase. The browser layer must confirm that every marker is visible.
+The raw salary analytics response presents prices such as `от 50 000 т.р.` and `от 530 000 т.р.`. In common Russian notation, `т.р.` means thousands of rubles, but Chromium received `403`; intended pricing and user-visible reproduction remain unconfirmed.
+
+### ROCK-003 · Candidate source/UI divergence — needs evidence
+
+The source-level candidate content includes duplicate and editorial signals. The settled desktop/mobile page showed only one tested testimonial and did not expose the selected copy markers. No user-visible defect is claimed from source alone.
+
+### ROCK-004 · Russian proof-metric grammar
+
+The buyer landing visibly publishes `4,76 процент замен кандидатов`. The value and unit label form an externally visible copy-quality signal.
+
+### ROCK-005 · English editorial defects
+
+The English acquisition page visibly contains:
+
+- `Person behind CV is more important, than the text in it.`;
+- `pervious stages`;
+- `we werelooking for`.
+
+### ROCK-006 · English language-mix residue
+
+The Russian phrase `нужного специалиста` is embedded in the English workflow description.
 
 ## Evidence ladder
 
@@ -104,5 +127,5 @@ reports/hi-rockits/rendered-audit-v0.2/ARTIFACT_SHA256SUMS.txt
 - Public copy does not reveal internal CMS ownership or release processes.
 - Different KPI values may refer to different time windows or definitions.
 - The intended price unit cannot be inferred conclusively without company context.
-- Testimonial text may be a verbatim customer quote; the audit only assesses the published candidate journey.
+- Hidden source content is not equivalent to a user-visible product defect.
 - Business impact remains plausible but unmeasured.
