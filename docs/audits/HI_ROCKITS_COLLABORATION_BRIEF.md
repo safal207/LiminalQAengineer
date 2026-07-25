@@ -2,35 +2,37 @@
 
 ## Why this brief exists
 
-A bounded outside-in review of the public Hi, Rockits! buyer, analytics, candidate, and international journeys identified several quality signals that may affect trust and conversion.
+A bounded outside-in review of the public Hi, Rockits! Russian and English buyer journeys identified several reproducible quality signals that may affect trust and conversion.
 
 The purpose is not to assign blame or claim access to internal systems. It is to demonstrate how a compact independent QA, system-analysis, and business-analysis pilot could improve public product integrity.
 
-## Strongest observations under verification
+## Three strongest rendered observations
 
-### 1. Proof metrics are not synchronized across the buyer journey
+### 1. A proof metric contains a visible unit-agreement defect
 
-The Russian landing page presents two client-count values (`1742` and `1740`) and two offer-acceptance values (`73%` and `72%`).
+The Russian buyer landing publishes the phrase `4,76 процент замен кандидатов`.
 
-**Potential effect:** procurement and HR leaders comparing agencies may pause to clarify which metrics and periods are current.
+**Potential effect:** a visible error inside a quality proof metric weakens the polish of a page selling recruitment accuracy and process quality.
 
-### 2. Salary analytics pricing uses an ambiguous unit
+### 2. The English storefront contains editorial defects
 
-The commercial analytics page displays amounts such as `50 000 т.р.` and `530 000 т.р.`. The intended price may be understandable internally, but the public unit can be interpreted as thousands of rubles.
+The international page visibly includes wording such as:
 
-**Potential effect:** a buyer may misread the offer by three orders of magnitude and abandon or delay the inquiry.
-
-### 3. The candidate journey contains duplicated and defective copy
-
-The candidate page appears to repeat testimonials and contains visible spacing and spelling issues near the resume-submission journey.
-
-**Potential effect:** senior candidates may infer weaker publishing controls from the page that evaluates their own professional presentation.
-
-### 4. The English storefront contains mixed-language and editorial defects
-
-The international page includes grammar errors, concatenated words, a wrong word, and a Russian phrase.
+- `Person behind CV is more important, than the text in it.`;
+- `pervious stages`;
+- `we werelooking for`.
 
 **Potential effect:** international clients may receive a weaker trust signal than Russian-language buyers.
+
+### 3. Russian-language content remains inside the English journey
+
+The phrase `нужного специалиста` is displayed inside the English workflow description.
+
+**Potential effect:** mixed-language residue interrupts comprehension and suggests incomplete localization acceptance.
+
+## Additional signals requiring context
+
+The technical evidence pack also records lower-level signals around KPI synchronization, salary analytics price units, and source/UI divergence on the candidate page. They are deliberately excluded from the confirmed list until their user-visible state or business definitions are clarified.
 
 ## Proposed pilot
 
@@ -46,7 +48,7 @@ A compact pilot can cover:
 ## Deliverables
 
 - prioritized QA findings with reproduction steps;
-- a system map of duplicated metrics and content sources;
+- a system map of duplicated metrics and localization sources;
 - buyer and candidate conversion hypotheses separated from measured facts;
 - desktop/mobile evidence pack with integrity hashes;
 - remediation backlog with quick wins and structural controls;
@@ -62,7 +64,7 @@ A compact pilot can cover:
 
 ## Suggested next step
 
-A 15–20 minute introductory call to review the strongest confirmed observations, validate definitions and intended price formatting, and agree on a small pilot scope.
+A 15–20 minute introductory call to review the three rendered observations, validate whether they are already known, and agree on a small pilot scope.
 
 ---
 
