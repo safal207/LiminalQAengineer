@@ -6,15 +6,23 @@ A bounded outside-in review of the public Hi, Rockits! Russian and English buyer
 
 The purpose is not to assign blame or claim access to internal systems. It is to demonstrate how a compact independent QA, system-analysis, and business-analysis pilot could improve public product integrity.
 
-## Three strongest rendered observations
+## Four confirmed rendered observations
 
-### 1. A proof metric contains a visible unit-agreement defect
+### 1. Salary analytics pricing uses an ambiguous monetary unit
+
+The analytics page visibly displays amounts such as `50 000 т.р.`, `530 000 т.р.`, and `690 000 т.р.` in desktop and mobile.
+
+In common Russian notation, `т.р.` means thousands of rubles. The intended commercial amount may be different, but the public display can be interpreted as tens or hundreds of millions of rubles.
+
+**Potential effect:** buyers may misread the offer by three orders of magnitude and delay or abandon an inquiry.
+
+### 2. A proof metric contains a visible unit-agreement defect
 
 The Russian buyer landing publishes the phrase `4,76 процент замен кандидатов`.
 
 **Potential effect:** a visible error inside a quality proof metric weakens the polish of a page selling recruitment accuracy and process quality.
 
-### 2. The English storefront contains editorial defects
+### 3. The English storefront contains editorial defects
 
 The international page visibly includes wording such as:
 
@@ -24,7 +32,7 @@ The international page visibly includes wording such as:
 
 **Potential effect:** international clients may receive a weaker trust signal than Russian-language buyers.
 
-### 3. Russian-language content remains inside the English journey
+### 4. Russian-language content remains inside the English journey
 
 The phrase `нужного специалиста` is displayed inside the English workflow description.
 
@@ -32,7 +40,7 @@ The phrase `нужного специалиста` is displayed inside the Engli
 
 ## Additional signals requiring context
 
-The technical evidence pack also records lower-level signals around KPI synchronization, salary analytics price units, and source/UI divergence on the candidate page. They are deliberately excluded from the confirmed list until their user-visible state or business definitions are clarified.
+The technical evidence pack also records lower-level signals around KPI synchronization and source/UI divergence on the candidate page. They are deliberately excluded from the confirmed list until their visible state or business definitions are clarified.
 
 ## Proposed pilot
 
@@ -64,7 +72,7 @@ A compact pilot can cover:
 
 ## Suggested next step
 
-A 15–20 minute introductory call to review the three rendered observations, validate whether they are already known, and agree on a small pilot scope.
+A 15–20 minute introductory call to review the four rendered observations, validate the intended pricing unit, and agree on a small pilot scope.
 
 ---
 
