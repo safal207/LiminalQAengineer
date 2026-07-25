@@ -75,6 +75,13 @@
             "73% принимаемость наших офферов",
             "72% офферов / предложений о работе принимают кандидаты"
           ]
+        },
+        {
+          "id": "decimal_agreement_defect",
+          "type": "all_of",
+          "markers": [
+            "4,76 процент замен кандидатов"
+          ]
         }
       ]
     },
@@ -121,13 +128,18 @@
       "role": "international buyer acquisition surface",
       "assertions": [
         {
-          "id": "english_copy_and_language_mix",
+          "id": "english_editorial_defects",
           "type": "all_of",
           "markers": [
             "Person behind CV is more important, than the text in it.",
-            "resumes in the our database",
             "pervious stages",
-            "we werelooking for",
+            "we werelooking for"
+          ]
+        },
+        {
+          "id": "english_language_mix",
+          "type": "all_of",
+          "markers": [
             "нужного специалиста"
           ]
         }
@@ -137,17 +149,17 @@
   "findings": [
     {
       "id": "ROCK-001",
-      "title": "Buyer-facing performance metrics are inconsistent on the same page",
+      "title": "Buyer-facing performance metrics are inconsistent in the public response",
       "severity": "MEDIUM",
       "evidence_refs": [
         "ru-home:client_count_conflict",
         "ru-home:offer_acceptance_conflict"
       ],
-      "quality_lens": "The landing page publishes different values for the same client-count and offer-acceptance concepts.",
+      "quality_lens": "The public response contains different values for the same client-count and offer-acceptance concepts.",
       "system_lens": "Marketing KPIs appear duplicated across page blocks without a shared source or freshness rule.",
       "business_lens": "Conflicting proof metrics can weaken trust during agency comparison and procurement review.",
       "initial_state": "PRODUCT_SIGNAL",
-      "promotion_rule": "Confirm both value pairs in settled desktop and mobile renders; human review must confirm the intended metric definitions."
+      "promotion_rule": "Only promote if both value pairs are visible in settled desktop and mobile without opening hidden accordion content."
     },
     {
       "id": "ROCK-002",
@@ -164,30 +176,56 @@
     },
     {
       "id": "ROCK-003",
-      "title": "The candidate journey contains duplicated social proof and visible copy defects",
+      "title": "The candidate source contains duplicated or defective content that is not confirmed in the settled UI",
       "severity": "LOW",
       "evidence_refs": [
         "candidate:duplicated_candidate_testimonial",
         "candidate:candidate_copy_defects"
       ],
-      "quality_lens": "Candidate testimonials repeat and nearby candidate-facing text contains spacing and spelling defects.",
-      "system_lens": "Carousel/content blocks and specialization taxonomy lack deduplication and editorial acceptance checks.",
-      "business_lens": "Defects on the resume-submission journey can reduce confidence among senior candidates.",
-      "initial_state": "PRODUCT_SIGNAL",
+      "quality_lens": "The source-level candidate content contains duplicate and editorial signals, while the first settled render showed only one testimonial and omitted the selected defects.",
+      "system_lens": "Responsive or carousel content can diverge from source-level content, requiring rendered adjudication.",
+      "business_lens": "No user-visible impact should be claimed unless the content is reproduced in the active journey.",
+      "initial_state": "NEEDS_EVIDENCE",
       "promotion_rule": "Confirm duplication and exact wording in settled desktop and mobile renders."
     },
     {
       "id": "ROCK-004",
-      "title": "The English acquisition surface contains mixed-language and editorial defects",
+      "title": "The Russian buyer landing contains a visible decimal agreement defect",
       "severity": "LOW",
       "evidence_refs": [
-        "en-home:english_copy_and_language_mix"
+        "ru-home:decimal_agreement_defect"
       ],
-      "quality_lens": "The English page contains grammatical defects, concatenated words, a wrong word, and a Russian phrase.",
-      "system_lens": "Localization content lacks a language-consistency and proofreading gate.",
+      "quality_lens": "The proof metric is published as 4,76 процент instead of a grammatically consistent unit form or percent symbol.",
+      "system_lens": "Metric values and unit labels are not validated as one typed presentation component.",
+      "business_lens": "A visible error in a proof metric weakens the polish of a page selling recruitment quality.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the exact wording in desktop and mobile."
+    },
+    {
+      "id": "ROCK-005",
+      "title": "The English acquisition surface contains visible editorial defects",
+      "severity": "LOW",
+      "evidence_refs": [
+        "en-home:english_editorial_defects"
+      ],
+      "quality_lens": "The English page contains an unnecessary comma, a wrong word, and concatenated words.",
+      "system_lens": "Localized content lacks a consistent proofreading and acceptance gate.",
       "business_lens": "International buyers may infer lower delivery maturity from the English storefront.",
       "initial_state": "PRODUCT_SIGNAL",
-      "promotion_rule": "Confirm every marker is visible in desktop and mobile, not only present in source markup."
+      "promotion_rule": "Confirm every marker in desktop and mobile."
+    },
+    {
+      "id": "ROCK-006",
+      "title": "The English acquisition surface contains Russian-language residue",
+      "severity": "LOW",
+      "evidence_refs": [
+        "en-home:english_language_mix"
+      ],
+      "quality_lens": "A Russian phrase is visibly embedded in the English workflow description.",
+      "system_lens": "Localization completeness is not protected by a language-consistency check.",
+      "business_lens": "Mixed-language residue can interrupt comprehension and reduce international trust.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the Russian phrase in desktop and mobile."
     }
   ],
   "lotus_policy": {
