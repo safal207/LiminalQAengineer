@@ -92,10 +92,18 @@ jobs:
           ' audits/tradernet/terminal-loading-public.json >/dev/null
 
       - name: Validate evidence manifest helper
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/write_exact_head_manifest.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          ast.parse(Path("scripts/write_exact_head_manifest.py").read_text(encoding="utf-8"))
+          PY
           python3 -m unittest tests/test_write_exact_head_manifest.py -v
+          test -z "$(find scripts tests -type d -name __pycache__ -print -quit)"
 
       - name: Install pinned browser driver outside the worktree
         shell: bash
