@@ -37,6 +37,7 @@ jobs:
       RECEIPT_NAME: tradernet-quote-reducer-integrity-receipt-${{ github.run_id }}-${{ github.run_attempt }}
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
+      PYTHONDONTWRITEBYTECODE: "1"
 
     steps:
       - name: Checkout exact audited revision
