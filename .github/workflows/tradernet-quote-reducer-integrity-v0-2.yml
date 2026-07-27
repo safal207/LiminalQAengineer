@@ -1,0 +1,219 @@
+name: Tradernet Quote Reducer Integrity v0.2
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - .github/workflows/tradernet-quote-reducer-integrity-v0-2.yml
+      - audits/tradernet/public-quotes-reconnect.json
+      - audits/tradernet/quote-reducer-integrity-v0.2.json
+      - scripts/tradernet_public_quotes_reconnect_probe.mjs
+      - scripts/analyze_tradernet_quote_temporal_integrity.mjs
+      - scripts/tradernet_quote_subscription_idempotency_probe.mjs
+      - scripts/analyze_tradernet_quote_reducer_impact.mjs
+      - scripts/write_exact_head_manifest.py
+      - tests/test_write_exact_head_manifest.py
+      - docs/audits/TRADERNET_QUOTE_REDUCER_INTEGRITY_V0_2.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-quote-reducer-integrity-v0-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    name: Replay public quotes through naive and guarded reducers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
+      EVIDENCE_NAME: tradernet-quote-reducer-integrity-${{ github.run_id }}-${{ github.run_attempt }}
+      RECEIPT_NAME: tradernet-quote-reducer-integrity-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout exact audited revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate exact identity, contract and reducer
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          initial_sha="$(git rev-parse HEAD)"
+          test "${initial_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          contract="audits/tradernet/quote-reducer-integrity-v0.2.json"
+          python3 -m json.tool "${contract}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-tradernet-quote-reducer-integrity-config-v1" and
+            .source_audit.websocket_endpoint == "wss://wss.tradernet.com" and
+            (.source_audit.tickers | length) == 2 and
+            .rules.material_market_time_regression_seconds >= 60 and
+            .rules.minimum_rollbacks_for_candidate >= 4 and
+            .boundaries.public_unauthenticated_only == true and
+            .boundaries.maximum_tickers == 2 and
+            .boundaries.maximum_active_websocket_connections == 1 and
+            .boundaries.controlled_disconnects == 1 and
+            .boundaries.market_depth_subscription == false and
+            .boundaries.portfolio_access == false and
+            .boundaries.order_entry == false and
+            .boundaries.financial_operations == false and
+            .boundaries.form_submission == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.external_contact == false and
+            .boundaries.merge_authorized == false
+          ' "${contract}" >/dev/null
+          node --check scripts/tradernet_public_quotes_reconnect_probe.mjs
+          node --check scripts/analyze_tradernet_quote_temporal_integrity.mjs
+          node --check scripts/tradernet_quote_subscription_idempotency_probe.mjs
+          node --check scripts/analyze_tradernet_quote_reducer_impact.mjs
+          node scripts/analyze_tradernet_quote_reducer_impact.mjs --self-test
+          python3 -m unittest tests/test_write_exact_head_manifest.py -v
+          test -z "$(find scripts tests -type d -name __pycache__ -print -quit)"
+          echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
+          echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
+
+      - name: Install bounded WebSocket dependency outside worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          deps="${RUNNER_TEMP}/tradernet-reducer-node-deps"
+          rm -rf "${deps}"
+          npm install --prefix "${deps}" --no-save --package-lock=false ws@8.18.3
+          ln -s "${deps}/node_modules" node_modules
+
+      - name: Capture bounded public quote traces and replay reducers
+        id: capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/tradernet-quote-reducer-integrity"
+          rm -rf "${out}" && mkdir -p "${out}"
+          base="audits/tradernet/public-quotes-reconnect.json"
+          contract="audits/tradernet/quote-reducer-integrity-v0.2.json"
+          ticker_csv="$(jq -r '.source_audit.tickers | join(",")' "${contract}")"
+          endpoint="$(jq -r '.source_audit.websocket_endpoint' "${contract}")"
+
+          node scripts/tradernet_public_quotes_reconnect_probe.mjs \
+            --output-dir "${out}" \
+            --tickers "${ticker_csv}" \
+            --ws-endpoint "${endpoint}" \
+            --phase-ms "$(jq -r '.phase_ms' "${base}")" \
+            --reconnect-delay-ms "$(jq -r '.reconnect_delay_ms' "${base}")" \
+            --handshake-timeout-ms "$(jq -r '.handshake_timeout_ms' "${base}")"
+
+          node scripts/analyze_tradernet_quote_temporal_integrity.mjs \
+            --input "${out}/tradernet-public-quotes-reconnect.json" \
+            --output "${out}/tradernet-public-quote-temporal-integrity.json"
+
+          node scripts/tradernet_quote_subscription_idempotency_probe.mjs \
+            --output-dir "${out}" \
+            --tickers "${ticker_csv}" \
+            --endpoint "${endpoint}" \
+            --repeat-after-ms "$(jq -r '.subscription_idempotency.repeat_after_ms' "${base}")" \
+            --observation-ms "$(jq -r '.subscription_idempotency.observation_ms' "${base}")" \
+            --handshake-timeout-ms "$(jq -r '.handshake_timeout_ms' "${base}")"
+
+          node scripts/analyze_tradernet_quote_reducer_impact.mjs \
+            --reconnect-input "${out}/tradernet-public-quotes-reconnect.json" \
+            --idempotency-input "${out}/tradernet-quote-subscription-idempotency.json" \
+            --contract "${contract}" \
+            --output-dir "${out}"
+
+          cat "${out}/tradernet-quote-reducer-integrity.md" >> "${GITHUB_STEP_SUMMARY}"
+          jq -e '
+            .schema_version == "liminalqa-tradernet-quote-reducer-integrity-result-v1" and
+            .adjudication.findings["TRD-RED-004"].state != null
+          ' "${out}/tradernet-quote-reducer-integrity.json" >/dev/null
+
+      - name: Verify final exact head and clean worktree
+        id: final
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -L node_modules ]; then rm node_modules; fi
+          final_sha="$(git rev-parse HEAD)"
+          test "${final_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+          echo "completed_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
+
+      - name: Write immutable exact-head manifest
+        id: manifest
+        if: always() && steps.identity.outcome == 'success' && steps.capture.outcome == 'success' && steps.final.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/tradernet-quote-reducer-integrity"
+          python3 scripts/write_exact_head_manifest.py manifest \
+            --output-dir "${out}" \
+            --audit-name "Tradernet quote reducer integrity v0.2" \
+            --target "wss://wss.tradernet.com" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --expected-sha "${EXPECTED_SHA}" \
+            --initial-sha "${{ steps.identity.outputs.initial_sha }}" \
+            --final-sha "${{ steps.final.outputs.final_sha }}" \
+            --workflow-sha "${{ github.workflow_sha }}" \
+            --event-name "${GITHUB_EVENT_NAME}" \
+            --git-ref "${GITHUB_REF}" \
+            --head-ref "${GITHUB_HEAD_REF}" \
+            --workflow-ref "${{ github.workflow_ref }}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --artifact-name "${EVIDENCE_NAME}" \
+            --started-at "${{ steps.identity.outputs.started_at }}" \
+            --completed-at "${{ steps.final.outputs.completed_at }}" \
+            --execution-status "capture=${{ steps.capture.outcome }}"
+
+      - name: Upload exact reducer evidence
+        id: evidence
+        if: always() && steps.manifest.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.EVIDENCE_NAME }}
+          path: ${{ runner.temp }}/tradernet-quote-reducer-integrity/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write and upload artifact receipt
+        if: always() && steps.evidence.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="${RUNNER_TEMP}/tradernet-quote-reducer-receipt"
+          rm -rf "${receipt}" && mkdir -p "${receipt}"
+          python3 scripts/write_exact_head_manifest.py receipt \
+            --manifest "${RUNNER_TEMP}/tradernet-quote-reducer-integrity/manifest.json" \
+            --output "${receipt}/artifact-receipt.json" \
+            --artifact-name "${EVIDENCE_NAME}" \
+            --artifact-id "${{ steps.evidence.outputs.artifact-id }}" \
+            --artifact-url "${{ steps.evidence.outputs.artifact-url }}" \
+            --artifact-digest "${{ steps.evidence.outputs.artifact-digest }}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}"
+
+      - name: Upload receipt
+        if: always() && steps.evidence.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RECEIPT_NAME }}
+          path: ${{ runner.temp }}/tradernet-quote-reducer-receipt/artifact-receipt.json
+          if-no-files-found: error
+          retention-days: 14

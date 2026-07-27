@@ -1,0 +1,66 @@
+{
+  "schema_version": "liminalqa-tradernet-quote-reducer-integrity-config-v1",
+  "audit_id": "TRADERNET-QUOTE-REDUCER-INTEGRITY-2026-07-27-V0.2",
+  "observation_date": "2026-07-27",
+  "source_audit": {
+    "parent_pr": 120,
+    "parent_exact_head": "5f0c82162d6cd37c6971a935c988d5008f34dd43",
+    "websocket_endpoint": "wss://wss.tradernet.com",
+    "tickers": ["AAPL.US", "MSFT.US"]
+  },
+  "reducer_models": {
+    "naive": "accept_monotonic_sequence_revision_and_shallow_merge_all_fields",
+    "guarded": "accept_monotonic_sequence_revision_but_suppress_time_sensitive_fields_when_market_time_materially_regresses_without_provenance"
+  },
+  "rules": {
+    "material_market_time_regression_seconds": 60,
+    "near_delayed_feed_offset_seconds": 900,
+    "near_delayed_feed_tolerance_seconds": 60,
+    "minimum_rollbacks_for_candidate": 4,
+    "minimum_affected_tickers": 2,
+    "minimum_affected_connection_phases": 2,
+    "time_sensitive_fields": ["ltt", "ltp", "lts"],
+    "provenance_fields": ["feed", "source", "provider", "delay", "delayed", "entitlement", "mode", "realtime"]
+  },
+  "findings": [
+    {
+      "id": "TRD-RED-001",
+      "title": "A monotonic sequence/revision reducer can still roll visible market time backward",
+      "promotion_rule": "Replay current bounded quote traces through the naive reducer and reproduce material visible-time rollback across both tickers and at least two connection phases."
+    },
+    {
+      "id": "TRD-RED-002",
+      "title": "Backward-time updates may also overwrite last-price fields",
+      "promotion_rule": "Promote only when an accepted backward-time payload contains a changed finite ltp or lts value."
+    },
+    {
+      "id": "TRD-RED-003",
+      "title": "Repeated subscription snapshots can reinitialize client state",
+      "promotion_rule": "Confirm init=1 snapshots after the repeated identical subscription; classify as a defect candidate only if they replace a newer client state with older sequence, revision, market time or price."
+    },
+    {
+      "id": "TRD-RED-004",
+      "title": "The quote payload lacks explicit provenance for contradictory time domains",
+      "promotion_rule": "Confirm material backward-time updates without any allowlisted provenance field. This remains a system-contract signal, not proof of the upstream source."
+    }
+  ],
+  "boundaries": {
+    "public_unauthenticated_only": true,
+    "maximum_tickers": 2,
+    "maximum_active_websocket_connections": 1,
+    "controlled_disconnects": 1,
+    "maximum_subscription_messages_per_connection": 2,
+    "market_depth_subscription": false,
+    "portfolio_access": false,
+    "order_entry": false,
+    "financial_operations": false,
+    "form_submission": false,
+    "malformed_protocol_messages": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "external_contact": false,
+    "merge_authorized": false
+  },
+  "claim_boundary": "This audit evaluates deterministic client-state consequences of bounded public demo quote messages. It does not identify an upstream venue, entitlement source, production account behavior, order-execution impact, legal impact or server-side resource leak."
+}
