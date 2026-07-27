@@ -1,0 +1,94 @@
+name: Sitnikov-Inspired Self-Regulation Skill Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/sitnikov-inspired-self-regulation-v0-1
+    paths:
+      - skills/sitnikov-inspired-self-regulation/**
+      - docs/research/ALEXEY_SITNIKOV_PUBLICATIONS_INDEX.md
+      - tests/test_sitnikov_inspired_self_regulation_skill.py
+      - skills/README.md
+      - .github/workflows/sitnikov-self-regulation-skill-contract.yml
+  pull_request:
+    branches:
+      - agent/causal-deep-audit-skills-v0-1
+    paths:
+      - skills/sitnikov-inspired-self-regulation/**
+      - docs/research/ALEXEY_SITNIKOV_PUBLICATIONS_INDEX.md
+      - tests/test_sitnikov_inspired_self_regulation_skill.py
+      - skills/README.md
+      - .github/workflows/sitnikov-self-regulation-skill-contract.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sitnikov-self-regulation-skill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate sources, safety and authority boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact source identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Validate source registry JSON
+        run: python3 -m json.tool skills/sitnikov-inspired-self-regulation/sources.json >/dev/null
+
+      - name: Validate Agent Skill structure
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from scripts.validate_audit_skills import validate_skill_text
+
+          path = Path("skills/sitnikov-inspired-self-regulation/SKILL.md")
+          errors = validate_skill_text(
+              "sitnikov-inspired-self-regulation",
+              path.read_text(encoding="utf-8"),
+          )
+          if errors:
+              raise SystemExit("\n".join(errors))
+          print("Standalone skill structure validated.")
+          PY
+
+      - name: Run fail-closed regression tests
+        run: python3 -m unittest tests/test_sitnikov_inspired_self_regulation_skill.py -v
+
+      - name: Build immutable validation manifest
+        run: |
+          mkdir -p /tmp/sitnikov-skill-evidence
+          sha256sum \
+            skills/sitnikov-inspired-self-regulation/SKILL.md \
+            skills/sitnikov-inspired-self-regulation/sources.json \
+            docs/research/ALEXEY_SITNIKOV_PUBLICATIONS_INDEX.md \
+            tests/test_sitnikov_inspired_self_regulation_skill.py \
+            skills/README.md \
+            > /tmp/sitnikov-skill-evidence/SHA256SUMS
+          printf '%s\n' "$(git rev-parse HEAD)" > /tmp/sitnikov-skill-evidence/HEAD_SHA
+          cp skills/sitnikov-inspired-self-regulation/sources.json \
+            /tmp/sitnikov-skill-evidence/sources.json
+          test -z "$(git status --porcelain)"
+
+      - name: Upload validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sitnikov-self-regulation-skill-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/sitnikov-skill-evidence
+          if-no-files-found: error
+          retention-days: 30
