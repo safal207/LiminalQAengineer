@@ -33,6 +33,9 @@ class TraceTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_js_numeric_canonicalization(self):
+        self.assertEqual(module.canon({"x": 0.0, "y": [1.0, 1.5]}), b'{"x":0,"y":[1,1.5]}')
+
     def test_clean_trace_passes(self):
         result = module.verify_entries(self.entries, self.critical)
         self.assertTrue(result["valid"])

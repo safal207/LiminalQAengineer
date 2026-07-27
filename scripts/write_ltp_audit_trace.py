@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create/verify a deterministic, read-only LTP JSONL audit trace."""
 from __future__ import annotations
-import argparse, hashlib, json, re
+import argparse, hashlib, json, math, re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -9,7 +9,14 @@ from typing import Any, Iterable
 ZERO="0"*64; SHA=re.compile(r"^[0-9a-f]{64}$"); COMMIT=re.compile(r"^[0-9a-f]{40}$")
 class TraceContractError(ValueError): pass
 
-def canon(v:Any)->bytes:return json.dumps(v,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()
+def _js_numbers(v:Any)->Any:
+ if isinstance(v,float):
+  if not math.isfinite(v):raise TraceContractError("non-finite number is not canonical JSON")
+  return int(v) if v.is_integer() else v
+ if isinstance(v,list):return [_js_numbers(x) for x in v]
+ if isinstance(v,dict):return {k:_js_numbers(x) for k,x in v.items()}
+ return v
+def canon(v:Any)->bytes:return json.dumps(_js_numbers(v),sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()
 def fsha(p:Path)->str:
  h=hashlib.sha256()
  with p.open("rb") as f:
@@ -83,7 +90,7 @@ def verify_entries(entries:list[dict[str,Any]],critical:set[str])->dict[str,Any]
    if decision in {"BLOCK","DENY","HOLD","FREEZE"} and allow:raise TraceContractError(f"non-ALLOW decision marked admissible at position {i}")
    if p.get("context")=="WEB" and p.get("targetState") in critical and allow:raise TraceContractError(f"critical WEB-direct action at position {i}")
  if len(cts)>1:raise TraceContractError("continuity token changed")
- if not identity:raise TraceContractError("identity binding missing")
+ if not identity:raise TraceContractError,"identity binding missing")
  return {"valid":True,"frames":len(entries),"session_id":session,"identity":identity,"hash_root":prev,"continuity_token":next(iter(cts),None),"route_decisions":len(routes)}
 def inv(root:Path)->list[dict[str,Any]]:
  out=[]
@@ -97,29 +104,4 @@ def build(a:argparse.Namespace)->int:
  for name in ("expected_sha","initial_sha","workflow_sha","ltp_sha"):
   if not COMMIT.fullmatch(getattr(a,name)):raise TraceContractError(f"{name} must be 40-char SHA")
  if a.expected_sha!=a.initial_sha:raise TraceContractError("initial SHA differs from expected SHA")
- start=ts(a.started_at);root=Path(a.output_dir).resolve();critical,rsha=load_registry(Path(a.critical_actions_registry).resolve());files=inv(root)
- invroot=hashlib.sha256(canon(files)).hexdigest();session=f"tradernet-{a.run_id}-{a.run_attempt}";ct="ct-"+hashlib.sha256(f"{a.repository}:{a.expected_sha}:{a.run_id}:{a.run_attempt}".encode()).hexdigest()[:24];identity=f"{a.repository}@{a.expected_sha}"
- constraints={"public_page_only":True,"read_only":True,"no_authentication":True,"no_form_submission":True,"no_financial_operation":True,"no_external_message":True,"no_deploy":True,"no_protected_effect":True}
- frames=[
- ("out",make_frame("step-001",start,"hello",{"agent":"liminalqa-tradernet-auditor","repository":a.repository,"expected_sha":a.expected_sha,"workflow_sha":a.workflow_sha,"run_id":str(a.run_id),"run_attempt":str(a.run_attempt),"artifact_name":a.artifact_name,"ltp_inspector_sha":a.ltp_sha,"critical_actions_registry_sha256":rsha},None)),
- ("out",make_frame("step-002",start,"orientation",{"identity":identity,"status":"healthy","drift":0.0,"constraints":constraints},ct)),
- ("out",make_frame("step-003",start,"focus_snapshot",{"identity":identity,"drift":0.0,"focus_momentum":1.0,"rationale":"bounded evidence capture"},ct)),
- ("in",make_frame("step-004",start,"route_request",{"goal":"record bounded public audit evidence","source_context":"CI","target":a.target,"repository":a.repository,"expected_sha":a.expected_sha,"run_id":str(a.run_id),"run_attempt":str(a.run_attempt),"constraints":constraints},ct)),
- ("out",make_frame("step-005",start,"route_response",{"context":"CI","targetState":"capture_public_evidence","admissible":True,"decision":"EXECUTE","capabilities":[],"branches":[{"id":"bounded-public-capture","confidence":1.0,"status":"admissible","reason":"read-only public scope and exact-head identity verified"}]},ct)),
- ("out",make_frame("step-006",start,"observation",{"capture_status":a.capture_status,"evidence_file_count":len(files),"evidence_inventory_sha256":invroot,"evidence_files":files},ct)),
- ("in",make_frame("step-007",start,"route_request",{"goal":"preserve immutable audit evidence","source_context":"CI","constraints":constraints},ct)),
- ("out",make_frame("step-008",start,"route_response",{"context":"CI","targetState":"write_audit_artifact","admissible":True,"decision":"EXECUTE","capabilities":[],"branches":[{"id":"immutable-artifact","confidence":1.0,"status":"admissible","reason":"output remains inside declared CI artifact boundary"}]},ct)),
- ("out",make_frame("step-009",start,"orientation",{"identity":identity,"status":"healthy","drift":0.0,"focus_momentum":1.0,"constraints":constraints},ct))]
- entries=build_entries(frames,session);d=root/"ltp";d.mkdir(parents=True,exist_ok=True);trace=d/"trace.jsonl";trace.write_text("\n".join(json.dumps(e,separators=(",",":"),ensure_ascii=False) for e in entries)+"\n")
- result=verify_entries(entries,critical);result.update({"trace_sha256":fsha(trace),"ltp_inspector_sha":a.ltp_sha,"critical_actions_registry_sha256":rsha,"evidence_inventory_sha256":invroot});writej(d/"local-verification.json",result);return 0
-def verify(a:argparse.Namespace)->int:
- critical,rsha=load_registry(Path(a.critical_actions_registry).resolve());p=Path(a.trace).resolve();r=verify_entries(parse_jsonl(p),critical);r.update({"trace_sha256":fsha(p),"critical_actions_registry_sha256":rsha});writej(Path(a.output).resolve(),r) if a.output else print(json.dumps(r,sort_keys=True));return 0
-def parser()->argparse.ArgumentParser:
- p=argparse.ArgumentParser();s=p.add_subparsers(dest="cmd",required=True);b=s.add_parser("build")
- for n in ("output_dir","audit_name","target","repository","expected_sha","initial_sha","workflow_sha","run_id","run_attempt","started_at","capture_status","artifact_name","ltp_sha","critical_actions_registry"):b.add_argument("--"+n.replace("_","-"),required=True)
- b.set_defaults(fn=build);v=s.add_parser("verify");v.add_argument("--trace",required=True);v.add_argument("--critical-actions-registry",required=True);v.add_argument("--output");v.set_defaults(fn=verify);return p
-def main()->int:
- try:
-  a=parser().parse_args();return int(a.fn(a))
- except TraceContractError as e:print(f"TRACE CONTRACT ERROR: {e}");return 2
-if __name__=="__main__":raise SystemExit(main())
+ start=ts(a.started_at);root=Path(a.output_dir*Ş²‰oyÊâ¶'–»!jZv· ŠËkÈö­…§+ŠØœjVœ¶*'²· ŠËkÊ·¬¢[Ş~)^²)ï®Š-Š{ë¢‹
