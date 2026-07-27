@@ -13,6 +13,17 @@ ltp_sha="$4"
 report_dir="${evidence_dir}/ltp"
 mkdir -p "${report_dir}"
 
+dump_failure() {
+  echo "--- LTP audit diagnostics ---" >&2
+  for file in registry-parity.stderr.txt registry-parity.stdout.txt inspector.stderr.txt inspector-report.json replay-1.stderr.txt replay-1.stdout.txt replay-2.stderr.txt replay-2.stdout.txt explain-step-008.stderr.txt; do
+    if [ -s "${report_dir}/${file}" ]; then
+      echo "### ${file}" >&2
+      cat "${report_dir}/${file}" >&2
+    fi
+  done
+}
+trap dump_failure ERR
+
 if [[ ! "${ltp_sha}" =~ ^[0-9a-f]{40}$ ]]; then
   echo "ltp-sha must be a lowercase 40-character SHA" >&2
   exit 2
@@ -45,6 +56,7 @@ set -e
 printf '%s\n' "${registry_code}" > "${report_dir}/registry-parity.exit-code.txt"
 if [ "${registry_code}" -ne 0 ]; then
   echo "critical-action registry parity failed" >&2
+  dump_failure
   exit "${registry_code}"
 fi
 
@@ -60,6 +72,7 @@ set -e
 printf '%s\n' "${inspect_code}" > "${report_dir}/inspector.exit-code.txt"
 if [ "${inspect_code}" -ne 0 ]; then
   echo "strict LTP inspection failed with exit ${inspect_code}" >&2
+  dump_failure
   exit "${inspect_code}"
 fi
 
@@ -94,6 +107,7 @@ for attempt in 1 2; do
   printf '%s\n' "${replay_code}" > "${report_dir}/replay-${attempt}.exit-code.txt"
   if [ "${replay_code}" -ne 0 ]; then
     echo "replay ${attempt} failed with exit ${replay_code}" >&2
+    dump_failure
     exit "${replay_code}"
   fi
 done
@@ -113,6 +127,7 @@ set -e
 printf '%s\n' "${explain_code}" > "${report_dir}/explain-step-008.exit-code.txt"
 if [ "${explain_code}" -ne 0 ]; then
   echo "explain failed with exit ${explain_code}" >&2
+  dump_failure
   exit "${explain_code}"
 fi
 
