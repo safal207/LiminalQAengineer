@@ -8,12 +8,12 @@ on:
         required: false
         type: string
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - .github/workflows/tradernet-public-quotes-reconnect.yml
       - audits/tradernet/public-quotes-reconnect.json
       - scripts/tradernet_public_quotes_reconnect_probe.mjs
+      - scripts/analyze_tradernet_quote_reconnect_result.mjs
       - scripts/write_exact_head_manifest.py
       - tests/test_write_exact_head_manifest.py
 
@@ -56,8 +56,7 @@ jobs:
           config="audits/tradernet/public-quotes-reconnect.json"
           python3 -m json.tool "${config}" >/dev/null
           jq -e '
-            (.tickers | length) >= 1 and
-            (.tickers | length) <= 2 and
+            (.tickers | length) >= 1 and (.tickers | length) <= 2 and
             .websocket_endpoint == "wss://wss.tradernet.com" and
             .phase_ms >= 3000 and .phase_ms <= 30000 and
             .reconnect_delay_ms >= 250 and .reconnect_delay_ms <= 5000 and
@@ -73,10 +72,13 @@ jobs:
             .boundaries.load_testing == false
           ' "${config}" >/dev/null
           node --check scripts/tradernet_public_quotes_reconnect_probe.mjs
+          node --check scripts/analyze_tradernet_quote_reconnect_result.mjs
+          node scripts/tradernet_public_quotes_reconnect_probe.mjs --self-test
+          node scripts/analyze_tradernet_quote_reconnect_result.mjs --self-test
           echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
           echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
 
-      - name: Validate helpers
+      - name: Validate manifest helper
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         shell: bash
@@ -117,7 +119,11 @@ jobs:
             --phase-ms "$(jq -r '.phase_ms' audits/tradernet/public-quotes-reconnect.json)" \
             --reconnect-delay-ms "$(jq -r '.reconnect_delay_ms' audits/tradernet/public-quotes-reconnect.json)" \
             --handshake-timeout-ms "$(jq -r '.handshake_timeout_ms' audits/tradernet/public-quotes-reconnect.json)"
+          node scripts/analyze_tradernet_quote_reconnect_result.mjs \
+            --input "${evidence_dir}/tradernet-public-quotes-reconnect.json" \
+            --tickers "${ticker_csv}"
           cat "${evidence_dir}/tradernet-public-quotes-reconnect.md" >> "${GITHUB_STEP_SUMMARY}"
+          jq '.deep_analysis.adjudication' "${evidence_dir}/tradernet-public-quotes-reconnect.json" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Verify final exact head and clean worktree
         id: final_identity
