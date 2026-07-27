@@ -29,19 +29,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  skill-graph:
-    name: Skill graph and schema
+  skill-text:
+    name: Skill text - ${{ matrix.skill }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        skill:
+          - causal-deep-audit
+          - evidence-capture
+          - causal-adjudication
+          - cyber-causal-audit
+          - websocket-redis-lifecycle
+          - exact-head-governance
+          - replay-memory
+          - product-impact
+          - transition-next-action
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
           show-progress: false
-      - name: Validate skill text, schema and routes
+      - name: Validate one skill
+        env:
+          SKILL_NAME: ${{ matrix.skill }}
         run: |
           python3 - <<'PY'
           import importlib.util
+          import os
           from pathlib import Path
 
           root = Path.cwd()
@@ -51,27 +67,47 @@ jobs:
           module = importlib.util.module_from_spec(spec)
           assert spec and spec.loader
           spec.loader.exec_module(module)
+          name = os.environ['SKILL_NAME']
+          path = module.SKILLS[name]
+          errors = module.validate_skill_text(name, path.read_text(encoding='utf-8'))
+          if errors:
+              raise SystemExit('\n'.join(errors))
+          print(f'Validated {name}.')
+          PY
 
-          errors = []
-          for name, path in module.SKILLS.items():
-              if not path.is_file():
-                  errors.append(f'missing skill file: {path.relative_to(root)}')
-                  continue
-              for error in module.validate_skill_text(name, path.read_text(encoding='utf-8')):
-                  errors.append(f'{path.relative_to(root)}: {error}')
-
+  schema-and-routes:
+    name: Schema and orchestrator routes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          show-progress: false
+      - name: Validate schema and routes
+        run: |
+          python3 - <<'PY'
+          import importlib.util
           import json
-          schema = json.loads(module.SCHEMA.read_text(encoding='utf-8'))
-          errors.extend(f'schema: {error}' for error in module.validate_schema(schema))
+          from pathlib import Path
 
+          root = Path.cwd()
+          spec = importlib.util.spec_from_file_location(
+              'validator', root / 'scripts/validate_audit_skills.py'
+          )
+          module = importlib.util.module_from_spec(spec)
+          assert spec and spec.loader
+          spec.loader.exec_module(module)
+          errors = module.validate_schema(
+              json.loads(module.SCHEMA.read_text(encoding='utf-8'))
+          )
           orchestrator = module.SKILLS['causal-deep-audit'].read_text(encoding='utf-8')
           for dependency in module.SKILLS:
               if dependency != 'causal-deep-audit' and dependency not in orchestrator:
                   errors.append(f'orchestrator does not invoke dependency: {dependency}')
-
           if errors:
               raise SystemExit('\n'.join(errors))
-          print(f'Validated {len(module.SKILLS)} skill files, schema and routes.')
+          print('Validated schema and orchestrator routes.')
           PY
 
   external-sources:
@@ -135,13 +171,30 @@ jobs:
           PY
 
   negative-tests:
-    name: Fail-closed negative regression tests
+    name: Negative test - ${{ matrix.test }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - test_repository_contract_is_valid
+          - test_wrong_skill_name_fails_closed
+          - test_missing_uncertainty_state_is_rejected
+          - test_schema_without_not_run_is_rejected
+          - test_schema_cannot_expand_gate_authority
+          - test_external_skill_execution_cannot_be_enabled_silently
+          - test_mutable_external_source_pin_is_rejected
+          - test_external_executable_dependency_is_rejected
+          - test_security_finding_cannot_skip_competing_explanation
+          - test_security_finding_cannot_claim_confirmation_from_static_review
+          - test_credential_and_financial_boundaries_are_mandatory
+          - test_skills_and_report_contain_no_embedded_secret_values
+          - test_analog_repository_boundary_is_explicit
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
           show-progress: false
-      - name: Run regression tests
-        run: python3 -m unittest tests/test_audit_skills_contract.py -v
+      - name: Run one fail-closed regression
+        run: python3 -m unittest tests.test_audit_skills_contract.AuditSkillContractTests.${{ matrix.test }} -v
