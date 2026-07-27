@@ -1,0 +1,315 @@
+{
+  "schema_version": "1.0",
+  "registry_id": "sitnikov-public-sources-2026-07-27",
+  "retrieved_at": "2026-07-27",
+  "scope": "Publicly discoverable official pages, publisher catalogues, library records, dissertations, and selected official media entry points relevant to Alexey Petrovich Sitnikov, hypnosis, self-hypnosis, NLP, coaching, reflection, and self-regulation.",
+  "completeness": {
+    "state": "PARTIAL_BUT_VERIFIED",
+    "statement": "The official biography says Alexey Sitnikov is author or co-author of 14 monographs, but no single authoritative public bibliography enumerating all 14 was found. This registry does not claim to contain every article, social post, interview, video, edition, or co-authored work.",
+    "rule": "Unverified attribution remains NEEDS_EVIDENCE. Dynamic channel counts and planned books are not treated as fixed bibliographic facts."
+  },
+  "evidence_classes": {
+    "OFFICIAL_AUTHOR": "Official Sitnikov/Karmalogic website or official author channel.",
+    "PUBLISHER": "Publisher catalogue or official edition page.",
+    "LIBRARY": "National or institutional library bibliographic record.",
+    "PROFESSIONAL_CLINICAL": "Professional or public-health source used only for hypnosis safety/evidence boundaries.",
+    "SECONDARY_DISCOVERY": "Useful for discovery but insufficient alone for a strong attribution or efficacy claim."
+  },
+  "author_method_sources": [
+    {
+      "id": "SIT-OFFICIAL-ABOUT",
+      "class": "OFFICIAL_AUTHOR",
+      "title": "Об авторе — Karmalogic",
+      "url": "https://www.sitnikov.com/about/",
+      "supports": [
+        "official professional self-description",
+        "hypnotherapist and psychotherapist positioning",
+        "1989 Ericksonian hypnosis and NLP attribution",
+        "claim of 14 authored/co-authored monographs"
+      ]
+    },
+    {
+      "id": "SIT-ACMELOGIC-CURRICULUM",
+      "class": "OFFICIAL_AUTHOR",
+      "title": "Acmelogic training curriculum",
+      "url": "https://sitnikov.com/trainings/acmelogic/",
+      "supports": [
+        "trance and hypnosis topics",
+        "visual, auditory, and kinesthetic trance exercises",
+        "ideomotor and submodality exercises",
+        "associated and dissociated imagery",
+        "meditation and self-hypnosis",
+        "morning setting, daytime meditation, evening reflection",
+        "future view, mini-programming, goals, metaphors, Milton-model language"
+      ],
+      "boundary": "A curriculum proves that topics are taught; it does not independently prove clinical efficacy."
+    },
+    {
+      "id": "SIT-KARMALOGIC-PROJECT",
+      "class": "OFFICIAL_AUTHOR",
+      "title": "Karmalogic project directions",
+      "url": "https://www.sitnikov.com/karmalogic/",
+      "supports": [
+        "current named book-project directions",
+        "Karmalogic, Karmamagic, Karmacoach, Karmawoman availability",
+        "Karmaguide planned for 2026",
+        "children's book project"
+      ]
+    },
+    {
+      "id": "SIT-OFFICIAL-BOOKS",
+      "class": "OFFICIAL_AUTHOR",
+      "title": "Official Karmalogic books catalogue",
+      "url": "https://www.sitnikov.com/karmalogic/knigi/",
+      "supports": [
+        "current official catalogue entries and bundles",
+        "Субъектность общества: теория и практика catalogue presence"
+      ]
+    },
+    {
+      "id": "SIT-YOUTUBE",
+      "class": "OFFICIAL_AUTHOR",
+      "title": "Alexey Sitnikov official YouTube channel",
+      "url": "https://www.youtube.com/@AlexeySitnikov",
+      "supports": [
+        "official long-form and short-form public video corpus",
+        "interviews and discussions on hypnosis, NLP, memory, stress, relationships, and self-development"
+      ],
+      "boundary": "The corpus is dynamic. This registry stores the channel entry point rather than claiming an exhaustive immutable video list."
+    },
+    {
+      "id": "SIT-TELEGRAM",
+      "class": "OFFICIAL_AUTHOR",
+      "title": "Alexey Sitnikov public Telegram channel",
+      "url": "https://t.me/drSit",
+      "supports": [
+        "public posts, excerpts, announcements, and current project links"
+      ],
+      "boundary": "Posts are dynamic and may be promotional; scientific claims require independent verification."
+    },
+    {
+      "id": "SIT-RUTUBE",
+      "class": "OFFICIAL_AUTHOR",
+      "title": "Alexey Sitnikov public Rutube channel",
+      "url": "https://rutube.ru/channel/69296689/",
+      "supports": [
+        "public video archive and recent programme releases"
+      ]
+    }
+  ],
+  "verified_publications": [
+    {
+      "id": "PUB-1992-CANDIDATE-ABSTRACT",
+      "type": "dissertation_abstract",
+      "title": "Социально-психологический тренинг как средство повышения психологической готовности руководящих кадров к профессиональной деятельности",
+      "year": 1992,
+      "status": "BIBLIOGRAPHIC_RECORD",
+      "source_url": "https://search.rsl.ru/ru/search#q=%D0%A1%D0%B8%D1%82%D0%BD%D0%B8%D0%BA%D0%BE%D0%B2%20%D0%90%D0%BB%D0%B5%D0%BA%D1%81%D0%B5%D0%B9%20%D0%9F%D0%B5%D1%82%D1%80%D0%BE%D0%B2%D0%B8%D1%87"
+    },
+    {
+      "id": "PUB-1995-PSY-DISSERTATION",
+      "type": "doctoral_dissertation",
+      "title": "Теоретические и прикладные основы акмеологического тренинга программно-целевой направленности",
+      "year": 1995,
+      "pages": "461 + appendix",
+      "status": "BIBLIOGRAPHIC_RECORD",
+      "source_url": "https://search.rsl.ru/ru/record/01000197013"
+    },
+    {
+      "id": "PUB-1996-ACMEOLOGICAL-TRAINING",
+      "type": "book",
+      "title": "Акмеологический тренинг: Теория, методика, психотехнологии",
+      "year": 1996,
+      "pages": "428 + 1",
+      "isbn": "5-86073-012-8",
+      "status": "BIBLIOGRAPHIC_RECORD",
+      "source_url": "https://search.rsl.ru/ru/record/01002127869"
+    },
+    {
+      "id": "PUB-2003-VICTORY-WITHOUT-WINNERS",
+      "type": "book",
+      "title": "Победа без победителей: Очерки теории прагматических коммуникаций",
+      "year": 2003,
+      "coauthors": ["Михаил Вячеславович Гундарин"],
+      "pages": 250,
+      "isbn": "5-94369-017-4",
+      "status": "BIBLIOGRAPHIC_RECORD",
+      "source_url": "https://search.rsl.ru/ru/record/01001843767"
+    },
+    {
+      "id": "PUB-2004-POLITICAL-CONSULTING",
+      "type": "textbook",
+      "title": "Политический консалтинг",
+      "year": 2004,
+      "coauthors": ["И. В. Огарь", "Н. С. Бахвалова"],
+      "pages": 622,
+      "isbn": "5-7598-0088-4",
+      "status": "BIBLIOGRAPHIC_RECORD",
+      "source_url": "https://rgub.ru/searchopac/book.php?id=BOOK%2F24988"
+    },
+    {
+      "id": "PUB-2018-KARMALOGIC",
+      "type": "book",
+      "title": "KARMALOGIC",
+      "year": 2018,
+      "pages": "836 + 2",
+      "isbn": "978-5-386-10461-0",
+      "status": "BIBLIOGRAPHIC_RECORD",
+      "source_url": "https://rgub.ru/searchopac/book.php?id=RGUB%5CBIBL%5C0000854654"
+    },
+    {
+      "id": "PUB-KARMALOGIC-SHORT",
+      "type": "book_edition",
+      "title": "KARMALOGIC. Краткая версия",
+      "year": null,
+      "status": "PUBLISHER_CONFIRMED_MULTIPLE_EDITIONS",
+      "source_url": "https://ripol.ru/books/27/3709/"
+    },
+    {
+      "id": "PUB-KARMAMAGIC",
+      "type": "book",
+      "title": "KARMAMAGIC",
+      "year": null,
+      "status": "PUBLISHER_CONFIRMED_MULTIPLE_EDITIONS",
+      "source_url": "https://ast.ru/book/karmamagic-849055/",
+      "note": "The publisher lists more than one edition; first-publication chronology should be verified separately before asserting an exact first-edition year."
+    },
+    {
+      "id": "PUB-2023-KARMACOACH",
+      "type": "book",
+      "title": "KARMACOACH",
+      "year": 2023,
+      "pages": 944,
+      "isbn": "978-5-386-15107-2",
+      "status": "PUBLISHER_CONFIRMED",
+      "source_url": "https://ripol.ru/books/31/3317/"
+    },
+    {
+      "id": "PUB-KARMACOACH-SHORT",
+      "type": "book_edition",
+      "title": "KARMACOACH. Краткая версия",
+      "year": null,
+      "status": "PUBLISHER_CONFIRMED",
+      "source_url": "https://ripol.ru/books/31/3317/"
+    },
+    {
+      "id": "PUB-2022-KARMASHKINO",
+      "type": "children_book",
+      "title": "Приключения в Кармашкино",
+      "year": 2022,
+      "pages": 256,
+      "isbn": "978-5-17-146273-4",
+      "status": "PUBLISHER_CONFIRMED",
+      "source_url": "https://ast.ru/book/priklyucheniya-v-karmashkino-860310/"
+    },
+    {
+      "id": "PUB-2022-PHILOSOPHY-DISSERTATION",
+      "type": "doctoral_dissertation",
+      "title": "Архаизация российского общества: культурные детерминанты, формы проявления и перспективы развития",
+      "year": 2022,
+      "pages": 307,
+      "status": "BIBLIOGRAPHIC_RECORD",
+      "source_url": "https://search.rsl.ru/ru/record/01011744011"
+    },
+    {
+      "id": "PUB-2025-KARMAWOMAN",
+      "type": "book",
+      "title": "KARMAWOMAN. Архитектура женской энергии",
+      "year": 2025,
+      "pages": 256,
+      "isbn_print": "978-5-04-223324-1",
+      "isbn_ebook": "978-5-04-231328-8",
+      "status": "PUBLISHER_CONFIRMED",
+      "source_url": "https://eksmo.ru/book/zhenskaya-energiya-ITD1448781/"
+    },
+    {
+      "id": "PUB-KARMAPOWER",
+      "type": "book_or_forthcoming_edition",
+      "title": "KARMAPOWER. Психология долголетия",
+      "year": null,
+      "isbn": "978-5-04-249125-2",
+      "status": "PUBLISHER_CATALOGUE_ENTRY",
+      "source_url": "https://eksmo.ru/book/karmapower-psikhologiya-dolgoletiya-ITD1506887/",
+      "note": "Publisher page exists, but at retrieval time it contained zero pages/weight and no release date; treat publication availability as NEEDS_EVIDENCE until the edition is released or fully catalogued."
+    },
+    {
+      "id": "PUB-LOGIC-WORLD",
+      "type": "book",
+      "title": "ЛОГИКА, по которой живёт мир. Как управлять судьбой в простых, сложных и безвыходных ситуациях",
+      "year": null,
+      "status": "OFFICIAL_CATALOGUE_ENTRY",
+      "source_url": "https://shop.karmalogic.net/catalog/logika-po-kotoroy-zhivet-mir-kak-upravlyat-sudboy-v-prostyh-slozhnyh-i-bezvyhodnyh-situaciyah/",
+      "note": "Official catalogue confirms the title and author; exact publication year and standard bibliographic record remain to be pinned."
+    },
+    {
+      "id": "PUB-SUBJECTIVITY-SOCIETY",
+      "type": "book",
+      "title": "Субъектность общества: теория и практика",
+      "year": null,
+      "status": "OFFICIAL_CATALOGUE_ENTRY_NEEDS_BIBLIOGRAPHY",
+      "source_url": "https://www.sitnikov.com/karmalogic/knigi/",
+      "note": "Official store presence is confirmed; authorship, year, ISBN, edition, and co-author details require a dedicated bibliographic record."
+    },
+    {
+      "id": "PUB-BANKING",
+      "type": "textbook_claim",
+      "title": "Банковское дело",
+      "year": null,
+      "status": "NEEDS_EVIDENCE",
+      "source_url": "https://www.sitnikov.com/about/",
+      "note": "The official biography names a national textbook, but the exact edition and author list were not reliably matched in open catalogues during this pass. Do not guess the record."
+    },
+    {
+      "id": "PUB-KARMAGUIDE",
+      "type": "planned_book",
+      "title": "KARMAGUIDE",
+      "year": 2026,
+      "status": "ANNOUNCED_NOT_CONFIRMED_PUBLISHED",
+      "source_url": "https://www.sitnikov.com/karmalogic/"
+    }
+  ],
+  "clinical_boundary_sources": [
+    {
+      "id": "CLIN-NCCIH-HYPNOSIS",
+      "class": "PROFESSIONAL_CLINICAL",
+      "title": "Hypnosis — National Center for Complementary and Integrative Health",
+      "url": "https://www.nccih.nih.gov/health/hypnosis",
+      "supports": [
+        "condition-specific and mixed evidence boundary",
+        "no broad efficacy generalisation"
+      ]
+    },
+    {
+      "id": "CLIN-MAYO-HYPNOSIS",
+      "class": "PROFESSIONAL_CLINICAL",
+      "title": "Hypnosis — Mayo Clinic",
+      "url": "https://www.mayoclinic.org/tests-procedures/hypnosis/about/pac-20394405",
+      "supports": [
+        "people usually remain aware and retain control",
+        "rare adverse reactions",
+        "caution for some severe mental illness",
+        "caution with earlier-life stressful-event work",
+        "self-hypnosis as a learnable practice"
+      ]
+    },
+    {
+      "id": "CLIN-RCPSYCH-HYPNOSIS",
+      "class": "PROFESSIONAL_CLINICAL",
+      "title": "Hypnosis and hypnotherapy — Royal College of Psychiatrists",
+      "url": "https://www.rcpsych.ac.uk/mental-health/treatments-and-wellbeing/hypnosis-and-hypnotherapy",
+      "supports": [
+        "qualified-professional boundary",
+        "risk of inaccurate memories from inappropriate suggestion"
+      ]
+    },
+    {
+      "id": "CLIN-APA-DIV30-DEFINITION",
+      "class": "PROFESSIONAL_CLINICAL",
+      "title": "Society of Psychological Hypnosis — APA Division 30",
+      "url": "https://www.apadivisions.org/division-30/about",
+      "supports": [
+        "professional hypnosis definition and field context"
+      ]
+    }
+  ]
+}
