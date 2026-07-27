@@ -39,6 +39,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
+          show-progress: false
 
       - name: Validate machine-readable schema
         run: python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
