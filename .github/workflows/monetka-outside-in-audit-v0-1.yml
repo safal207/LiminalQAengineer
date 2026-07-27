@@ -96,7 +96,7 @@ jobs:
             .authority.grants.external_submission == false and
             .authority.grants.merge == false and
             .aggregate.expected_target_count == 6 and
-            (.aggregate.findings | length) == 7
+            (.aggregate.findings | length) == 8
           ' reports/monetka/public-audit-v0.1/result.json >/dev/null
       - name: Record exact attempt and verify checksums
         run: |
