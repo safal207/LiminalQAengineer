@@ -4,246 +4,168 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: Optional exact 40-character revision; defaults to the selected workflow ref
         required: false
         type: string
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - .github/workflows/tradernet-ltp-replay.yml
       - audits/tradernet/terminal-loading-public.json
-      - scripts/tradernet_terminal_loading_observer.mjs
-      - scripts/tradernet_terminal_image_visibility_probe.mjs
-      - scripts/write_exact_head_manifest.py
+      - scripts/tradernet_terminal_*.mjs
+      - scripts/write_*manifest.py
       - scripts/write_ltp_audit_trace.py
       - scripts/run_ltp_offline_replay.sh
-      - tests/test_write_exact_head_manifest.py
-      - tests/test_write_ltp_audit_trace.py
+      - tests/test_write_*.py
 
 permissions:
   contents: read
 
 concurrency:
-  group: tradernet-ltp-replay-${{ github.ref }}
+  group: tradernet-ltp-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   replay:
-    name: LTP replay Â· ${{ matrix.audit_id }}
+    name: LTP replay - ${{ matrix.id }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         include:
-          - audit_id: public-terminal-loading
-            audit_name: Tradernet public terminal loading audit
-            evidence_dir_name: tradernet-ltp-public-terminal-loading
-            artifact_prefix: tradernet-ltp-public-terminal-loading
-          - audit_id: mobile-image-visibility
-            audit_name: Tradernet terminal mobile image visibility
-            evidence_dir_name: tradernet-ltp-mobile-image-visibility
-            artifact_prefix: tradernet-ltp-mobile-image-visibility
+          - id: loading
+            audit: Tradernet public terminal loading audit
+            dir: tradernet-ltp-loading
+            prefix: tradernet-ltp-loading
+          - id: image
+            audit: Tradernet mobile image visibility audit
+            dir: tradernet-ltp-image
+            prefix: tradernet-ltp-image
     env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
+      LTP_SHA: 5474f29021adf1fd9257f7d8375fedc485d00352
+      EVIDENCE_NAME: ${{ matrix.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+      RECEIPT_NAME: ${{ matrix.prefix }}-receipt-${{ github.run_id }}-${{ github.run_attempt }}
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
-      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
-      LTP_INSPECTOR_SHA: 5474f29021adf1fd9257f7d8375fedc485d00352
-      EVIDENCE_ARTIFACT_NAME: ${{ matrix.artifact_prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
-      RECEIPT_ARTIFACT_NAME: ${{ matrix.artifact_prefix }}-receipt-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
-      - name: Checkout exact audited revision
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.EXPECTED_SHA }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Verify initial exact head
+      - name: Verify identity, boundary and helpers
         id: identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "EXPECTED_SHA must be a lowercase 40-character SHA" >&2
-            exit 2
-          fi
-          initial_sha="$(git rev-parse HEAD)"
-          test "${initial_sha}" = "${EXPECTED_SHA}"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
-          echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
-
-      - name: Validate public-only boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          config="audits/tradernet/terminal-loading-public.json"
-          python3 -m json.tool "${config}" >/dev/null
-          jq -e '
-            .target_url == "https://tradernet.ru/terminal" and
-            .observation_ms <= 30000 and
-            .boundaries.public_page_only == true and
-            .boundaries.one_navigation_per_profile == true and
-            .boundaries.authenticated_testing == false and
-            .boundaries.direct_api_testing == false and
-            .boundaries.portfolio_access == false and
-            .boundaries.personal_data_access == false and
-            .boundaries.financial_operations == false and
-            .boundaries.order_entry == false and
-            .boundaries.market_depth_subscription == false and
-            .boundaries.form_submission == false and
-            .boundaries.fuzzing == false and
-            .boundaries.load_testing == false and
-            .boundaries.active_security_testing == false
-          ' "${config}" >/dev/null
-
-      - name: Validate trace helpers and negative cases
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import ast
-          from pathlib import Path
-
-          for path in [
-              "scripts/write_exact_head_manifest.py",
-              "scripts/write_ltp_audit_trace.py",
-          ]:
-              ast.parse(Path(path).read_text(encoding="utf-8"))
-          PY
-          python3 -m unittest \
-            tests/test_write_exact_head_manifest.py \
-            tests/test_write_ltp_audit_trace.py -v
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          initial_sha="$(git rev-parse HEAD)"
+          test "${initial_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          jq -e '.target_url=="https://tradernet.ru/terminal" and .observation_ms<=30000 and .boundaries.public_page_only==true and .boundaries.authenticated_testing==false and .boundaries.financial_operations==false and .boundaries.order_entry==false and .boundaries.form_submission==false and .boundaries.fuzzing==false and .boundaries.load_testing==false and .boundaries.active_security_testing==false' audits/tradernet/terminal-loading-public.json >/dev/null
+          python3 -m unittest tests/test_write_exact_head_manifest.py tests/test_write_ltp_audit_trace.py -v
           bash -n scripts/run_ltp_offline_replay.sh
           test -z "$(find scripts tests -type d -name __pycache__ -print -quit)"
+          echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
+          echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
 
-      - name: Install pinned browser driver outside the worktree
+      - name: Install browser dependency outside worktree
         shell: bash
         run: |
           set -euo pipefail
-          deps_dir="${RUNNER_TEMP}/tradernet-node-deps-${{ matrix.audit_id }}"
-          rm -rf "${deps_dir}"
-          test ! -e node_modules
-          test ! -L node_modules
-          npm install --prefix "${deps_dir}" --no-save --package-lock=false puppeteer-core@24.16.0
-          ln -s "${deps_dir}/node_modules" node_modules
+          deps="${RUNNER_TEMP}/browser-${{ matrix.id }}"
+          npm install --prefix "${deps}" --no-save --package-lock=false puppeteer-core@24.16.0
+          ln -s "${deps}/node_modules" node_modules
 
-      - name: Locate Chrome and validate capture scripts
-        id: runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check scripts/tradernet_terminal_loading_observer.mjs
-          node --check scripts/tradernet_terminal_image_visibility_probe.mjs
-          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "${chrome}"
-          "${chrome}" --version
-          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
-
-      - name: Capture bounded public evidence
+      - name: Capture public evidence
         id: capture
         shell: bash
         run: |
           set -euo pipefail
-          evidence_dir="${RUNNER_TEMP}/${{ matrix.evidence_dir_name }}"
-          rm -rf "${evidence_dir}"
-          mkdir -p "${evidence_dir}"
-          case "${{ matrix.audit_id }}" in
-            public-terminal-loading)
-              node scripts/tradernet_terminal_loading_observer.mjs \
-                --config audits/tradernet/terminal-loading-public.json \
-                --chrome "${{ steps.runtime.outputs.chrome }}" \
-                --output-dir "${evidence_dir}"
-              cat "${evidence_dir}/result/terminal-loading-summary.md" >> "${GITHUB_STEP_SUMMARY}"
-              ;;
-            mobile-image-visibility)
-              node scripts/tradernet_terminal_image_visibility_probe.mjs \
-                --config audits/tradernet/terminal-loading-public.json \
-                --chrome "${{ steps.runtime.outputs.chrome }}" \
-                --output-dir "${evidence_dir}"
-              cat "${evidence_dir}/terminal-image-visibility-summary.md" >> "${GITHUB_STEP_SUMMARY}"
-              ;;
-            *)
-              echo "unsupported audit matrix entry" >&2
-              exit 2
-              ;;
-          esac
+          out="${RUNNER_TEMP}/${{ matrix.dir }}"
+          rm -rf "${out}" && mkdir -p "${out}"
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          if [ "${{ matrix.id }}" = loading ]; then
+            node scripts/tradernet_terminal_loading_observer.mjs --config audits/tradernet/terminal-loading-public.json --chrome "${chrome}" --output-dir "${out}"
+          else
+            node scripts/tradernet_terminal_image_visibility_probe.mjs --config audits/tradernet/terminal-loading-public.json --chrome "${chrome}" --output-dir "${out}"
+          fi
+          rm node_modules
 
-      - name: Prepare frozen LTP inspector and registry
-        id: ltp_runtime
-        if: always() && steps.capture.outcome == 'success'
+      - name: Prepare frozen inspector
+        id: ltp
         shell: bash
         run: |
           set -euo pipefail
-          if [ -L node_modules ]; then
-            rm node_modules
-          fi
-          ltp_dir="${RUNNER_TEMP}/ltp-inspector-${{ matrix.audit_id }}"
-          rm -rf "${ltp_dir}"
-          git init "${ltp_dir}"
-          git -C "${ltp_dir}" remote add origin \
-            https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-.git
-          git -C "${ltp_dir}" fetch --depth=1 origin "${LTP_INSPECTOR_SHA}"
-          git -C "${ltp_dir}" checkout --detach FETCH_HEAD
-          test "$(git -C "${ltp_dir}" rev-parse HEAD)" = "${LTP_INSPECTOR_SHA}"
+          d="${RUNNER_TEMP}/ltp-${{ matrix.id }}"
+          git init "${d}"
+          git -C "${d}" remote add origin https://github.com/safal207/L-THREAD-Liminal-Thread-Secure-Protocol-LTP-.git
+          git -C "${d}" fetch --depth=1 origin "${LTP_SHA}"
+          git -C "${d}" checkout --detach FETCH_HEAD
+          test "$(git -C "${d}" rev-parse HEAD)" = "${LTP_SHA}"
           corepack enable
           corepack prepare pnpm@9.15.0 --activate
-          (
-            cd "${ltp_dir}"
-            pnpm install --frozen-lockfile --ignore-scripts
-          )
-          echo "ltp_dir=${ltp_dir}" >> "${GITHUB_OUTPUT}"
+          (cd "${d}" && pnpm install --frozen-lockfile --ignore-scripts)
+          echo "dir=${d}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build canonical LTP JSONL trace
-        id: trace
-        if: always() && steps.capture.outcome == 'success' && steps.ltp_runtime.outcome == 'success'
+      - name: Build trace and replay twice
+        id: audit
         shell: bash
         run: |
           set -euo pipefail
-          evidence_dir="${RUNNER_TEMP}/${{ matrix.evidence_dir_name }}"
-          python3 scripts/write_ltp_audit_trace.py build \
-            --output-dir "${evidence_dir}" \
-            --audit-name "${{ matrix.audit_name }}" \
-            --target "https://tradernet.ru/terminal" \
-            --repository "${GITHUB_REPOSITORY}" \
-            --expected-sha "${EXPECTED_SHA}" \
-            --initial-sha "${{ steps.identity.outputs.initial_sha }}" \
-            --workflow-sha "${{ github.workflow_sha }}" \
-            --run-id "${GITHUB_RUN_ID}" \
-            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
-            --started-at "${{ steps.identity.outputs.started_at }}" \
-            --capture-status "${{ steps.capture.outcome }}" \
-            --artifact-name "${EVIDENCE_ARTIFACT_NAME}" \
-            --ltp-sha "${LTP_INSPECTOR_SHA}" \
-            --critical-actions-registry \
-              "${{ steps.ltp_runtime.outputs.ltp_dir }}/docs/contracts/ltp-critical-actions.v0.1.json"
+          out="${RUNNER_TEMP}/${{ matrix.dir }}"
+          registry="${{ steps.ltp.outputs.dir }}/docs/contracts/ltp-critical-actions.v0.1.json"
+          python3 scripts/write_ltp_audit_trace.py build --output-dir "${out}" --audit-name "${{ matrix.audit }}" --target https://tradernet.ru/terminal --repository "${GITHUB_REPOSITORY}" --expected-sha "${EXPECTED_SHA}" --initial-sha "${{ steps.identity.outputs.initial_sha }}" --workflow-sha "${{ github.workflow_sha }}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" --started-at "${{ steps.identity.outputs.started_at }}" --capture-status "${{ steps.capture.outcome }}" --artifact-name "${EVIDENCE_NAME}" --ltp-sha "${LTP_SHA}" --critical-actions-registry "${registry}"
+          bash scripts/run_ltp_offline_replay.sh "${out}/ltp/trace.jsonl" "${out}" "${{ steps.ltp.outputs.dir }}" "${LTP_SHA}"
 
-      - name: Run strict inspector and two offline replays
-        id: ltp_audit
-        if: always() && steps.trace.outcome == 'success'
+      - name: Verify final exact head
+        id: final
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          evidence_dir="${RUNNER_TEMP}/${{ matrix.evidence_dir_name }}"
-          bash scripts/run_ltp_offline_replay.sh \
-            "${evidence_dir}/ltp/trace.jsonl" \
-            "${evidence_dir}" \
-            "${{ steps.ltp_runtime.outputs.ltp_dir }}" \
-            "${LTP_INSPECTOR_SHA}"
+          final_sha="$(git rev-parse HEAD)"
+          test "${final_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+          echo "completed_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
 
-      - namYNˆ™\šYHš[˜[^XİXY[™ÛX[ˆÛÜšİ™YBˆYˆš[˜[ÚY[]BˆYˆ[Ø^\Ê
-BˆÚ[ˆ˜\Úˆ[ˆˆÙ]Y][È\Y˜Z[ˆYˆÈS›ÙWÛ[Ù[\ÈNÈ[‚ˆ›H›ÙWÛ[Ù[\ÂˆšBˆš[˜[ÜÚOH‰
-Ú]™]‹\\œÙHPQ
-H‚ˆ\İ‰Ùš[˜[ÜÚ_HˆH‰ÑVPÕQÔÒ_H‚ˆÛÜšİ™YWÜİ]\ÏH‰
-Ú]İ]\ÈK\Ü˜Ù[Z[]ŒHK][˜XÚÙYYš[\ÏX[
-H‚ˆYˆÈ[ˆ‰İÛÜšİ™YWÜİ]\ßHˆNÈ[‚ˆš[ˆ	É\×‰È‰İÛÜšİ™YWÜİ]\ßHˆ‰Œ‚ˆ^]‚ˆšBˆXÚÈ™š[˜[ÜÚOIÙš[˜[ÜÚ_Hˆˆ‰ÑÒUP—ÓÕUUH‚ˆXÚÈ˜ÛÛ\]YØ]I
-]H]H
-ÉÉVKI[KIY	R‰SN‰TÖ‰ÊHˆˆ‰ÑÒUP—ÓÕUUH‚‚ˆH˜[YNˆÜš]H[[]]X›H]šY[˜ÙHX[šY™\İˆYˆX[šY™\İˆYˆ‹Bˆ[Ø^\Ê
-H	‰‚ˆİ\ËšY[]K›İ]ÛÛYHOH	ÜİXØÙ\ÜÉÈ	‰‚ˆİ\Ë˜Ø\\™K›İ]ÛÛYHOH	ÜİXØÙ\ÜÉÈ	‰‚ˆİ\Ë˜XÙK›İ]ÛÛYHOH	ÜİXØÙ\ÜÉÈ	‰‚ˆİ\Ë›Ø]Y]›İ]ÛÛYHOH	ÜİXØÙ\ÜÉÈ	‰‚ˆİ\Ë™š[˜[ÚY[]K›İ]ÛÛYHOH	ÜİXØÙ\ÜÉÂˆÚ[ˆ˜\Úˆ[ˆˆÙ]Y][È\Y˜Z[ˆ]šY[˜ÙWÙ\H‰Ô•S“‘T—ÕSTKÉŞÈX]š^™]šY[˜ÙWÙ\—Û˜[YH_H‚ˆ]ÛŒÈØÜš\ËİÜš]WÙ^XİÚXYÛX[šY™\İœHX[šY™\İˆK[İ]]Y\ˆ‰Ù]šY[˜ÙWÙ\ŸHˆˆKX]Y][˜[YH‰ŞÈX]š^˜]Y]Û˜[YH_HˆˆK]\™Ù]šÎ‹Ëİ˜Y\›™]œKİ\›Z[˜[ˆˆK\™\ÜÚ]ÜH‰ÑÒUP—Ô‘TÔÒUÔ–_HˆˆKY^XİY\ÚH‰ÑVPÕQÔÒ_HˆˆKZ[š]X[\ÚH‰ŞÈİ\ËšY[]K›İ]]Ëš[š]X[ÜÚH_HˆˆKYš[˜[\ÚH‰ŞÈİ\Ë™š[˜[ÚY[]K›İ]]Ë™š[˜[ÜÚH_HˆˆK]ÛÜšÙ›İË\ÚH‰ŞÈÚ]X‹ÛÜšÙ›İ×ÜÚH_HˆˆKY]™[[˜[YH‰ÑÒUP—ÑU‘S•ÓSQ_HˆˆKYÚ]\™Yˆ‰ÑÒUP—Ô‘QŸHˆˆKZXY\™Yˆ‰ÑÒUP—ÒPQÔ‘QŸHˆˆK]ÛÜšÙ›İË\™Yˆ‰ŞÈÚ]X‹ÛÜšÙ›İ×Ü™Yˆ_HˆˆK\[‹ZY‰ÑÒUP—Ô•S—ÒQHˆˆK\[‹X][\‰ÑÒUP—Ô•S—ĞUSTHˆˆKX\Y˜Xİ[˜[YH‰ÑU’QSÑWĞT•QPÕÓSQ_HˆˆK\İ\YX]‰ŞÈİ\ËšY[]K›İ]]Ëœİ\YØ]_HˆˆKXÛÛ\]YX]‰ŞÈİ\Ë™š[˜[ÚY[]K›İ]]Ë˜ÛÛ\]YØ]_HˆˆKY^Xİ][Û‹\İ]\È˜Ø\\™OIŞÈİ\Ë˜Ø\\™K›İ]ÛÛYH_NÛIŞÈİ\Ë›Ø]Y]›İ]ÛÛYH_H‚ˆ]ÛŒÈ[HœÛÛ‹ÛÛ‰Ù]šY[˜ÙWÙ\ŸKÛX[šY™\İšœÛÛˆˆ‹Ù]‹Û[‚ˆH˜[YNˆ\ØY^Xİ]šY[˜ÙBˆYˆ]šY[˜ÙWØ\Y˜XİˆYˆ[Ø^\Ê
-H	‰ˆİ\Ë›X[šY™\İ›İ]ÛÛYHOH	ÜİXØÙ\ÜÉÂˆ\Ù\ÎˆXİ[ÛœËİ\ØYX\Y˜XİˆÚ]‚ˆ˜[YNˆ	ŞÈ[‹‘U’QSÑWĞT•QPÕÓSQH_Bˆ]ˆ	ŞÈ[›™\‹[\_KÉŞÈX]š^™]šY[˜ÙWÙ\—Û˜[YH_KÂˆY‹[›ËYš[\ËY›İ[™ˆ\œ›Ü‚ˆ™][[Û‹Y^\ÎˆM‚ˆH˜[YNˆÜš]H\Y˜Xİ™XÙZ\ˆYˆ[Ø^\Ê
-H	‰ˆİ\Ë™]šY[˜ÙWØ\Y˜Xİ›İ]ÛÛYHOH	ÜİXØÙ\ÜÉÂˆÚ[ˆ˜\Úˆ[ˆˆÙ]Y][È\Y˜Z[ˆ™XÙZ\Ù\H‰Ô•S“‘T—ÕSTKÉŞÈX]š^™]šY[˜ÙWÙ\—Û˜[YH_K\™XÙZ\‚ˆ›H\™ˆ‰Ü™XÙZ\Ù\ŸH‚ˆZÙ\ˆ\‰Ü™XÙZ\Ù\ŸH‚ˆ]ÛŒÈØÜš\ËİÜš]WÙ^XİÚXYÛX[šY™\İœH™XÙZ\ˆK[X[šY™\İ‰Ô•S“‘T—ÕSTKÉŞÈX]š^™]šY[˜ÙWÙ\—Û˜[YH_KÛX[šY™\İšœÛÛˆˆˆK[İ]]‰Ü™XÙZ\Ù\ŸKØ\Y˜Xİ\™XÙZ\šœÛÛˆˆˆKX\Y˜Xİ[˜[YH‰ÑU’QSÑWĞT•QPÕÓSQ_HˆˆKX\Y˜XİZY‰ŞÈİ\Ë™]šY[˜ÙWØ\Y˜Xİ›İ]]Ë˜\Y˜XİZY_HˆˆKX\Y˜Xİ]\›‰ŞÈİ\Ë™]šY[˜ÙWØ\Y˜Xİ›İ]]Ë˜\Y˜Xİ]\›_HˆˆKX\Y˜XİYYÙ\İ‰ŞÈİ\Ë™]šY[˜ÙWØ\Y˜Xİ›İ]]Ë˜\Y˜XİYYÙ\İ_HˆˆK\[‹ZY‰ÑÒUP—Ô•S—ÒQHˆˆK\[‹X][\‰ÑÒUP—Ô•S—ĞUSTH‚ˆ]ÛŒÈ[HœÛÛ‹ÛÛ‰Ü™XÙZ\Ù\ŸKØ\Y˜Xİ\™XÙZ\šœÛÛˆˆ‹Ù]‹Û[‚ˆH˜[VS¢WÆöB'F–f7B&V6V—@¢–c¢Çv—2‚’bb7FW2æWf–FVæ6Uö'F–f7Bæ÷WF6öÖRÓÒw7V66W72p¢W6W3¢7F–öç2÷WÆöBÖ'F–f7Dc@¢v—Fƒ ¢æÖS¢G·²Vçbå$T4T•Eô%D”d5EôäÔR×Ğ¢Fƒ¢G·²'VææW"çFV××ÒòG·²ÖG&—‚æWf–FVæ6UöF—%öæÖR×Ò×&V6V—Bö'F–f7B×&V6V—Bæ§6öà¢–bÖæòÖf–ÆW2Öf÷VæC¢W'&÷ ¢&WFVçF–öâÖF—3¢@ 
+      - name: Write manifest
+        id: manifest
+        if: always() && steps.audit.outcome == 'success' && steps.final.outcome == 'success'
+        shell: bash
+        run: |
+          out="${RUNNER_TEMP}/${{ matrix.dir }}"
+          python3 scripts/write_exact_head_manifest.py manifest --output-dir "${out}" --audit-name "${{ matrix.audit }}" --target https://tradernet.ru/terminal --repository "${GITHUB_REPOSITORY}" --expected-sha "${EXPECTED_SHA}" --initial-sha "${{ steps.identity.outputs.initial_sha }}" --final-sha "${{ steps.final.outputs.final_sha }}" --workflow-sha "${{ github.workflow_sha }}" --event-name "${GITHUB_EVENT_NAME}" --git-ref "${GITHUB_REF}" --head-ref "${GITHUB_HEAD_REF}" --workflow-ref "${{ github.workflow_ref }}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" --artifact-name "${EVIDENCE_NAME}" --started-at "${{ steps.identity.outputs.started_at }}" --completed-at "${{ steps.final.outputs.completed_at }}" --execution-status "capture=${{ steps.capture.outcome }};ltp=${{ steps.audit.outcome }}"
+
+      - name: Upload evidence
+        id: upload
+        if: always() && steps.manifest.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.EVIDENCE_NAME }}
+          path: ${{ runner.temp }}/${{ matrix.dir }}/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write and upload receipt
+        if: always() && steps.upload.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/${{ matrix.dir }}-receipt"
+          mkdir -p "${out}"
+          python3 scripts/write_exact_head_manifest.py receipt --manifest "${RUNNER_TEMP}/${{ matrix.dir }}/manifest.json" --output "${out}/artifact-receipt.json" --artifact-name "${EVIDENCE_NAME}" --artifact-id "${{ steps.upload.outputs.artifact-id }}" --artifact-url "${{ steps.upload.outputs.artifact-url }}" --artifact-digest "${{ steps.upload.outputs.artifact-digest }}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}"
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.upload.outcome == 'success'
+        with:
+          name: ${{ env.RECEIPT_NAME }}
+          path: ${{ runner.temp }}/${{ matrix.dir }}-receipt/artifact-receipt.json
+          if-no-files-found: error
+          retention-days: 14
