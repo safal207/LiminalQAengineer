@@ -37,10 +37,10 @@ test -s "${registry_path}"
 registry_sha="$(sha256sum "${registry_path}" | awk '{print $1}')"
 
 cat > "${report_dir}/commands.txt" <<EOF
-LTP_INSPECT_FREEZE_CLOCK=1 LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect -- trace --strict --quiet --format json --color never --profile agents --replay-check --input ${trace_path}
-LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect -- replay --color never --input ${trace_path}
-LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect -- replay --color never --input ${trace_path}
-LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect -- explain --color never --input ${trace_path} --at step-008
+LTP_INSPECT_FREEZE_CLOCK=1 LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect trace --strict --quiet --format json --color never --profile agents --replay-check --input ${trace_path}
+LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect replay --color never --input ${trace_path}
+LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect replay --color never --input ${trace_path}
+LTP_BUILD=${ltp_sha} pnpm -w ltp:inspect explain --color never --input ${trace_path} --at step-008
 EOF
 
 printf '%s\n' "${ltp_sha}" > "${report_dir}/ltp-inspector-sha.txt"
@@ -64,7 +64,7 @@ set +e
 (
   cd "${ltp_dir}"
   LTP_INSPECT_FREEZE_CLOCK=1 LTP_BUILD="${ltp_sha}" \
-    pnpm -w ltp:inspect -- trace --strict --quiet --format json --color never \
+    pnpm -w ltp:inspect trace --strict --quiet --format json --color never \
       --profile agents --replay-check --input "${trace_path}"
 ) > "${report_dir}/inspector-report.json" 2> "${report_dir}/inspector.stderr.txt"
 inspect_code=$?
@@ -100,7 +100,7 @@ for attempt in 1 2; do
   set +e
   (
     cd "${ltp_dir}"
-    LTP_BUILD="${ltp_sha}" pnpm -w ltp:inspect -- replay --color never --input "${trace_path}"
+    LTP_BUILD="${ltp_sha}" pnpm -w ltp:inspect replay --color never --input "${trace_path}"
   ) > "${report_dir}/replay-${attempt}.stdout.txt" 2> "${report_dir}/replay-${attempt}.stderr.txt"
   replay_code=$?
   set -e
@@ -120,7 +120,7 @@ test "${replay_one_sha}" = "${replay_two_sha}"
 set +e
 (
   cd "${ltp_dir}"
-  LTP_BUILD="${ltp_sha}" pnpm -w ltp:inspect -- explain --color never --input "${trace_path}" --at step-008
+  LTP_BUILD="${ltp_sha}" pnpm -w ltp:inspect explain --color never --input "${trace_path}" --at step-008
 ) > "${report_dir}/explain-step-008.stdout.txt" 2> "${report_dir}/explain-step-008.stderr.txt"
 explain_code=$?
 set -e
