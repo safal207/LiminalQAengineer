@@ -2,6 +2,11 @@ name: Causal Deep-Audit Skills Contract
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact 40-character commit SHA to validate
+        required: false
+        type: string
   push:
     branches:
       - agent/causal-deep-audit-skills-v0-1
@@ -10,15 +15,22 @@ on:
       - schemas/causal-deep-audit-packet.schema.json
       - scripts/validate_audit_skills.py
       - tests/test_audit_skills_contract.py
+      - tests/test_cyber_causal_audit_skills.py
+      - audits/security/tradernet-repository-causal-review-v1.json
+      - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
       - .github/workflows/audit-skills-contract.yml
   pull_request:
     branches:
       - main
+      - agent/causal-deep-audit-skills-v0-1
     paths:
       - skills/**
       - schemas/causal-deep-audit-packet.schema.json
       - scripts/validate_audit_skills.py
       - tests/test_audit_skills_contract.py
+      - tests/test_cyber_causal_audit_skills.py
+      - audits/security/tradernet-repository-causal-review-v1.json
+      - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
       - .github/workflows/audit-skills-contract.yml
 
 permissions:
@@ -32,19 +44,123 @@ jobs:
   validate:
     name: Validate skill graph and negative cases
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
+      EVIDENCE_DIR: ${{ runner.temp }}/causal-deep-audit-skills-contract
 
     steps:
-      - name: Checkout exact workflow revision
+      - name: Checkout exact audited head
         uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
           persist-credentials: false
 
-      - name: Validate machine-readable schema
-        run: python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
+      - name: Verify initial identity and clean worktree
+        id: initial
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          initial_sha="$(git rev-parse HEAD)"
+          test "${initial_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
 
-      - name: Validate skill family
-        run: python3 scripts/validate_audit_skills.py
+      - name: Validate machine-readable contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
+          python3 -m json.tool skills/cyber-causal-audit/sources.json >/dev/null
+          python3 -m json.tool audits/security/tradernet-repository-causal-review-v1.json >/dev/null
 
-      - name: Run fail-closed regression tests
-        run: python3 -m unittest tests/test_audit_skills_contract.py -v
+      - name: Validate full skill family
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_audit_skills.py
+          python3 -m unittest \
+            tests/test_audit_skills_contract.py \
+            tests/test_cyber_causal_audit_skills.py \
+            -v
+          test -z "$(find skills schemas scripts tests audits docs -type d -name __pycache__ -print -quit)"
+
+      - name: Verify final identity and write manifest
+        id: final
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_sha="$(git rev-parse HEAD)"
+          test "${final_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          mkdir -p "${EVIDENCE_DIR}"
+          INITIAL_SHA="${{ steps.initial.outputs.initial_sha }}" FINAL_SHA="${final_sha}" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          paths = [
+              Path('.github/workflows/audit-skills-contract.yml'),
+              Path('schemas/causal-deep-audit-packet.schema.json'),
+              Path('scripts/validate_audit_skills.py'),
+              Path('skills/README.md'),
+              Path('skills/causal-deep-audit/SKILL.md'),
+              Path('skills/evidence-capture/SKILL.md'),
+              Path('skills/causal-adjudication/SKILL.md'),
+              Path('skills/cyber-causal-audit/SKILL.md'),
+              Path('skills/cyber-causal-audit/SPEC.md'),
+              Path('skills/cyber-causal-audit/sources.json'),
+              Path('skills/websocket-redis-lifecycle/SKILL.md'),
+              Path('skills/exact-head-governance/SKILL.md'),
+              Path('skills/replay-memory/SKILL.md'),
+              Path('skills/product-impact/SKILL.md'),
+              Path('skills/transition-next-action/SKILL.md'),
+              Path('audits/security/tradernet-repository-causal-review-v1.json'),
+              Path('docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md'),
+              Path('tests/test_audit_skills_contract.py'),
+              Path('tests/test_cyber_causal_audit_skills.py'),
+          ]
+          files = []
+          for path in paths:
+              data = path.read_bytes()
+              files.append({
+                  'path': str(path),
+                  'size': len(data),
+                  'sha256': hashlib.sha256(data).hexdigest(),
+              })
+          payload = {
+              'schema_version': '1.0',
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'expected_sha': os.environ['EXPECTED_SHA'],
+              'initial_sha': os.environ['INITIAL_SHA'],
+              'final_sha': os.environ['FINAL_SHA'],
+              'workflow_sha': os.environ['GITHUB_WORKFLOW_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'event_name': os.environ['GITHUB_EVENT_NAME'],
+              'authority': 'READ_ONLY_CONTRACT_VALIDATION',
+              'external_skill_execution': False,
+              'credential_use': False,
+              'external_mutation': False,
+              'files': files,
+          }
+          output = Path(os.environ['EVIDENCE_DIR']) / 'manifest.json'
+          output.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload exact-head contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: causal-deep-audit-skills-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE_DIR }}/manifest.json
+          if-no-files-found: error
+          retention-days: 30
