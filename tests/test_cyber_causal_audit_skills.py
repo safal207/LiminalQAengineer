@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CYBER_SKILL = ROOT / "skills" / "cyber-causal-audit" / "SKILL.md"
+CYBER_SPEC = ROOT / "skills" / "cyber-causal-audit" / "SPEC.md"
 WS_SKILL = ROOT / "skills" / "websocket-redis-lifecycle" / "SKILL.md"
 SOURCES = ROOT / "skills" / "cyber-causal-audit" / "sources.json"
 AUDIT = ROOT / "audits" / "security" / "tradernet-repository-causal-review-v1.json"
@@ -17,7 +18,15 @@ ORCHESTRATOR = ROOT / "skills" / "causal-deep-audit" / "SKILL.md"
 
 class CyberCausalAuditContractTests(unittest.TestCase):
     def test_required_files_exist(self) -> None:
-        for path in (CYBER_SKILL, WS_SKILL, SOURCES, AUDIT, REPORT, ORCHESTRATOR):
+        for path in (
+            CYBER_SKILL,
+            CYBER_SPEC,
+            WS_SKILL,
+            SOURCES,
+            AUDIT,
+            REPORT,
+            ORCHESTRATOR,
+        ):
             self.assertTrue(path.is_file(), path)
 
     def test_skill_frontmatter_and_routes(self) -> None:
@@ -33,6 +42,7 @@ class CyberCausalAuditContractTests(unittest.TestCase):
     def test_security_methods_are_fail_closed(self) -> None:
         cyber = CYBER_SKILL.read_text(encoding="utf-8")
         ws = WS_SKILL.read_text(encoding="utf-8")
+        sources = json.loads(SOURCES.read_text(encoding="utf-8"))
 
         for required in (
             "exact commit SHA",
@@ -55,15 +65,17 @@ class CyberCausalAuditContractTests(unittest.TestCase):
         ):
             self.assertIn(required, ws)
 
-        forbidden_remote_execution = (
-            "curl | sh",
-            "curl|sh",
-            "wget | sh",
-            "wget|sh",
+        # Explanatory prose may name a dangerous pattern such as `curl | sh`.
+        # The enforceable contract is that no upstream skill or mutable remote
+        # payload is enabled as an executable dependency.
+        self.assertFalse(sources["adoption_policy"]["remote_runtime_execution"])
+        self.assertFalse(sources["adoption_policy"]["mutable_branch_execution"])
+        self.assertTrue(
+            all(
+                entry["adoption"] != "EXECUTABLE_DEPENDENCY"
+                for entry in sources["method_sources"]
+            )
         )
-        combined = cyber + "\n" + ws
-        for pattern in forbidden_remote_execution:
-            self.assertNotIn(pattern, combined)
 
     def test_external_sources_are_exactly_pinned_and_non_executable(self) -> None:
         payload = json.loads(SOURCES.read_text(encoding="utf-8"))
@@ -107,8 +119,12 @@ class CyberCausalAuditContractTests(unittest.TestCase):
         self.assertIn(
             "mass subscribe or load test production", payload["authority"]["prohibited"]
         )
-        self.assertTrue(payload["claim_policy"]["analog_repository_is_not_tradernet_internal_code"])
-        self.assertTrue(payload["claim_policy"]["static_candidate_requires_runtime_discriminator"])
+        self.assertTrue(
+            payload["claim_policy"]["analog_repository_is_not_tradernet_internal_code"]
+        )
+        self.assertTrue(
+            payload["claim_policy"]["static_candidate_requires_runtime_discriminator"]
+        )
 
         allowed_levels = {
             "OBSERVATION",
@@ -143,13 +159,15 @@ class CyberCausalAuditContractTests(unittest.TestCase):
             "safal207/test_qorer_f": "4fe50bfa9007f142704b22666a976fdd0b5af4f6",
             "safal207/LiminalQAengineer": "5f0c82162d6cd37c6971a935c988d5008f34dd43",
         }
-        actual = {entry["repository"]: entry["commit"] for entry in payload["repositories"]}
+        actual = {
+            entry["repository"]: entry["commit"] for entry in payload["repositories"]
+        }
         self.assertEqual(expected, actual)
         for commit in actual.values():
             self.assertRegex(commit, r"^[0-9a-f]{40}$")
 
     def test_no_secret_values_are_embedded(self) -> None:
-        checked = [CYBER_SKILL, WS_SKILL, SOURCES, AUDIT, REPORT]
+        checked = [CYBER_SKILL, CYBER_SPEC, WS_SKILL, SOURCES, AUDIT, REPORT]
         combined = "\n".join(path.read_text(encoding="utf-8") for path in checked)
 
         forbidden_patterns = {
@@ -164,7 +182,10 @@ class CyberCausalAuditContractTests(unittest.TestCase):
     def test_report_keeps_advisory_authority(self) -> None:
         report = REPORT.read_text(encoding="utf-8")
         self.assertIn("HUMAN_REVIEW_REQUIRED", report)
-        self.assertIn("not evidence that Tradernet uses the same internal implementation", report)
+        self.assertIn(
+            "not evidence that Tradernet uses the same internal implementation",
+            report,
+        )
         self.assertIn("No real endpoint call is needed", report)
         self.assertIn("no real credentials", report)
 
