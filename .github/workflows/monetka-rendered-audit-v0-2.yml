@@ -85,7 +85,7 @@ jobs:
             .schema_version == "liminalqa-monetka-public-rendered-result-v1" and
             .aggregate.expected_observation_count == 12 and
             .aggregate.observed_route_profile_count == 12 and
-            (.aggregate.findings | length) == 7 and
+            (.aggregate.findings | length) == 8 and
             .authority.mode == "evidence_only" and
             .authority.grants.external_submission == false and
             .authority.grants.deployment == false and
