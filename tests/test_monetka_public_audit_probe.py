@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import json
 import pathlib
+import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -11,6 +12,7 @@ CONTRACT = ROOT / "audits" / "monetka" / "public-audit-v0.1" / "contract.json"
 spec = importlib.util.spec_from_file_location("monetka_probe", SCRIPT)
 module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
+sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 
 
@@ -71,10 +73,19 @@ class MonetkaContractTests(unittest.TestCase):
             ]
             observations.append(
                 module.Observation(
-                    slug=target["slug"], requested_url=target["url"], final_url=target["url"],
-                    status=200, error=None, content_type="text/html", response_bytes=1,
-                    body_sha256="x", visible_text_sha256="y", visible_text_length=1,
-                    visible_text_sample="x", origin_stayed_bounded=True, assertions=assertions,
+                    slug=target["slug"],
+                    requested_url=target["url"],
+                    final_url=target["url"],
+                    status=200,
+                    error=None,
+                    content_type="text/html",
+                    response_bytes=1,
+                    body_sha256="x",
+                    visible_text_sha256="y",
+                    visible_text_length=1,
+                    visible_text_sample="x",
+                    origin_stayed_bounded=True,
+                    assertions=assertions,
                 )
             )
         result = module.build_result(self.contract, observations)
