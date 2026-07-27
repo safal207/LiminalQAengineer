@@ -14,6 +14,8 @@ on:
       - audits/tradernet/public-quotes-reconnect.json
       - scripts/tradernet_public_quotes_reconnect_probe.mjs
       - scripts/analyze_tradernet_quote_reconnect_result.mjs
+      - scripts/analyze_tradernet_quote_temporal_integrity.mjs
+      - scripts/tradernet_quote_subscription_idempotency_probe.mjs
       - scripts/write_exact_head_manifest.py
       - tests/test_write_exact_head_manifest.py
 
@@ -26,9 +28,9 @@ concurrency:
 
 jobs:
   observe:
-    name: Bounded public quote snapshot and reconnect observation
+    name: Bounded public quote causal-integrity observation
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     env:
       EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
       EVIDENCE_ARTIFACT_NAME: tradernet-public-quotes-reconnect-${{ github.run_id }}-${{ github.run_attempt }}
@@ -56,14 +58,21 @@ jobs:
           config="audits/tradernet/public-quotes-reconnect.json"
           python3 -m json.tool "${config}" >/dev/null
           jq -e '
+            .schema_version == "liminalqa-tradernet-public-quotes-reconnect-config-v2" and
             (.tickers | length) >= 1 and (.tickers | length) <= 2 and
             .websocket_endpoint == "wss://wss.tradernet.com" and
             .phase_ms >= 3000 and .phase_ms <= 30000 and
             .reconnect_delay_ms >= 250 and .reconnect_delay_ms <= 5000 and
+            .subscription_idempotency.enabled == true and
+            .subscription_idempotency.repeat_after_ms >= 2000 and
+            .subscription_idempotency.repeat_after_ms <= 8000 and
+            .subscription_idempotency.observation_ms >= (.subscription_idempotency.repeat_after_ms + 3000) and
+            .subscription_idempotency.observation_ms <= 20000 and
             .boundaries.public_unauthenticated_only == true and
             .boundaries.maximum_tickers == 2 and
             .boundaries.maximum_active_websocket_connections == 1 and
             .boundaries.controlled_disconnects == 1 and
+            .boundaries.maximum_subscription_messages_per_connection == 2 and
             .boundaries.order_book_subscription == false and
             .boundaries.portfolio_access == false and
             .boundaries.order_entry == false and
@@ -73,8 +82,12 @@ jobs:
           ' "${config}" >/dev/null
           node --check scripts/tradernet_public_quotes_reconnect_probe.mjs
           node --check scripts/analyze_tradernet_quote_reconnect_result.mjs
+          node --check scripts/analyze_tradernet_quote_temporal_integrity.mjs
+          node --check scripts/tradernet_quote_subscription_idempotency_probe.mjs
           node scripts/tradernet_public_quotes_reconnect_probe.mjs --self-test
           node scripts/analyze_tradernet_quote_reconnect_result.mjs --self-test
+          node scripts/analyze_tradernet_quote_temporal_integrity.mjs --self-test
+          node scripts/tradernet_quote_subscription_idempotency_probe.mjs --self-test
           echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
           echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
 
@@ -102,7 +115,7 @@ jobs:
           npm install --prefix "${deps_dir}" --no-save --package-lock=false ws@8.18.3
           ln -s "${deps_dir}/node_modules" node_modules
 
-      - name: Run bounded public quote and reconnect probe
+      - name: Run bounded reconnect and causal-integrity probes
         id: capture
         shell: bash
         run: |
@@ -110,20 +123,53 @@ jobs:
           evidence_dir="${RUNNER_TEMP}/tradernet-public-quotes-reconnect"
           rm -rf "${evidence_dir}"
           mkdir -p "${evidence_dir}"
-          mapfile -t tickers < <(jq -r '.tickers[]' audits/tradernet/public-quotes-reconnect.json)
+          config="audits/tradernet/public-quotes-reconnect.json"
+          mapfile -t tickers < <(jq -r '.tickers[]' "${config}")
           ticker_csv="$(IFS=,; echo "${tickers[*]}")"
+          endpoint="$(jq -r '.websocket_endpoint' "${config}")"
+
           node scripts/tradernet_public_quotes_reconnect_probe.mjs \
             --output-dir "${evidence_dir}" \
             --tickers "${ticker_csv}" \
-            --ws-endpoint "$(jq -r '.websocket_endpoint' audits/tradernet/public-quotes-reconnect.json)" \
-            --phase-ms "$(jq -r '.phase_ms' audits/tradernet/public-quotes-reconnect.json)" \
-            --reconnect-delay-ms "$(jq -r '.reconnect_delay_ms' audits/tradernet/public-quotes-reconnect.json)" \
-            --handshake-timeout-ms "$(jq -r '.handshake_timeout_ms' audits/tradernet/public-quotes-reconnect.json)"
+            --ws-endpoint "${endpoint}" \
+            --phase-ms "$(jq -r '.phase_ms' "${config}")" \
+            --reconnect-delay-ms "$(jq -r '.reconnect_delay_ms' "${config}")" \
+            --handshake-timeout-ms "$(jq -r '.handshake_timeout_ms' "${config}")"
+
           node scripts/analyze_tradernet_quote_reconnect_result.mjs \
             --input "${evidence_dir}/tradernet-public-quotes-reconnect.json" \
             --tickers "${ticker_csv}"
+
+          node scripts/analyze_tradernet_quote_temporal_integrity.mjs \
+            --input "${evidence_dir}/tradernet-public-quotes-reconnect.json" \
+            --output "${evidence_dir}/tradernet-public-quote-temporal-integrity.json"
+
+          node scripts/tradernet_quote_subscription_idempotency_probe.mjs \
+            --output-dir "${evidence_dir}" \
+            --tickers "${ticker_csv}" \
+            --endpoint "${endpoint}" \
+            --repeat-after-ms "$(jq -r '.subscription_idempotency.repeat_after_ms' "${config}")" \
+            --observation-ms "$(jq -r '.subscription_idempotency.observation_ms' "${config}")" \
+            --handshake-timeout-ms "$(jq -r '.handshake_timeout_ms' "${config}")"
+
           cat "${evidence_dir}/tradernet-public-quotes-reconnect.md" >> "${GITHUB_STEP_SUMMARY}"
-          jq '.deep_analysis.adjudication' "${evidence_dir}/tradernet-public-quotes-reconnect.json" >> "${GITHUB_STEP_SUMMARY}"
+          {
+            echo
+            echo '## Deep reconnect analysis'
+            echo '```json'
+            jq '.deep_analysis.adjudication' "${evidence_dir}/tradernet-public-quotes-reconnect.json"
+            echo '```'
+            echo
+            echo '## Temporal integrity analysis'
+            echo '```json'
+            jq '.adjudication' "${evidence_dir}/tradernet-public-quote-temporal-integrity.json"
+            echo '```'
+            echo
+            echo '## Subscription idempotency analysis'
+            echo '```json'
+            jq '.adjudication' "${evidence_dir}/tradernet-quote-subscription-idempotency.json"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Verify final exact head and clean worktree
         id: final_identity
@@ -149,7 +195,7 @@ jobs:
           mkdir -p "${evidence_dir}"
           python3 scripts/write_exact_head_manifest.py manifest \
             --output-dir "${evidence_dir}" \
-            --audit-name "Tradernet public quotes and reconnect audit" \
+            --audit-name "Tradernet public quote causal-integrity audit" \
             --target "https://tradernet.com/api/ + wss://wss.tradernet.com" \
             --repository "${GITHUB_REPOSITORY}" \
             --expected-sha "${EXPECTED_SHA}" \
