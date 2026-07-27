@@ -2,11 +2,6 @@ name: Causal Deep-Audit Skills Contract
 
 on:
   workflow_dispatch:
-    inputs:
-      expected_sha:
-        description: Exact 40-character commit SHA to validate
-        required: false
-        type: string
   push:
     branches:
       - agent/causal-deep-audit-skills-v0-1
@@ -46,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
-      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       EVIDENCE_DIR: ${{ runner.temp }}/causal-deep-audit-skills-contract
 
     steps:
@@ -83,13 +78,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/validate_audit_skills.py
-          python3 -m unittest \
-            tests/test_audit_skills_contract.py \
-            tests/test_cyber_causal_audit_skills.py \
-            -v
+          python3 -m unittest tests/test_audit_skills_contract.py tests/test_cyber_causal_audit_skills.py -v
           test -z "$(find skills schemas scripts tests audits docs -type d -name __pycache__ -print -quit)"
 
-      - name: Verify final identity and write manifest
+      - name: Verify final identity
         id: final
         shell: bash
         run: |
@@ -97,8 +89,17 @@ jobs:
           final_sha="$(git rev-parse HEAD)"
           test "${final_sha}" = "${EXPECTED_SHA}"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Write exact-head manifest
+        shell: bash
+        env:
+          INITIAL_SHA: ${{ steps.initial.outputs.initial_sha }}
+          FINAL_SHA: ${{ steps.final.outputs.final_sha }}
+        run: |
+          set -euo pipefail
           mkdir -p "${EVIDENCE_DIR}"
-          INITIAL_SHA="${{ steps.initial.outputs.initial_sha }}" FINAL_SHA="${final_sha}" python3 - <<'PY'
+          python3 - <<'PY'
           import hashlib
           import json
           import os
@@ -139,7 +140,6 @@ jobs:
               'expected_sha': os.environ['EXPECTED_SHA'],
               'initial_sha': os.environ['INITIAL_SHA'],
               'final_sha': os.environ['FINAL_SHA'],
-              'workflow_sha': os.environ['GITHUB_WORKFLOW_SHA'],
               'run_id': os.environ['GITHUB_RUN_ID'],
               'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
               'event_name': os.environ['GITHUB_EVENT_NAME'],
@@ -150,12 +150,8 @@ jobs:
               'files': files,
           }
           output = Path(os.environ['EVIDENCE_DIR']) / 'manifest.json'
-          output.write_text(
-              json.dumps(payload, indent=2, sort_keys=True) + '\n',
-              encoding='utf-8',
-          )
+          output.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
           PY
-          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload exact-head contract evidence
         uses: actions/upload-artifact@v4
