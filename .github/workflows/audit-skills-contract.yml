@@ -10,6 +10,9 @@ on:
       - schemas/causal-deep-audit-packet.schema.json
       - scripts/validate_audit_skills.py
       - tests/test_audit_skills_contract.py
+      - tests/test_cyber_causal_audit_skills.py
+      - audits/security/tradernet-repository-causal-review-v1.json
+      - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
       - .github/workflows/audit-skills-contract.yml
   pull_request:
     branches:
@@ -19,10 +22,16 @@ on:
       - schemas/causal-deep-audit-packet.schema.json
       - scripts/validate_audit_skills.py
       - tests/test_audit_skills_contract.py
+      - tests/test_cyber_causal_audit_skills.py
+      - audits/security/tradernet-repository-causal-review-v1.json
+      - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
       - .github/workflows/audit-skills-contract.yml
 
 permissions:
   contents: read
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 concurrency:
   group: causal-deep-audit-skills-${{ github.ref }}
@@ -49,8 +58,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
           persist-credentials: false
           show-progress: false
+      - name: Verify exact head
+        run: |
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
       - name: Validate one skill
         env:
           SKILL_NAME: ${{ matrix.skill }}
@@ -82,8 +97,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
           persist-credentials: false
           show-progress: false
+      - name: Verify exact head
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
       - name: Validate schema and routes
         run: |
           python3 - <<'PY'
@@ -117,8 +136,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
           persist-credentials: false
           show-progress: false
+      - name: Verify exact head
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
       - name: Validate pins, licenses and non-execution
         run: |
           python3 - <<'PY'
@@ -147,8 +170,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
           persist-credentials: false
           show-progress: false
+      - name: Verify exact head
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
       - name: Validate claim levels and discriminators
         run: |
           python3 - <<'PY'
@@ -194,7 +221,94 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
           persist-credentials: false
           show-progress: false
+      - name: Verify exact head
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
       - name: Run one fail-closed regression
         run: python3 -m unittest tests.test_audit_skills_contract.AuditSkillContractTests.${{ matrix.test }} -v
+
+  evidence:
+    name: Exact-head evidence manifest
+    needs:
+      - skill-text
+      - schema-and-routes
+      - external-sources
+      - audit-claims
+      - negative-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - name: Verify exact head and clean worktree
+        run: |
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Write manifest
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cyber-skill-evidence"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          paths = [
+              Path('.github/workflows/audit-skills-contract.yml'),
+              Path('schemas/causal-deep-audit-packet.schema.json'),
+              Path('scripts/validate_audit_skills.py'),
+              Path('skills/README.md'),
+              Path('skills/causal-deep-audit/SKILL.md'),
+              Path('skills/evidence-capture/SKILL.md'),
+              Path('skills/causal-adjudication/SKILL.md'),
+              Path('skills/cyber-causal-audit/SKILL.md'),
+              Path('skills/cyber-causal-audit/SPEC.md'),
+              Path('skills/cyber-causal-audit/sources.json'),
+              Path('skills/websocket-redis-lifecycle/SKILL.md'),
+              Path('skills/exact-head-governance/SKILL.md'),
+              Path('skills/replay-memory/SKILL.md'),
+              Path('skills/product-impact/SKILL.md'),
+              Path('skills/transition-next-action/SKILL.md'),
+              Path('audits/security/tradernet-repository-causal-review-v1.json'),
+              Path('docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md'),
+              Path('tests/test_audit_skills_contract.py'),
+              Path('tests/test_cyber_causal_audit_skills.py'),
+          ]
+          files = []
+          for path in paths:
+              data = path.read_bytes()
+              files.append({
+                  'path': str(path),
+                  'size': len(data),
+                  'sha256': hashlib.sha256(data).hexdigest(),
+              })
+          payload = {
+              'schema_version': '1.0',
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'expected_sha': os.environ['EXPECTED_SHA'],
+              'final_sha': os.environ['EXPECTED_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'authority': 'READ_ONLY_CONTRACT_VALIDATION',
+              'external_skill_execution': False,
+              'credential_use': False,
+              'external_mutation': False,
+              'files': files,
+          }
+          target = Path(os.environ['RUNNER_TEMP']) / 'cyber-skill-evidence' / 'manifest.json'
+          target.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: causal-deep-audit-skills-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cyber-skill-evidence/manifest.json
+          if-no-files-found: error
+          retention-days: 30
