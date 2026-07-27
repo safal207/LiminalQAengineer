@@ -123,6 +123,15 @@ jobs:
           python3 scripts/write_ltp_audit_trace.py build --output-dir "${out}" --audit-name "${{ matrix.audit }}" --target https://tradernet.ru/terminal --repository "${GITHUB_REPOSITORY}" --expected-sha "${EXPECTED_SHA}" --initial-sha "${{ steps.identity.outputs.initial_sha }}" --workflow-sha "${{ github.workflow_sha }}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" --started-at "${{ steps.identity.outputs.started_at }}" --capture-status "${{ steps.capture.outcome }}" --artifact-name "${EVIDENCE_NAME}" --ltp-sha "${LTP_SHA}" --critical-actions-registry "${registry}"
           bash scripts/run_ltp_offline_replay.sh "${out}/ltp/trace.jsonl" "${out}" "${{ steps.ltp.outputs.dir }}" "${LTP_SHA}"
 
+      - name: Upload failed LTP diagnostics
+        if: always() && steps.audit.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.prefix }}-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/${{ matrix.dir }}/ltp/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Verify final exact head
         id: final
         if: always()
