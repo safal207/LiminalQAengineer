@@ -1,0 +1,147 @@
+name: Cyber Causal Audit Skills Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact 40-character commit SHA to validate
+        required: false
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - skills/causal-deep-audit/SKILL.md
+      - skills/cyber-causal-audit/**
+      - skills/websocket-redis-lifecycle/**
+      - audits/security/tradernet-repository-causal-review-v1.json
+      - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
+      - tests/test_cyber_causal_audit_skills.py
+      - .github/workflows/cyber-causal-audit-skills.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cyber-causal-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
+      EVIDENCE_DIR: ${{ runner.temp }}/cyber-causal-audit-contract
+
+    steps:
+      - name: Check out exact audited head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify initial identity and clean worktree
+        id: initial
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          initial_sha="$(git rev-parse HEAD)"
+          test "${initial_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run fail-closed contract tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_cyber_causal_audit_skills.py -v
+          test -z "$(find skills audits docs tests -type d -name __pycache__ -print -quit)"
+
+      - name: Validate JSON and skill frontmatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in (
+              Path('skills/cyber-causal-audit/sources.json'),
+              Path('audits/security/tradernet-repository-causal-review-v1.json'),
+          ):
+              with path.open(encoding='utf-8') as handle:
+                  json.load(handle)
+
+          expected = {
+              Path('skills/causal-deep-audit/SKILL.md'): 'causal-deep-audit',
+              Path('skills/cyber-causal-audit/SKILL.md'): 'cyber-causal-audit',
+              Path('skills/websocket-redis-lifecycle/SKILL.md'): 'websocket-redis-lifecycle',
+          }
+          for path, name in expected.items():
+              text = path.read_text(encoding='utf-8')
+              assert text.startswith('---\n'), path
+              assert f'\nname: {name}\n' in text, path
+              assert text.count('\n---\n') >= 1, path
+          PY
+
+      - name: Verify final identity and write immutable evidence summary
+        id: final
+        shell: bash
+        run: |
+          set -euo pipefail
+          final_sha="$(git rev-parse HEAD)"
+          test "${final_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          mkdir -p "${EVIDENCE_DIR}"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          paths = [
+              Path('skills/causal-deep-audit/SKILL.md'),
+              Path('skills/cyber-causal-audit/SKILL.md'),
+              Path('skills/cyber-causal-audit/sources.json'),
+              Path('skills/websocket-redis-lifecycle/SKILL.md'),
+              Path('audits/security/tradernet-repository-causal-review-v1.json'),
+              Path('docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md'),
+              Path('tests/test_cyber_causal_audit_skills.py'),
+              Path('.github/workflows/cyber-causal-audit-skills.yml'),
+          ]
+          files = []
+          for path in paths:
+              data = path.read_bytes()
+              files.append({
+                  'path': str(path),
+                  'size': len(data),
+                  'sha256': hashlib.sha256(data).hexdigest(),
+              })
+          payload = {
+              'schema_version': '1.0',
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'expected_sha': os.environ['EXPECTED_SHA'],
+              'initial_sha': '${{ steps.initial.outputs.initial_sha }}',
+              'final_sha': '${{ env.EXPECTED_SHA }}',
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'event_name': os.environ['GITHUB_EVENT_NAME'],
+              'authority': 'READ_ONLY_CONTRACT_VALIDATION',
+              'files': files,
+          }
+          output = Path(os.environ['EVIDENCE_DIR']) / 'manifest.json'
+          output.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload exact-head contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyber-causal-audit-contract-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE_DIR }}/manifest.json
+          if-no-files-found: error
+          retention-days: 30
