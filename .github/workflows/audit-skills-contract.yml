@@ -17,14 +17,19 @@ on:
   pull_request:
     branches:
       - main
+      - agent/cyber-causal-audit-skills-v0-1
     paths:
       - skills/**
       - schemas/causal-deep-audit-packet.schema.json
       - scripts/validate_audit_skills.py
+      - scripts/cyber_causal_guardrail_replay.py
       - tests/test_audit_skills_contract.py
       - tests/test_cyber_causal_audit_skills.py
+      - tests/test_cyber_causal_guardrail_replay.py
       - audits/security/tradernet-repository-causal-review-v1.json
+      - audits/security/cyber-causal-guardrail-replay-v0-2.json
       - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
+      - docs/audits/CYBER_CAUSAL_GUARDRAIL_REPLAY_V0_2.md
       - .github/workflows/audit-skills-contract.yml
 
 permissions:
@@ -229,6 +234,155 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
       - name: Run one fail-closed regression
         run: python3 -m unittest tests.test_audit_skills_contract.AuditSkillContractTests.${{ matrix.test }} -v
+
+  guardrail-replay-extension:
+    name: Stacked guardrail replay extension
+    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'agent/cyber-causal-guardrail-replays-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      EVIDENCE_DIR: ${{ runner.temp }}/cyber-causal-guardrail-replay
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - name: Verify initial identity and clean worktree
+        id: initial
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          initial_sha="$(git rev-parse HEAD)"
+          test "${initial_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
+      - name: Validate replay contract
+        run: python3 -m json.tool audits/security/cyber-causal-guardrail-replay-v0-2.json >/dev/null
+      - name: Run guardrail regression tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_cyber_causal_guardrail_replay.py -v
+          test -z "$(find scripts tests -type d -name __pycache__ -print -quit)"
+      - name: Run replay twice and require byte identity
+        run: |
+          set -euo pipefail
+          mkdir -p "${EVIDENCE_DIR}"
+          python3 scripts/cyber_causal_guardrail_replay.py \
+            --source-sha "${EXPECTED_SHA}" \
+            --output "${EVIDENCE_DIR}/result.json"
+          python3 scripts/cyber_causal_guardrail_replay.py \
+            --source-sha "${EXPECTED_SHA}" \
+            --output "${EVIDENCE_DIR}/result-replay.json"
+          cmp --silent "${EVIDENCE_DIR}/result.json" "${EVIDENCE_DIR}/result-replay.json"
+          python3 -m json.tool "${EVIDENCE_DIR}/result.json" >/dev/null
+      - name: Adjudicate result and secret boundary
+        run: |
+          set -euo pipefail
+          RESULT_PATH="${EVIDENCE_DIR}/result.json" python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path(os.environ['RESULT_PATH'])
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          assert payload['source_sha'] == os.environ['EXPECTED_SHA']
+          assert payload['authority'] == 'LOCAL_DETERMINISTIC_SIMULATION_ONLY'
+          assert payload['scenario_count'] == 8
+          assert payload['mechanism_scenario_count'] == 4
+          assert payload['mechanisms_reproduced'] is True
+          assert payload['all_guardrails_pass'] is True
+          assert payload['network_access'] is False
+          assert payload['credential_use'] is False
+          assert payload['external_mutation'] is False
+          assert payload['external_product_claim'] == 'NONE'
+          assert payload['verdict'] == (
+              'CONFIRMED_LOCAL_MECHANISM_REPRODUCTION_AND_GUARDRAIL_PASS'
+          )
+          for scenario in payload['scenarios']:
+              assert scenario['guarded']['invariant_pass'] is True, scenario['scenario_id']
+              if 'vulnerable' in scenario:
+                  assert scenario['vulnerable']['invariant_pass'] is False, scenario['scenario_id']
+
+          text = path.read_text(encoding='utf-8')
+          forbidden = {
+              'private_key': r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----',
+              'bearer': r'(?i)bearer\s+[A-Za-z0-9._~+/-]{16,}',
+              'cookie': r'(?i)(?:cookie|sid|session)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}',
+              'api_key': r'(?i)(?:api[_-]?key|api[_-]?secret)\s*[:=]\s*[A-Za-z0-9._~+/-]{16,}',
+          }
+          for name, pattern in forbidden.items():
+              assert re.search(pattern, text) is None, name
+          PY
+      - name: Verify final identity and write replay manifest
+        run: |
+          set -euo pipefail
+          final_sha="$(git rev-parse HEAD)"
+          test "${final_sha}" = "${EXPECTED_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          INITIAL_SHA="${{ steps.initial.outputs.initial_sha }}" FINAL_SHA="${final_sha}" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          evidence_dir = Path(os.environ['EVIDENCE_DIR'])
+          repository_files = [
+              Path('scripts/cyber_causal_guardrail_replay.py'),
+              Path('tests/test_cyber_causal_guardrail_replay.py'),
+              Path('audits/security/cyber-causal-guardrail-replay-v0-2.json'),
+              Path('docs/audits/CYBER_CAUSAL_GUARDRAIL_REPLAY_V0_2.md'),
+          ]
+          evidence_files = [
+              evidence_dir / 'result.json',
+              evidence_dir / 'result-replay.json',
+          ]
+          files = []
+          for path in repository_files + evidence_files:
+              data = path.read_bytes()
+              files.append({
+                  'path': str(path),
+                  'size': len(data),
+                  'sha256': hashlib.sha256(data).hexdigest(),
+              })
+          result_bytes = (evidence_dir / 'result.json').read_bytes()
+          replay_bytes = (evidence_dir / 'result-replay.json').read_bytes()
+          payload = {
+              'schema_version': '1.0',
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'expected_sha': os.environ['EXPECTED_SHA'],
+              'initial_sha': os.environ['INITIAL_SHA'],
+              'final_sha': os.environ['FINAL_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'authority': 'LOCAL_DETERMINISTIC_SIMULATION_ONLY',
+              'network_access': False,
+              'credential_use': False,
+              'external_mutation': False,
+              'byte_identical_replay': result_bytes == replay_bytes,
+              'result_sha256': hashlib.sha256(result_bytes).hexdigest(),
+              'files': files,
+          }
+          assert payload['byte_identical_replay'] is True
+          (evidence_dir / 'manifest.json').write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+      - name: Upload guardrail replay evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyber-causal-guardrail-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.EVIDENCE_DIR }}/result.json
+            ${{ env.EVIDENCE_DIR }}/result-replay.json
+            ${{ env.EVIDENCE_DIR }}/manifest.json
+          if-no-files-found: error
+          retention-days: 30
 
   evidence:
     name: Exact-head evidence manifest
