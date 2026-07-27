@@ -8,7 +8,7 @@ on:
         required: false
         type: string
   pull_request:
-    branches: [main]
+    branches: [main, agent/causal-deep-audit-skills-v0-1]
     paths:
       - skills/causal-deep-audit/SKILL.md
       - skills/cyber-causal-audit/**
@@ -97,7 +97,7 @@ jobs:
           test "${final_sha}" = "${EXPECTED_SHA}"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           mkdir -p "${EVIDENCE_DIR}"
-          python3 - <<'PY'
+          INITIAL_SHA="${{ steps.initial.outputs.initial_sha }}" FINAL_SHA="${final_sha}" python3 - <<'PY'
           import hashlib
           import json
           import os
@@ -125,8 +125,8 @@ jobs:
               'schema_version': '1.0',
               'repository': os.environ['GITHUB_REPOSITORY'],
               'expected_sha': os.environ['EXPECTED_SHA'],
-              'initial_sha': '${{ steps.initial.outputs.initial_sha }}',
-              'final_sha': '${{ env.EXPECTED_SHA }}',
+              'initial_sha': os.environ['INITIAL_SHA'],
+              'final_sha': os.environ['FINAL_SHA'],
               'run_id': os.environ['GITHUB_RUN_ID'],
               'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
               'event_name': os.environ['GITHUB_EVENT_NAME'],
