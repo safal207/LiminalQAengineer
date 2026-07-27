@@ -29,23 +29,119 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Validate skill graph and negative cases
+  skill-graph:
+    name: Skill graph and schema
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
-      - name: Checkout exact workflow revision
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
           show-progress: false
+      - name: Validate skill text, schema and routes
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
 
-      - name: Validate machine-readable schema
-        run: python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
+          root = Path.cwd()
+          spec = importlib.util.spec_from_file_location(
+              'validator', root / 'scripts/validate_audit_skills.py'
+          )
+          module = importlib.util.module_from_spec(spec)
+          assert spec and spec.loader
+          spec.loader.exec_module(module)
 
-      - name: Validate skill family
-        run: python3 scripts/validate_audit_skills.py
+          errors = []
+          for name, path in module.SKILLS.items():
+              if not path.is_file():
+                  errors.append(f'missing skill file: {path.relative_to(root)}')
+                  continue
+              for error in module.validate_skill_text(name, path.read_text(encoding='utf-8')):
+                  errors.append(f'{path.relative_to(root)}: {error}')
 
-      - name: Run fail-closed regression tests
+          import json
+          schema = json.loads(module.SCHEMA.read_text(encoding='utf-8'))
+          errors.extend(f'schema: {error}' for error in module.validate_schema(schema))
+
+          orchestrator = module.SKILLS['causal-deep-audit'].read_text(encoding='utf-8')
+          for dependency in module.SKILLS:
+              if dependency != 'causal-deep-audit' and dependency not in orchestrator:
+                  errors.append(f'orchestrator does not invoke dependency: {dependency}')
+
+          if errors:
+              raise SystemExit('\n'.join(errors))
+          print(f'Validated {len(module.SKILLS)} skill files, schema and routes.')
+          PY
+
+  external-sources:
+    name: External skill source gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          show-progress: false
+      - name: Validate pins, licenses and non-execution
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          root = Path.cwd()
+          spec = importlib.util.spec_from_file_location(
+              'validator', root / 'scripts/validate_audit_skills.py'
+          )
+          module = importlib.util.module_from_spec(spec)
+          assert spec and spec.loader
+          spec.loader.exec_module(module)
+          payload = json.loads(module.CYBER_SOURCES.read_text(encoding='utf-8'))
+          errors = module.validate_cyber_sources(payload)
+          if errors:
+              raise SystemExit('\n'.join(errors))
+          print('External skills are pinned, licensed and non-executable by default.')
+          PY
+
+  audit-claims:
+    name: Audit claim and authority gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          show-progress: false
+      - name: Validate claim levels and discriminators
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          root = Path.cwd()
+          spec = importlib.util.spec_from_file_location(
+              'validator', root / 'scripts/validate_audit_skills.py'
+          )
+          module = importlib.util.module_from_spec(spec)
+          assert spec and spec.loader
+          spec.loader.exec_module(module)
+          payload = json.loads(module.CYBER_AUDIT.read_text(encoding='utf-8'))
+          errors = module.validate_cyber_audit(payload)
+          if errors:
+              raise SystemExit('\n'.join(errors))
+          print('Audit claims, authority boundaries and next tests are fail-closed.')
+          PY
+
+  negative-tests:
+    name: Fail-closed negative regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          show-progress: false
+      - name: Run regression tests
         run: python3 -m unittest tests/test_audit_skills_contract.py -v
