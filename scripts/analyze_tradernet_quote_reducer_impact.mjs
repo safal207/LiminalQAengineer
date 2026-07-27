@@ -108,11 +108,21 @@ function replayQuotes(quotes, contract) {
       continue;
     }
 
-    const materialRollback = previousNaive?.marketTimestampMs !== null && quote.marketTimestampMs !== null
+    const materialRollback = previousNaive !== null
+      && previousNaive.marketTimestampMs !== null
+      && quote.marketTimestampMs !== null
       && quote.marketTimestampMs < previousNaive.marketTimestampMs - thresholdMs;
     const provenancePresent = hasProvenance(quote.payload, provenanceFields);
-    const priceChanged = materialRollback && quote.ltp !== null && previousNaive?.ltp !== null && quote.ltp !== previousNaive.ltp;
-    const sizeChanged = materialRollback && quote.lts !== null && previousNaive?.lts !== null && quote.lts !== previousNaive.lts;
+    const priceChanged = materialRollback
+      && previousNaive !== null
+      && quote.ltp !== null
+      && previousNaive.ltp !== null
+      && quote.ltp !== previousNaive.ltp;
+    const sizeChanged = materialRollback
+      && previousNaive !== null
+      && quote.lts !== null
+      && previousNaive.lts !== null
+      && quote.lts !== previousNaive.lts;
 
     if (materialRollback) {
       rollbacks.push({
@@ -175,11 +185,22 @@ function analyzeRepeatedSnapshots(input, contract) {
     const previous = state.get(quote.ticker) ?? null;
     const afterRepeat = quote.source.endsWith('after-repeat');
     if (afterRepeat && quote.initialSnapshot) {
-      const sequenceOlder = previous?.sequence !== null && quote.sequence !== null && quote.sequence < previous.sequence;
-      const revisionOlder = previous?.revision !== null && quote.revision !== null && quote.revision < previous.revision;
-      const timeOlder = previous?.marketTimestampMs !== null && quote.marketTimestampMs !== null
+      const sequenceOlder = previous !== null
+        && previous.sequence !== null
+        && quote.sequence !== null
+        && quote.sequence < previous.sequence;
+      const revisionOlder = previous !== null
+        && previous.revision !== null
+        && quote.revision !== null
+        && quote.revision < previous.revision;
+      const timeOlder = previous !== null
+        && previous.marketTimestampMs !== null
+        && quote.marketTimestampMs !== null
         && quote.marketTimestampMs < previous.marketTimestampMs - contract.rules.material_market_time_regression_seconds * 1000;
-      const priceChanged = previous?.ltp !== null && quote.ltp !== null && previous.ltp !== quote.ltp;
+      const priceChanged = previous !== null
+        && previous.ltp !== null
+        && quote.ltp !== null
+        && previous.ltp !== quote.ltp;
       snapshots.push({
         ticker: quote.ticker,
         offset_ms: quote.offsetMs,
