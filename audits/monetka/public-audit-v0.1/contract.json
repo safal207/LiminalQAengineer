@@ -158,6 +158,11 @@
             "Данные не шифруются",
             "Вы можете запросить удаление данных"
           ]
+        },
+        {
+          "id": "google_cross_brand_support_routing",
+          "type": "all_of",
+          "markers": ["max.ru/lentacompany_bot", "t.me/LENTAcompany_bot"]
         }
       ]
     },
@@ -272,6 +277,17 @@
       "business_lens": "Errors in ordering terms reduce confidence at a high-trust decision point.",
       "initial_state": "PRODUCT_SIGNAL",
       "promotion_rule": "Confirm the exact strings in settled desktop and mobile renders; do not claim legal invalidity."
+    },
+    {
+      "id": "MON-008",
+      "title": "A Monetka developer response routes a customer to LENTA-branded support bots",
+      "severity": "MEDIUM",
+      "evidence_refs": ["google-play:google_cross_brand_support_routing"],
+      "quality_lens": "A public developer reply on the Monetka Google Play listing directs a customer to MAX and Telegram bots named LENTAcompany.",
+      "system_lens": "Review-response templates, support routing, or channel ownership appear crossed between brand contexts.",
+      "business_lens": "A customer may send order or account details to a support route that appears to belong to another brand.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm both routes are visible in desktop and mobile. Human review must verify whether the shared support route is intentional and must not infer data exposure."
     }
   ],
   "lotus_policy": {
