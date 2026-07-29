@@ -41,6 +41,8 @@ Invoke `evidence-capture`.
 
 Collect source, rendered, runtime, accessibility, network, console, temporal, and journey evidence only inside the declared boundary. Build a T-Trace-compatible ordered observation sequence.
 
+When an approved logo, brand mark, wordmark, responsive lockup, favicon, or site identity transfer is load-bearing, invoke `logo-fidelity-transfer`. Bind the approved reference to canonical SVG geometry and exact browser-rendered selector captures; do not treat a visually plausible approximation as verified identity.
+
 ### 2. Adjudicate causality
 
 Invoke `causal-adjudication`.
@@ -95,11 +97,12 @@ For a deep audit, cover all applicable lenses:
 2. state and temporal consistency;
 3. UX, accessibility, and recovery;
 4. content and semantic integrity;
-5. performance and reliability;
-6. privacy, authority, and security boundary;
-7. causal validity and competing explanations;
-8. product, conversion, and operational impact;
-9. evidence freshness, replayability, and exact identity.
+5. visual identity and reference fidelity when brand assets are in scope;
+6. performance and reliability;
+7. privacy, authority, and security boundary;
+8. causal validity and competing explanations;
+9. product, conversion, and operational impact;
+10. evidence freshness, replayability, and exact identity.
 
 A lens can be `NOT_APPLICABLE`, but it cannot silently disappear.
 
@@ -143,4 +146,5 @@ Each finding must include:
 - Absence of an observed error does not prove absence of a defect.
 - Unavailable evidence cannot be converted into approval.
 - Prior memory cannot replace current reproduction.
+- A pixel similarity score cannot approve a logo or trademark transfer.
 - Automated review cannot grant ownership, remediation authority, external submission, deployment, or merge.

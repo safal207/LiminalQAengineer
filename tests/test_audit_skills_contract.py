@@ -35,6 +35,28 @@ class AuditSkillContractTests(unittest.TestCase):
         errors = validator.validate_skill_text("synthetic-skill", text)
         self.assertTrue(any("uncertainty/fail-closed" in error for error in errors), errors)
 
+    def test_logo_skill_requires_playwright_and_pixelmatch(self) -> None:
+        original = (ROOT / "skills/logo-fidelity-transfer/SKILL.md").read_text(encoding="utf-8")
+        mutated = original.replace("Playwright", "browser tool").replace("playwright", "browser tool")
+        mutated = mutated.replace("Pixelmatch", "image comparator").replace("pixelmatch", "image comparator")
+        errors = validator.validate_skill_text("logo-fidelity-transfer", mutated)
+        self.assertTrue(any("playwright" in error for error in errors), errors)
+        self.assertTrue(any("pixelmatch" in error for error in errors), errors)
+
+    def test_logo_example_blocks_structural_mismatch(self) -> None:
+        config_path = ROOT / "skills/logo-fidelity-transfer/example.config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["comparison"]["structural_mismatch_always_blocks"] = False
+        errors = validator.validate_logo_example(config)
+        self.assertTrue(any("structural logo mismatch" in error for error in errors), errors)
+
+    def test_logo_example_cannot_pregrant_merge_authority(self) -> None:
+        config_path = ROOT / "skills/logo-fidelity-transfer/example.config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["authority"]["merge_authorized"] = True
+        errors = validator.validate_logo_example(config)
+        self.assertTrue(any("merge_authorized" in error for error in errors), errors)
+
     def test_schema_without_not_run_is_rejected(self) -> None:
         schema_path = ROOT / "schemas/causal-deep-audit-packet.schema.json"
         schema = json.loads(schema_path.read_text(encoding="utf-8"))

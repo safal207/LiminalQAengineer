@@ -1,0 +1,60 @@
+name: Logo Fidelity Transfer Skill Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/logo-fidelity-transfer-skill-v0-1
+    paths:
+      - skills/logo-fidelity-transfer/**
+      - skills/README.md
+      - skills/causal-deep-audit/SKILL.md
+      - scripts/validate_audit_skills.py
+      - tests/test_audit_skills_contract.py
+      - .github/workflows/logo-fidelity-transfer-skill.yml
+  pull_request:
+    branches:
+      - agent/causal-deep-audit-skills-v0-1
+    paths:
+      - skills/logo-fidelity-transfer/**
+      - skills/README.md
+      - skills/causal-deep-audit/SKILL.md
+      - scripts/validate_audit_skills.py
+      - tests/test_audit_skills_contract.py
+      - .github/workflows/logo-fidelity-transfer-skill.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: logo-fidelity-transfer-skill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate skill, example contract, and negative cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Bind exact source identity
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "${actual}" = "${expected}"
+
+      - name: Validate example JSON
+        run: python3 -m json.tool skills/logo-fidelity-transfer/example.config.json >/dev/null
+
+      - name: Validate skill family
+        run: python3 scripts/validate_audit_skills.py
+
+      - name: Run fail-closed tests
+        run: python3 -m unittest tests/test_audit_skills_contract.py -v
