@@ -58,3 +58,28 @@ causal-deep-audit
 - `READY_WITH_ADVISORY_GAPS`
 
 The orchestrator must preserve the strongest applicable uncertainty state rather than compressing it into a green/red summary.
+
+## Standalone evidence-bounded skills
+
+### `sitnikov-inspired-self-regulation`
+
+```text
+verified public source registry
+-> consent and safety gate
+-> bounded self-regulation mode
+-> original session language
+-> full reorientation
+-> observable next action
+```
+
+This standalone skill creates original Russian-language calming, focus, reflection, sleep-preparation, and future-rehearsal practices from publicly documented themes in Alexey Sitnikov's work. It is not an official Sitnikov protocol, does not imitate his authorship, does not recover memories, and does not replace clinical care.
+
+Additional boundaries and result states:
+
+- an author's framework, testimonial, or course description is not automatically clinical evidence;
+- the skill must preserve consent, agency, stop conditions, and full reorientation;
+- hypnosis or guided imagery may not manufacture, recover, or validate factual memories;
+- `READY_FOR_LIGHT_PRACTICE`;
+- `READY_WITH_CAUTION`;
+- `HUMAN_CLINICIAN_RECOMMENDED`;
+- `BLOCKED_BY_SAFETY`.
