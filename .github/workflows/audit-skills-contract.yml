@@ -1,0 +1,50 @@
+name: Causal Deep-Audit Skills Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/causal-deep-audit-skills-v0-1
+    paths:
+      - skills/**
+      - schemas/causal-deep-audit-packet.schema.json
+      - scripts/validate_audit_skills.py
+      - tests/test_audit_skills_contract.py
+      - .github/workflows/audit-skills-contract.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - skills/**
+      - schemas/causal-deep-audit-packet.schema.json
+      - scripts/validate_audit_skills.py
+      - tests/test_audit_skills_contract.py
+      - .github/workflows/audit-skills-contract.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: causal-deep-audit-skills-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate skill graph and negative cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate machine-readable schema
+        run: python3 -m json.tool schemas/causal-deep-audit-packet.schema.json >/dev/null
+
+      - name: Validate skill family
+        run: python3 scripts/validate_audit_skills.py
+
+      - name: Run fail-closed regression tests
+        run: python3 -m unittest tests/test_audit_skills_contract.py -v
