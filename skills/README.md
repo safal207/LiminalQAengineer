@@ -83,3 +83,33 @@ Additional boundaries and result states:
 - `READY_WITH_CAUTION`;
 - `HUMAN_CLINICIAN_RECOMMENDED`;
 - `BLOCKED_BY_SAFETY`.
+
+## Security route
+
+`causal-deep-audit` invokes `cyber-causal-audit` when security is explicitly in scope, and that route invokes `websocket-redis-lifecycle` for WebSocket, Redis, Pub/Sub, reconnect, heartbeat, duplicate-delivery, generation-fencing, and cleanup questions.
+
+```text
+authority and exact scope
+-> external-skill source, license and permission gate
+-> threat model and trust boundaries
+-> assets, identities, owners and invariants
+-> static, differential and variant review
+-> smallest safe discriminating test
+-> false-positive gate
+-> exact-head evidence
+-> human severity and disclosure decision
+```
+
+External methods are pinned in `cyber-causal-audit/sources.json`. Third-party prompts, scripts, hooks, plugins and rules are not executed merely because their repository or model vendor is well known.
+
+Security-specific boundaries and states:
+
+- a suspicious code pattern is not automatically reachable or exploitable;
+- an analog repository cannot prove another product uses the same internal implementation;
+- external skills remain untrusted until exact source, license, scripts, prompts, hooks, dependencies and permissions are reviewed;
+- audit output does not authorize credentials, exploitation, production stress, disclosure, remediation, deployment or merge;
+- `SECURITY_SIGNAL`;
+- `DEFECT_CANDIDATE`;
+- `VULNERABILITY_CANDIDATE`;
+- `RESOURCE_LEAK_CANDIDATE`;
+- `CONFIRMED_VULNERABILITY`.
