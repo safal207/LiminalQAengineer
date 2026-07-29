@@ -19,20 +19,6 @@ causal-deep-audit
 
 `logo-fidelity-transfer` binds an approved logo reference to canonical SVG geometry and browser-rendered selector captures. It uses Playwright for deterministic desktop/mobile evidence and Pixelmatch for expected/actual/diff artifacts, while preserving human brand approval and repository authority boundaries.
 
-## Standalone evidence-bounded skills
-
-```text
-sitnikov-inspired-self-regulation
-  -> verified public source registry
-  -> consent and safety gate
-  -> bounded self-regulation mode
-  -> original session language
-  -> full reorientation
-  -> observable next action
-```
-
-`sitnikov-inspired-self-regulation` creates original Russian-language calming, focus, reflection, sleep-preparation, and future-rehearsal practices from publicly documented themes in Alexey Sitnikov's work. It is not an official Sitnikov protocol, does not imitate his authorship, does not recover memories, and does not replace clinical care.
-
 ## Repository responsibilities
 
 | Repository / protocol | Responsibility in an audit |
@@ -58,9 +44,6 @@ sitnikov-inspired-self-regulation
 6. Public-surface audits remain passive and bounded unless the owner has explicitly authorized a broader test.
 7. Commercial impact is a model or hypothesis until measured.
 8. Pixel similarity cannot grant trademark, design, deployment, or merge approval.
-9. An author's framework, testimonial, or course description is not automatically clinical evidence.
-10. A self-regulation skill must preserve consent, agency, stop conditions, and full reorientation.
-11. Hypnosis or guided imagery may not be used to manufacture, recover, or validate factual memories.
 
 ## Canonical result states
 
@@ -73,9 +56,30 @@ sitnikov-inspired-self-regulation
 - `INCOMPLETE`
 - `HOLD`
 - `READY_WITH_ADVISORY_GAPS`
-- `READY_FOR_LIGHT_PRACTICE`
-- `READY_WITH_CAUTION`
-- `HUMAN_CLINICIAN_RECOMMENDED`
-- `BLOCKED_BY_SAFETY`
 
 The orchestrator must preserve the strongest applicable uncertainty state rather than compressing it into a green/red summary.
+
+## Standalone evidence-bounded skills
+
+### `sitnikov-inspired-self-regulation`
+
+```text
+verified public source registry
+-> consent and safety gate
+-> bounded self-regulation mode
+-> original session language
+-> full reorientation
+-> observable next action
+```
+
+This standalone skill creates original Russian-language calming, focus, reflection, sleep-preparation, and future-rehearsal practices from publicly documented themes in Alexey Sitnikov's work. It is not an official Sitnikov protocol, does not imitate his authorship, does not recover memories, and does not replace clinical care.
+
+Additional boundaries and result states:
+
+- an author's framework, testimonial, or course description is not automatically clinical evidence;
+- the skill must preserve consent, agency, stop conditions, and full reorientation;
+- hypnosis or guided imagery may not manufacture, recover, or validate factual memories;
+- `READY_FOR_LIGHT_PRACTICE`;
+- `READY_WITH_CAUTION`;
+- `HUMAN_CLINICIAN_RECOMMENDED`;
+- `BLOCKED_BY_SAFETY`.
