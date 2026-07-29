@@ -12,6 +12,8 @@ Produce security findings that are repository-grounded, causally explicit, repro
 
 This skill extends `causal-deep-audit`. It does not replace authorization, legal scope, or human disclosure decisions.
 
+For WebSocket, Redis, Pub/Sub, reconnect, heartbeat, subscription, duplicate-delivery, generation-fencing, or zombie-cleanup analysis, invoke `websocket-redis-lifecycle` as the specialized lifecycle layer.
+
 ## When to use
 
 Use this skill when the request involves one or more of:
