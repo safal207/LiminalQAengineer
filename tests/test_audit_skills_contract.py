@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import re
 import unittest
 from pathlib import Path
 
@@ -12,12 +11,6 @@ SPEC = importlib.util.spec_from_file_location("validate_audit_skills", MODULE_PA
 assert SPEC is not None and SPEC.loader is not None
 validator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(validator)
-
-CYBER_SOURCES = ROOT / "skills/cyber-causal-audit/sources.json"
-CYBER_AUDIT = ROOT / "audits/security/tradernet-repository-causal-review-v1.json"
-CYBER_SKILL = ROOT / "skills/cyber-causal-audit/SKILL.md"
-WS_SKILL = ROOT / "skills/websocket-redis-lifecycle/SKILL.md"
-CYBER_REPORT = ROOT / "docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md"
 
 
 class AuditSkillContractTests(unittest.TestCase):
@@ -67,21 +60,28 @@ class AuditSkillContractTests(unittest.TestCase):
     def test_schema_without_not_run_is_rejected(self) -> None:
         schema_path = ROOT / "schemas/causal-deep-audit-packet.schema.json"
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        schema["properties"]["verdict"]["properties"]["state"]["enum"].remove(
-            "NOT_RUN"
-        )
+        schema["properties"]["verdict"]["properties"]["state"]["enum"].remove("NOT_RUN")
         errors = validator.validate_schema(schema)
         self.assertTrue(any("NOT_RUN" in error for error in errors), errors)
 
     def test_schema_cannot_expand_gate_authority(self) -> None:
         schema_path = ROOT / "schemas/causal-deep-audit-packet.schema.json"
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        schema["properties"]["verdict"]["properties"]["gate"]["enum"].append(
-            "MERGE"
-        )
+        schema["properties"]["verdict"]["properties"]["gate"]["enum"].append("MERGE")
         errors = validator.validate_schema(schema)
         self.assertTrue(any("ALLOW_REPORT/ESCALATE/BLOCK" in error for error in errors), errors)
 
+
+import re
+
+CYBER_SOURCES = ROOT / "skills/cyber-causal-audit/sources.json"
+CYBER_AUDIT = ROOT / "audits/security/tradernet-repository-causal-review-v1.json"
+CYBER_SKILL = ROOT / "skills/cyber-causal-audit/SKILL.md"
+WS_SKILL = ROOT / "skills/websocket-redis-lifecycle/SKILL.md"
+CYBER_REPORT = ROOT / "docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md"
+
+
+class CyberAuditSkillContractTests(unittest.TestCase):
     def test_external_skill_execution_cannot_be_enabled_silently(self) -> None:
         sources = json.loads(CYBER_SOURCES.read_text(encoding="utf-8"))
         sources["adoption_policy"]["remote_runtime_execution"] = True
