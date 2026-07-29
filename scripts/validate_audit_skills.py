@@ -15,8 +15,6 @@ SKILLS = {
     "causal-deep-audit": ROOT / "skills/causal-deep-audit/SKILL.md",
     "evidence-capture": ROOT / "skills/evidence-capture/SKILL.md",
     "causal-adjudication": ROOT / "skills/causal-adjudication/SKILL.md",
-    "cyber-causal-audit": ROOT / "skills/cyber-causal-audit/SKILL.md",
-    "websocket-redis-lifecycle": ROOT / "skills/websocket-redis-lifecycle/SKILL.md",
     "exact-head-governance": ROOT / "skills/exact-head-governance/SKILL.md",
     "logo-fidelity-transfer": ROOT / "skills/logo-fidelity-transfer/SKILL.md",
     "replay-memory": ROOT / "skills/replay-memory/SKILL.md",
@@ -26,8 +24,6 @@ SKILLS = {
 
 SCHEMA = ROOT / "schemas/causal-deep-audit-packet.schema.json"
 LOGO_EXAMPLE = ROOT / "skills/logo-fidelity-transfer/example.config.json"
-CYBER_SOURCES = ROOT / "skills/cyber-causal-audit/sources.json"
-CYBER_AUDIT = ROOT / "audits/security/tradernet-repository-causal-review-v1.json"
 
 REQUIRED_GLOBAL_TERMS = (
     "authority",
@@ -51,6 +47,18 @@ FORBIDDEN_AUTHORITY_CLAIMS = (
     "the audit may contact external parties",
     "missing evidence is success",
 )
+
+
+# Security-specialized extensions are registered separately so the canonical
+# base registry above stays byte-for-byte compatible with current main.
+SKILLS.update(
+    {
+        "cyber-causal-audit": ROOT / "skills/cyber-causal-audit/SKILL.md",
+        "websocket-redis-lifecycle": ROOT / "skills/websocket-redis-lifecycle/SKILL.md",
+    }
+)
+CYBER_SOURCES = ROOT / "skills/cyber-causal-audit/sources.json"
+CYBER_AUDIT = ROOT / "audits/security/tradernet-repository-causal-review-v1.json"
 
 
 def _frontmatter(text: str) -> tuple[dict[str, str], str]:
@@ -100,9 +108,7 @@ def validate_skill_text(expected_name: str, text: str) -> list[str]:
         if claim in lowered:
             errors.append(f"forbidden authority claim present: {claim}")
 
-    if not re.search(
-        r"\b(not_run|needs_evidence|incomplete|blocked|hold|candidate)\b", lowered
-    ):
+    if not re.search(r"\b(not_run|needs_evidence|incomplete|blocked|hold)\b", lowered):
         errors.append("skill must preserve at least one explicit uncertainty/fail-closed state")
 
     return errors
