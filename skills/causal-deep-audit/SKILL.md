@@ -1,6 +1,6 @@
 ---
 name: causal-deep-audit
-description: Orchestrate evidence-first audits across public products, repositories, pull requests, UX flows, content, conversion paths, security boundaries, visual identity, and agent actions using the connected Liminal repositories. Use when the user asks for a deep audit, causal audit, multi-lens review, security audit, brand-fidelity audit, or a combined QA/product/business assessment.
+description: Orchestrate evidence-first audits across public products, repositories, pull requests, UX flows, content, conversion paths, and agent actions using the connected Liminal repositories. Use when the user asks for a deep audit, causal audit, multi-lens review, or a combined QA/product/business assessment.
 ---
 
 # Causal Deep Audit
@@ -55,24 +55,6 @@ observation -> product signal -> defect candidate -> confirmed defect
 
 Root cause remains a hypothesis until supported by code, reproducible state transition, or discriminating counterfactual evidence.
 
-### 2a. Route security-specialized work
-
-When the request includes threat modeling, AppSec, credentials, authorization, secrets, injection, supply chain, CI exploitation, distributed lifecycle, resource exhaustion, race conditions, or security review of agent skills, invoke `cyber-causal-audit`.
-
-For WebSocket, Redis, Pub/Sub, reconnect, heartbeat, subscription, duplicate-delivery, stale-generation, or zombie-cleanup questions, invoke `websocket-redis-lifecycle` inside `cyber-causal-audit`.
-
-The security route adds:
-
-- external-skill source, license, exact-SHA, permission, and prompt-injection checks;
-- repository-grounded threat boundaries and attacker capabilities;
-- explicit security and lifecycle invariants;
-- static, differential, and variant analysis;
-- bounded discriminating tests;
-- a mandatory false-positive gate;
-- separate vulnerability, root-cause, severity, and confidence claims.
-
-A security route remains advisory and does not authorize exploitation, credential use, production stress, external disclosure, remediation, deployment, or merge.
-
 ### 3. Freeze repository identity
 
 When a repository or pull request is in scope, invoke `exact-head-governance`.
@@ -84,7 +66,7 @@ Initial and final head identity must match. A force-push, stale review, unavaila
 Apply the Pythia boundary:
 
 - `ALLOW_REPORT` — evidence supports the stated claim inside scope;
-- `ESCALATE` — a human semantic, legal, product, security-severity, brand, or disclosure decision is required;
+- `ESCALATE` — a human semantic, legal, product, or severity decision is required;
 - `BLOCK` — authority, identity, freshness, or evidence requirements failed.
 
 The gate authorizes a report state, not execution, deployment, contact, disclosure, or merge.
@@ -118,11 +100,9 @@ For a deep audit, cover all applicable lenses:
 5. visual identity and reference fidelity when brand assets are in scope;
 6. performance and reliability;
 7. privacy, authority, and security boundary;
-8. authentication, authorization, secrets, and trust boundaries when security is in scope;
-9. lifecycle ownership, concurrency, replay, duplication, and cleanup when stateful systems are in scope;
-10. causal validity and competing explanations;
-11. product, conversion, and operational impact;
-12. evidence freshness, replayability, and exact identity.
+8. causal validity and competing explanations;
+9. product, conversion, and operational impact;
+10. evidence freshness, replayability, and exact identity.
 
 A lens can be `NOT_APPLICABLE`, but it cannot silently disappear.
 
@@ -156,16 +136,6 @@ Each finding must include:
 - next discriminating test;
 - authority boundary.
 
-Security findings additionally include:
-
-- asset and trust boundary;
-- attacker capability and required preconditions;
-- violated invariant;
-- reachability status;
-- confidentiality, integrity, availability, accountability, and safety impact;
-- false-positive adjudication;
-- vulnerability versus root-cause claim level.
-
 ## Fail-closed rules
 
 - Search snippets, cached pages, and prior reports are discovery signals only.
@@ -173,11 +143,28 @@ Security findings additionally include:
 - One browser profile does not prove cross-profile consistency.
 - A successful HTTP response does not prove journey success.
 - Correlation does not prove cause.
-- A suspicious pattern does not prove reachability or exploitability.
-- An analog repository does not prove another product uses the same implementation.
-- An external skill is untrusted until its exact source, license, permissions, scripts, hooks, and prompt content are reviewed.
 - Absence of an observed error does not prove absence of a defect.
 - Unavailable evidence cannot be converted into approval.
 - Prior memory cannot replace current reproduction.
 - A pixel similarity score cannot approve a logo or trademark transfer.
 - Automated review cannot grant ownership, remediation authority, external submission, deployment, or merge.
+
+## Security-specialized extension
+
+When the request includes threat modeling, AppSec, credentials, authorization, secrets, injection, supply chain, CI exploitation, distributed lifecycle, resource exhaustion, race conditions, or security review of agent skills, invoke `cyber-causal-audit`.
+
+For WebSocket, Redis, Pub/Sub, reconnect, heartbeat, subscription, duplicate-delivery, stale-generation, or zombie-cleanup questions, invoke `websocket-redis-lifecycle` inside `cyber-causal-audit`.
+
+The security route adds:
+
+- external-skill source, license, exact-SHA, permission, and prompt-injection checks;
+- repository-grounded threat boundaries and attacker capabilities;
+- explicit security and lifecycle invariants;
+- static, differential, and variant analysis;
+- bounded discriminating tests;
+- a mandatory false-positive gate;
+- separate vulnerability, root-cause, severity, and confidence claims.
+
+Security findings additionally include the asset and trust boundary, attacker capability and preconditions, violated invariant, reachability status, confidentiality/integrity/availability/accountability/safety impact, false-positive adjudication, and a separate vulnerability-versus-root-cause claim level.
+
+A security route remains advisory. A suspicious pattern does not prove reachability or exploitability; an analog repository does not prove another product uses the same implementation; and automated review does not authorize credentials, exploitation, production stress, disclosure, remediation, deployment, or merge.
