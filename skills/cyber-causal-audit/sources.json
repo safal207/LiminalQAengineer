@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-07-27",
+  "adoption_policy": {
+    "default_mode": "INSPIRED_NOT_VENDORED",
+    "remote_runtime_execution": false,
+    "mutable_branch_execution": false,
+    "required_before_execution": [
+      "exact_commit_pin",
+      "license_review",
+      "skill_security_scan",
+      "human_permission_review"
+    ]
+  },
+  "method_sources": [
+    {
+      "repository": "openai/skills",
+      "commit": "49f948faa9258a0c61caceaf225e179651397431",
+      "paths": [
+        "skills/.curated/security-threat-model/SKILL.md"
+      ],
+      "selected_concepts": [
+        "repository-grounded threat modeling",
+        "trust boundaries and assets",
+        "attacker capability calibration",
+        "runtime versus CI and test separation"
+      ],
+      "license": "Apache-2.0",
+      "license_path": "skills/.curated/security-threat-model/LICENSE.txt",
+      "adoption": "INSPIRED_NOT_VENDORED"
+    },
+    {
+      "repository": "trailofbits/skills",
+      "commit": "cfe5d7b1619e47fb5b38b7e2561dad7e5f1e89af",
+      "paths": [
+        "plugins/audit-context-building",
+        "plugins/differential-review",
+        "plugins/dimensional-analysis",
+        "plugins/fp-check",
+        "plugins/insecure-defaults",
+        "plugins/sharp-edges",
+        "plugins/static-analysis",
+        "plugins/supply-chain-risk-auditor",
+        "plugins/variant-analysis",
+        "plugins/agentic-actions-auditor"
+      ],
+      "selected_concepts": [
+        "deep architectural context",
+        "false-positive verification",
+        "insecure defaults and sharp edges",
+        "differential and variant review",
+        "static and supply-chain analysis",
+        "security-skill rationalizations to reject"
+      ],
+      "license": "CC-BY-SA-4.0",
+      "license_path": "LICENSE",
+      "adoption": "INSPIRED_NOT_VENDORED",
+      "note": "No upstream text or scripts are copied into this branch; attribution is retained because the workflow design is influenced by the published methods."
+    },
+    {
+      "repository": "getsentry/skills",
+      "commit": "e7a87fa72645158f9b5e722cbb1c7e09266f48f1",
+      "paths": [
+        "skills/security-review/SKILL.md",
+        "skills/find-bugs/SKILL.md",
+        "skills/gha-security-review/SKILL.md",
+        "skills/skill-scanner/SKILL.md",
+        "skills/skill-writer/SKILL.md"
+      ],
+      "selected_concepts": [
+        "security review",
+        "bug finding",
+        "GitHub Actions review",
+        "security scan before skill adoption",
+        "skill maintenance contract"
+      ],
+      "license": "Apache-2.0",
+      "license_path": "LICENSE",
+      "adoption": "INSPIRED_NOT_VENDORED"
+    },
+    {
+      "repository": "semgrep/skills",
+      "commit": "90cc990a535098a84950b18d8cf770e097da1c77",
+      "paths": [
+        "skills/code-security",
+        "skills/llm-security",
+        "skills/semgrep"
+      ],
+      "selected_concepts": [
+        "secure-code categories",
+        "LLM application security",
+        "test-driven Semgrep and taint-rule creation"
+      ],
+      "license": "Semgrep Rules License v1.0",
+      "license_path": "LICENSE",
+      "adoption": "REFERENCE_ONLY_NO_RULE_COPY"
+    },
+    {
+      "repository": "anthropics/skills",
+      "commit": "b29e7cf65e5cb78a5ac33d582270551bc74a14eb",
+      "paths": [
+        "skills/skill-creator/SKILL.md"
+      ],
+      "selected_concepts": [
+        "portable SKILL.md packaging",
+        "progressive disclosure",
+        "bundled references and deterministic scripts"
+      ],
+      "license": "Apache-2.0",
+      "license_path": "skills/skill-creator/LICENSE.txt",
+      "adoption": "INSPIRED_NOT_VENDORED"
+    }
+  ],
+  "runtime_compatibility_references": [
+    {
+      "repository": "QwenLM/qwen-code",
+      "commit": "e5df5b22e38bf2fc0e8c0b4c5837861ab1ef0381",
+      "paths": [
+        ".qwen/skills/qwen-code-claw/SKILL.md",
+        "docs/users/features/skills.md"
+      ],
+      "purpose": "Agent-skill runtime compatibility reference only",
+      "adoption": "NO_CODE_OR_PROMPT_COPY"
+    },
+    {
+      "repository": "MoonshotAI/kimi-cli",
+      "commit": "4a550effdfcb29a25a5d325bf935296cc50cd417",
+      "paths": [
+        "AGENTS.md"
+      ],
+      "purpose": "Independent-model execution and skill-context compatibility reference only",
+      "adoption": "NO_CODE_OR_PROMPT_COPY"
+    },
+    {
+      "repository": "xai-org/grok-build",
+      "commit": "b41c75a578f98bddbd326ab02cd53618451d97ee",
+      "paths": [
+        "crates/codegen/xai-grok-pager/docs/user-guide"
+      ],
+      "purpose": "Skills, plugins, hooks, sandbox, and independent-review runtime reference only",
+      "adoption": "NO_CODE_OR_PROMPT_COPY"
+    }
+  ],
+  "non_claims": [
+    "The listed model vendors do not endorse this skill.",
+    "Compatibility does not imply equal behavior across models or agent runtimes.",
+    "No third-party skill script is executed by this branch.",
+    "Source popularity or vendor identity does not establish security."
+  ]
+}
