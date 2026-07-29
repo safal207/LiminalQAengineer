@@ -47,7 +47,7 @@ class CyberCausalAuditContractTests(unittest.TestCase):
         for required in (
             "exact commit SHA",
             "license",
-            "skill security scan",
+            "scan `SKILL.md`, scripts, references, hooks, and manifests",
             "false-positive gate",
             "Rationalizations to reject",
             "Missing authority narrows the audit",
