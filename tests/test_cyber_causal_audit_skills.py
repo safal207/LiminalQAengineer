@@ -61,7 +61,7 @@ class CyberCausalAuditContractTests(unittest.TestCase):
             "Multi-socket cardinality",
             "Exactly-once delivery intent",
             "Heartbeat and cleanup",
-            "two sockets",
+            "Two sockets",
         ):
             self.assertIn(required, ws)
 
