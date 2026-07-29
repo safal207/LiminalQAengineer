@@ -49,6 +49,16 @@ FORBIDDEN_AUTHORITY_CLAIMS = (
 )
 
 
+SKILLS.update(
+    {
+        "cyber-causal-audit": ROOT / "skills/cyber-causal-audit/SKILL.md",
+        "websocket-redis-lifecycle": ROOT / "skills/websocket-redis-lifecycle/SKILL.md",
+    }
+)
+CYBER_SOURCES = ROOT / "skills/cyber-causal-audit/sources.json"
+CYBER_AUDIT = ROOT / "audits/security/tradernet-repository-causal-review-v1.json"
+
+
 def _frontmatter(text: str) -> tuple[dict[str, str], str]:
     if not text.startswith("---\n"):
         raise ValueError("missing opening frontmatter delimiter")
@@ -174,6 +184,76 @@ def validate_schema(schema: dict) -> list[str]:
     return errors
 
 
+def validate_cyber_sources(payload: dict) -> list[str]:
+    errors: list[str] = []
+    policy = payload.get("adoption_policy", {})
+    if policy.get("remote_runtime_execution") is not False:
+        errors.append("cyber sources must disable remote runtime execution")
+    if policy.get("mutable_branch_execution") is not False:
+        errors.append("cyber sources must disable mutable branch execution")
+
+    entries = payload.get("method_sources", [])
+    if len(entries) < 5:
+        errors.append("cyber sources must retain the reviewed methodology set")
+    for entry in entries:
+        repository = entry.get("repository", "<unknown>")
+        if not re.fullmatch(r"[0-9a-f]{40}", entry.get("commit", "")):
+            errors.append(f"cyber source {repository} is not pinned to an exact commit")
+        if not entry.get("license") or not entry.get("license_path"):
+            errors.append(f"cyber source {repository} is missing license metadata")
+        if entry.get("adoption") == "EXECUTABLE_DEPENDENCY":
+            errors.append(f"cyber source {repository} may not become executable by default")
+
+    return errors
+
+
+def validate_cyber_audit(payload: dict) -> list[str]:
+    errors: list[str] = []
+    if payload.get("status") != "STATIC_REVIEW_COMPLETE_RUNTIME_VALIDATION_PENDING":
+        errors.append("cyber audit must preserve pending runtime validation")
+
+    prohibited = set(payload.get("authority", {}).get("prohibited", []))
+    for required in (
+        "use credentials",
+        "place or cancel orders",
+        "mass subscribe or load test production",
+        "claim an internal Tradernet root cause",
+        "merge or deploy",
+    ):
+        if required not in prohibited:
+            errors.append(f"cyber audit authority is missing prohibition: {required}")
+
+    allowed_claims = {
+        "OBSERVATION",
+        "SECURITY_SIGNAL",
+        "DEFECT_CANDIDATE",
+        "RESOURCE_LEAK_CANDIDATE",
+    }
+    seen: set[str] = set()
+    for finding in payload.get("findings", []):
+        finding_id = finding.get("id", "")
+        if not finding_id or finding_id in seen:
+            errors.append(f"cyber audit finding ID is missing or duplicated: {finding_id!r}")
+        seen.add(finding_id)
+        if finding.get("claim_level") not in allowed_claims:
+            errors.append(f"cyber audit finding {finding_id} overstates its claim level")
+        if not finding.get("competing_explanations"):
+            errors.append(f"cyber audit finding {finding_id} lacks competing explanations")
+        if not finding.get("next_test"):
+            errors.append(f"cyber audit finding {finding_id} lacks a discriminator")
+
+    return errors
+
+
+def _load_json(path: Path, label: str) -> tuple[dict | None, list[str]]:
+    if not path.is_file():
+        return None, [f"missing {label}: {path.relative_to(ROOT)}"]
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), []
+    except json.JSONDecodeError as exc:
+        return None, [f"invalid {label} JSON: {exc}"]
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
 
@@ -205,6 +285,18 @@ def validate_repository() -> list[str]:
             errors.extend(
                 f"logo example: {error}" for error in validate_logo_example(config)
             )
+
+    cyber_sources, load_errors = _load_json(CYBER_SOURCES, "cyber sources")
+    errors.extend(load_errors)
+    if cyber_sources is not None:
+        errors.extend(
+            f"cyber sources: {error}" for error in validate_cyber_sources(cyber_sources)
+        )
+
+    cyber_audit, load_errors = _load_json(CYBER_AUDIT, "cyber audit")
+    errors.extend(load_errors)
+    if cyber_audit is not None:
+        errors.extend(f"cyber audit: {error}" for error in validate_cyber_audit(cyber_audit))
 
     orchestrator = SKILLS["causal-deep-audit"]
     if orchestrator.is_file():
