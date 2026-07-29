@@ -1,0 +1,96 @@
+name: Cyber Causal Audit Skills Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration/cyber-causal-audit-main
+    paths:
+      - skills/cyber-causal-audit/**
+      - skills/websocket-redis-lifecycle/**
+      - skills/causal-deep-audit/SKILL.md
+      - skills/README.md
+      - audits/security/tradernet-repository-causal-review-v1.json
+      - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
+      - scripts/validate_audit_skills.py
+      - tests/test_cyber_causal_audit_skills.py
+      - .github/workflows/cyber-causal-audit-skill-contract.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - skills/cyber-causal-audit/**
+      - skills/websocket-redis-lifecycle/**
+      - skills/causal-deep-audit/SKILL.md
+      - skills/README.md
+      - audits/security/tradernet-repository-causal-review-v1.json
+      - docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md
+      - scripts/validate_audit_skills.py
+      - tests/test_cyber_causal_audit_skills.py
+      - .github/workflows/cyber-causal-audit-skill-contract.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cyber-causal-audit-skills-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate cyber sources, claims and authority boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact source identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Validate machine-readable cyber evidence
+        run: |
+          python3 -m json.tool skills/cyber-causal-audit/sources.json >/dev/null
+          python3 -m json.tool audits/security/tradernet-repository-causal-review-v1.json >/dev/null
+
+      - name: Validate complete skill graph
+        run: python3 scripts/validate_audit_skills.py
+
+      - name: Run base and cyber fail-closed tests
+        run: |
+          python3 -m unittest tests/test_audit_skills_contract.py -v
+          python3 -m unittest tests/test_cyber_causal_audit_skills.py -v
+
+      - name: Build immutable validation manifest
+        run: |
+          mkdir -p /tmp/cyber-causal-skill-evidence
+          printf '%s\n' "$(git rev-parse HEAD)" > /tmp/cyber-causal-skill-evidence/HEAD_SHA
+          sha256sum \
+            skills/cyber-causal-audit/SKILL.md \
+            skills/cyber-causal-audit/SPEC.md \
+            skills/cyber-causal-audit/sources.json \
+            skills/websocket-redis-lifecycle/SKILL.md \
+            audits/security/tradernet-repository-causal-review-v1.json \
+            docs/audits/TRADERNET_REPOSITORY_CYBER_CAUSAL_REVIEW.md \
+            scripts/validate_audit_skills.py \
+            tests/test_cyber_causal_audit_skills.py \
+            > /tmp/cyber-causal-skill-evidence/SHA256SUMS
+          test -z "$(git status --porcelain)"
+
+      - name: Upload validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyber-causal-audit-skills-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/cyber-causal-skill-evidence
+          if-no-files-found: error
+          retention-days: 30
