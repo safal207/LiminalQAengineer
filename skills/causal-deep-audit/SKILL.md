@@ -1,6 +1,6 @@
 ---
 name: causal-deep-audit
-description: Orchestrate evidence-first audits across public products, repositories, pull requests, UX flows, content, conversion paths, security boundaries, and agent actions using the connected Liminal repositories. Use when the user asks for a deep audit, causal audit, multi-lens review, security audit, or a combined QA/product/business assessment.
+description: Orchestrate evidence-first audits across public products, repositories, pull requests, UX flows, content, conversion paths, security boundaries, visual identity, and agent actions using the connected Liminal repositories. Use when the user asks for a deep audit, causal audit, multi-lens review, security audit, brand-fidelity audit, or a combined QA/product/business assessment.
 ---
 
 # Causal Deep Audit
@@ -40,6 +40,8 @@ Record the exact ready state. If target, authority, identity, or environment is 
 Invoke `evidence-capture`.
 
 Collect source, rendered, runtime, accessibility, network, console, temporal, and journey evidence only inside the declared boundary. Build a T-Trace-compatible ordered observation sequence.
+
+When an approved logo, brand mark, wordmark, responsive lockup, favicon, or site identity transfer is load-bearing, invoke `logo-fidelity-transfer`. Bind the approved reference to canonical SVG geometry and exact browser-rendered selector captures; do not treat a visually plausible approximation as verified identity.
 
 ### 2. Adjudicate causality
 
@@ -82,7 +84,7 @@ Initial and final head identity must match. A force-push, stale review, unavaila
 Apply the Pythia boundary:
 
 - `ALLOW_REPORT` — evidence supports the stated claim inside scope;
-- `ESCALATE` — a human semantic, legal, product, security-severity, or disclosure decision is required;
+- `ESCALATE` — a human semantic, legal, product, security-severity, brand, or disclosure decision is required;
 - `BLOCK` — authority, identity, freshness, or evidence requirements failed.
 
 The gate authorizes a report state, not execution, deployment, contact, disclosure, or merge.
@@ -113,13 +115,14 @@ For a deep audit, cover all applicable lenses:
 2. state and temporal consistency;
 3. UX, accessibility, and recovery;
 4. content and semantic integrity;
-5. performance and reliability;
-6. privacy, authority, and security boundary;
-7. authentication, authorization, secrets, and trust boundaries when security is in scope;
-8. lifecycle ownership, concurrency, replay, duplication, and cleanup when stateful systems are in scope;
-9. causal validity and competing explanations;
-10. product, conversion, and operational impact;
-11. evidence freshness, replayability, and exact identity.
+5. visual identity and reference fidelity when brand assets are in scope;
+6. performance and reliability;
+7. privacy, authority, and security boundary;
+8. authentication, authorization, secrets, and trust boundaries when security is in scope;
+9. lifecycle ownership, concurrency, replay, duplication, and cleanup when stateful systems are in scope;
+10. causal validity and competing explanations;
+11. product, conversion, and operational impact;
+12. evidence freshness, replayability, and exact identity.
 
 A lens can be `NOT_APPLICABLE`, but it cannot silently disappear.
 
@@ -176,4 +179,5 @@ Security findings additionally include:
 - Absence of an observed error does not prove absence of a defect.
 - Unavailable evidence cannot be converted into approval.
 - Prior memory cannot replace current reproduction.
+- A pixel similarity score cannot approve a logo or trademark transfer.
 - Automated review cannot grant ownership, remediation authority, external submission, deployment, or merge.
