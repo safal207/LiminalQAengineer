@@ -1,0 +1,135 @@
+name: Apply suite warning aggregation fix
+
+on:
+  push:
+    branches:
+      - agent/fix-suite-warning-aggregation
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/fix-suite-warning-aggregation
+          fetch-depth: 0
+
+      - name: Preserve worst test-level merge policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("liminalqa-core/src/decision.rs")
+          source = path.read_text()
+
+          old_policy = '''        // Worst-case merge policy
+                  let merge_policy = if blocking > 0 {
+                      MergePolicy::Block
+                  } else if soft_blocking > 0 {
+                      MergePolicy::BlockSoft
+                  } else if flaky > 0 || degrading > 0 {
+                      MergePolicy::AllowWithWarning
+                  } else if total == 0 {
+                      MergePolicy::Unknown
+                  } else {
+                      MergePolicy::Allow
+                  };
+          '''.replace("          ", "")
+
+          new_policy = '''        // Preserve the worst test-level policy exactly. MergePolicy derives Ord in
+                  // severity order, so max() keeps warnings and unknown states instead of
+                  // reconstructing the result from only a subset of verdict categories.
+                  let merge_policy = decisions
+                      .iter()
+                      .map(|decision| decision.merge_policy.clone())
+                      .max()
+                      .unwrap_or(MergePolicy::Unknown);
+          '''.replace("          ", "")
+
+          old_reason = '''            MergePolicy::AllowWithWarning => {
+                          let mut parts = Vec::new();
+                          if flaky > 0 {
+                              parts.push(format!("{} flaky test(s)", flaky));
+                          }
+                          if degrading > 0 {
+                              parts.push(format!("{} degrading test(s)", degrading));
+                          }
+                          parts.join("; ")
+                      }
+          '''.replace("          ", "")
+
+          new_reason = '''            MergePolicy::AllowWithWarning => {
+                          let mut parts = Vec::new();
+                          if flaky > 0 {
+                              parts.push(format!("{} flaky test(s)", flaky));
+                          }
+                          if degrading > 0 {
+                              parts.push(format!("{} degrading test(s)", degrading));
+                          }
+                          let other_warnings = decisions
+                              .iter()
+                              .filter(|decision| {
+                                  decision.merge_policy == MergePolicy::AllowWithWarning
+                                      && decision.verdict != "flake"
+                                      && decision.signals.trend_direction != "degrading"
+                              })
+                              .count();
+                          if other_warnings > 0 {
+                              parts.push(format!("{} warning test(s)", other_warnings));
+                          }
+                          parts.join("; ")
+                      }
+          '''.replace("          ", "")
+
+          test_anchor = '''    #[test]
+              fn empty_suite_returns_unknown() {
+          '''.replace("          ", "")
+
+          regression_test = '''    #[test]
+              fn suite_preserves_known_issue_warning_policy() {
+                  let warning = make_decision(TriageVerdict::KnownIssue, 0.5, 0.1, 10);
+                  assert_eq!(warning.merge_policy, MergePolicy::AllowWithWarning);
+
+                  let suite = DecisionEngine::evaluate_suite("known-issue-warning", &[warning]);
+                  assert_eq!(suite.merge_policy, MergePolicy::AllowWithWarning);
+                  assert!(suite.block_reason.contains("warning"));
+                  assert_eq!(suite.action_items.len(), 1);
+              }
+
+              #[test]
+              fn empty_suite_returns_unknown() {
+          '''.replace("          ", "")
+
+          for label, old, new in (
+              ("policy aggregation", old_policy, new_policy),
+              ("warning reason", old_reason, new_reason),
+              ("regression test", test_anchor, regression_test),
+          ):
+              if source.count(old) != 1:
+                  raise SystemExit(f"Expected exactly one {label} anchor, found {source.count(old)}")
+              source = source.replace(old, new)
+
+          path.write_text(source)
+          PY
+
+      - name: Format and test LiminalQA core
+        run: |
+          cargo fmt --all -- --check
+          cargo test -p liminalqa-core
+
+      - name: Commit tested fix and remove bootstrap workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-suite-warning-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add liminalqa-core/src/decision.rs .github/workflows/apply-suite-warning-fix.yml
+          git commit -m "fix: preserve suite warning merge policies"
+          git push origin HEAD:agent/fix-suite-warning-aggregation
