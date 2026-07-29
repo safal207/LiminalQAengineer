@@ -148,3 +148,23 @@ Each finding must include:
 - Prior memory cannot replace current reproduction.
 - A pixel similarity score cannot approve a logo or trademark transfer.
 - Automated review cannot grant ownership, remediation authority, external submission, deployment, or merge.
+
+## Security-specialized extension
+
+When the request includes threat modeling, AppSec, credentials, authorization, secrets, injection, supply chain, CI exploitation, distributed lifecycle, resource exhaustion, race conditions, or security review of agent skills, invoke `cyber-causal-audit`.
+
+For WebSocket, Redis, Pub/Sub, reconnect, heartbeat, subscription, duplicate-delivery, stale-generation, or zombie-cleanup questions, invoke `websocket-redis-lifecycle` inside `cyber-causal-audit`.
+
+The security route adds:
+
+- external-skill source, license, exact-SHA, permission, and prompt-injection checks;
+- repository-grounded threat boundaries and attacker capabilities;
+- explicit security and lifecycle invariants;
+- static, differential, and variant analysis;
+- bounded discriminating tests;
+- a mandatory false-positive gate;
+- separate vulnerability, root-cause, severity, and confidence claims.
+
+Security findings additionally include the asset and trust boundary, attacker capability and preconditions, violated invariant, reachability status, confidentiality/integrity/availability/accountability/safety impact, false-positive adjudication, and a separate vulnerability-versus-root-cause claim level.
+
+A security route remains advisory. A suspicious pattern does not prove reachability or exploitability; an analog repository does not prove another product uses the same implementation; and automated review does not authorize credentials, exploitation, production stress, disclosure, remediation, deployment, or merge.
