@@ -18,12 +18,14 @@ SKILLS = {
     "cyber-causal-audit": ROOT / "skills/cyber-causal-audit/SKILL.md",
     "websocket-redis-lifecycle": ROOT / "skills/websocket-redis-lifecycle/SKILL.md",
     "exact-head-governance": ROOT / "skills/exact-head-governance/SKILL.md",
+    "logo-fidelity-transfer": ROOT / "skills/logo-fidelity-transfer/SKILL.md",
     "replay-memory": ROOT / "skills/replay-memory/SKILL.md",
     "product-impact": ROOT / "skills/product-impact/SKILL.md",
     "transition-next-action": ROOT / "skills/transition-next-action/SKILL.md",
 }
 
 SCHEMA = ROOT / "schemas/causal-deep-audit-packet.schema.json"
+LOGO_EXAMPLE = ROOT / "skills/logo-fidelity-transfer/example.config.json"
 CYBER_SOURCES = ROOT / "skills/cyber-causal-audit/sources.json"
 CYBER_AUDIT = ROOT / "audits/security/tradernet-repository-causal-review-v1.json"
 
@@ -32,13 +34,23 @@ REQUIRED_GLOBAL_TERMS = (
     "evidence",
 )
 
+SPECIALIZED_REQUIRED_TERMS = {
+    "logo-fidelity-transfer": (
+        "playwright",
+        "pixelmatch",
+        "reference",
+        "selector",
+        "aspect ratio",
+        "human",
+    ),
+}
+
 FORBIDDEN_AUTHORITY_CLAIMS = (
     "the audit may merge",
     "the audit may deploy",
     "the audit may contact external parties",
     "missing evidence is success",
 )
-
 
 
 def _frontmatter(text: str) -> tuple[dict[str, str], str]:
@@ -61,7 +73,6 @@ def _frontmatter(text: str) -> tuple[dict[str, str], str]:
     return data, body
 
 
-
 def validate_skill_text(expected_name: str, text: str) -> list[str]:
     errors: list[str] = []
     try:
@@ -82,6 +93,9 @@ def validate_skill_text(expected_name: str, text: str) -> list[str]:
     for term in REQUIRED_GLOBAL_TERMS:
         if term not in lowered:
             errors.append(f"required global term missing: {term}")
+    for term in SPECIALIZED_REQUIRED_TERMS.get(expected_name, ()):
+        if term not in lowered:
+            errors.append(f"specialized required term missing: {term}")
     for claim in FORBIDDEN_AUTHORITY_CLAIMS:
         if claim in lowered:
             errors.append(f"forbidden authority claim present: {claim}")
@@ -93,6 +107,44 @@ def validate_skill_text(expected_name: str, text: str) -> list[str]:
 
     return errors
 
+
+def validate_logo_example(config: dict) -> list[str]:
+    errors: list[str] = []
+    if config.get("schema_version") != "logo-fidelity-transfer-v0.1":
+        errors.append("logo example schema_version must be logo-fidelity-transfer-v0.1")
+
+    comparison = config.get("comparison") or {}
+    if comparison.get("engine") != "pixelmatch":
+        errors.append("logo comparison engine must be pixelmatch")
+    threshold = comparison.get("threshold")
+    if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
+        errors.append("logo comparison threshold must be between 0 and 1")
+    if comparison.get("structural_mismatch_always_blocks") is not True:
+        errors.append("structural logo mismatch must fail closed")
+
+    target = config.get("target") or {}
+    for field in ("repository_full_name", "source_sha", "route", "selector"):
+        if not target.get(field):
+            errors.append(f"logo target missing required field: {field}")
+
+    profiles = config.get("profiles") or []
+    profile_ids = {item.get("id") for item in profiles if isinstance(item, dict)}
+    if not {"desktop-chromium", "mobile-chromium"}.issubset(profile_ids):
+        errors.append("logo example must include desktop and mobile Chromium profiles")
+
+    authority = config.get("authority") or {}
+    for field in (
+        "reference_use_confirmed",
+        "repository_write_authorized",
+        "deployment_authorized",
+        "merge_authorized",
+    ):
+        if authority.get(field) is not False:
+            errors.append(f"logo example authority must default {field} to false")
+
+    if not config.get("stop_conditions"):
+        errors.append("logo example must define stop conditions")
+    return errors
 
 
 def validate_schema(schema: dict) -> list[str]:
@@ -128,7 +180,6 @@ def validate_schema(schema: dict) -> list[str]:
     return errors
 
 
-
 def validate_cyber_sources(payload: dict) -> list[str]:
     errors: list[str] = []
     policy = payload.get("adoption_policy", {})
@@ -150,7 +201,6 @@ def validate_cyber_sources(payload: dict) -> list[str]:
             errors.append(f"cyber source {repository} may not become executable by default")
 
     return errors
-
 
 
 def validate_cyber_audit(payload: dict) -> list[str]:
@@ -191,7 +241,6 @@ def validate_cyber_audit(payload: dict) -> list[str]:
     return errors
 
 
-
 def _load_json(path: Path, label: str) -> tuple[dict | None, list[str]]:
     if not path.is_file():
         return None, [f"missing {label}: {path.relative_to(ROOT)}"]
@@ -199,7 +248,6 @@ def _load_json(path: Path, label: str) -> tuple[dict | None, list[str]]:
         return json.loads(path.read_text(encoding="utf-8")), []
     except json.JSONDecodeError as exc:
         return None, [f"invalid {label} JSON: {exc}"]
-
 
 
 def validate_repository() -> list[str]:
@@ -221,6 +269,18 @@ def validate_repository() -> list[str]:
             errors.append(f"invalid schema JSON: {exc}")
         else:
             errors.extend(f"schema: {error}" for error in validate_schema(schema))
+
+    if not LOGO_EXAMPLE.is_file():
+        errors.append(f"missing logo example: {LOGO_EXAMPLE.relative_to(ROOT)}")
+    else:
+        try:
+            config = json.loads(LOGO_EXAMPLE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            errors.append(f"invalid logo example JSON: {exc}")
+        else:
+            errors.extend(
+                f"logo example: {error}" for error in validate_logo_example(config)
+            )
 
     cyber_sources, load_errors = _load_json(CYBER_SOURCES, "cyber sources")
     errors.extend(load_errors)
@@ -244,7 +304,6 @@ def validate_repository() -> list[str]:
                 errors.append(f"orchestrator does not invoke dependency: {dependency}")
 
     return errors
-
 
 
 def main(argv: Iterable[str] | None = None) -> int:
