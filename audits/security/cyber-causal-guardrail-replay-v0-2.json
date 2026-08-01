@@ -1,0 +1,131 @@
+{
+  "schema_version": "0.2",
+  "audit_id": "CYBER-CAUSAL-GUARDRAIL-REPLAY-2026-07-27",
+  "parent_skill_head": "5ab3d1effdb9c1a2bf63c4e9a4259b09905bde3c",
+  "authority": {
+    "mode": "LOCAL_DETERMINISTIC_SIMULATION_ONLY",
+    "allowed": [
+      "execute Python standard-library models locally or in CI",
+      "reproduce code mechanisms without external network access",
+      "compare vulnerable and guarded state transitions",
+      "write immutable JSON and hash manifests"
+    ],
+    "prohibited": [
+      "use credentials",
+      "authenticate to Tradernet",
+      "connect to Redis or WebSocket servers",
+      "access account or portfolio data",
+      "place or cancel orders",
+      "perform any financial operation",
+      "fuzz, enumerate, stress, or load test",
+      "claim Tradernet uses the simulated implementation",
+      "claim a server-side resource leak without internal observability",
+      "merge or deploy"
+    ]
+  },
+  "claim_policy": {
+    "local_mechanism_reproduction_is_not_external_root_cause": true,
+    "guardrail_pass_is_not_production_validation": true,
+    "analog_code_is_not_tradernet_internal_code": true,
+    "financial_mutation_authorization_is_simulated_only": true,
+    "network_access_required": false,
+    "credential_use_required": false
+  },
+  "scenarios": [
+    {
+      "id": "CCG-REDIS-IDENTITY-SYMMETRY",
+      "source_candidate": "CYB-WS-002",
+      "invariant": "The exact serialized identity added to membership is the identity removed during cleanup.",
+      "vulnerable_model": "SADD user_id followed by SREM ws_id leaves stale membership.",
+      "guarded_model": "Generation-scoped membership token is used symmetrically for add and remove.",
+      "expected_vulnerable": "FAIL",
+      "expected_guarded": "PASS"
+    },
+    {
+      "id": "CCG-WS-TWO-SOCKET-CLEANUP",
+      "source_candidate": "CYB-WS-004",
+      "invariant": "Closing one physical socket must not remove subscriptions owned by another live socket.",
+      "vulnerable_model": "Disconnect removes user-wide channel state.",
+      "guarded_model": "Subscriptions are owned and cleaned by connection plus generation.",
+      "expected_vulnerable": "FAIL",
+      "expected_guarded": "PASS"
+    },
+    {
+      "id": "CCG-WS-GENERATION-FENCE",
+      "source_candidate": "CYB-WS-004",
+      "invariant": "Late cleanup from an old generation cannot mutate current generation state.",
+      "vulnerable_model": "Stale disconnect deletes whichever generation is current.",
+      "guarded_model": "Cleanup is limited to the exact generation that initiated it.",
+      "expected_vulnerable": "FAIL",
+      "expected_guarded": "PASS"
+    },
+    {
+      "id": "CCG-REDIS-SELF-ECHO",
+      "source_candidate": "CYB-WS-003",
+      "invariant": "Each intended socket receives one logical event exactly once.",
+      "vulnerable_model": "Immediate local send plus same-instance Pub/Sub echo produces two deliveries.",
+      "guarded_model": "Event ID deduplication makes publisher echo harmless.",
+      "expected_vulnerable": "FAIL",
+      "expected_guarded": "PASS"
+    },
+    {
+      "id": "CCG-FINANCIAL-MUTATION-GATE",
+      "source_candidate": "CYB-API-001",
+      "invariant": "Mutation authorization requires exact non-production environment, exact allowlisted origin, sandbox account, explicit flag, bound confirmation, and unused nonce.",
+      "vulnerable_model": "No external call is modeled because the unsafe operation itself is outside authority.",
+      "guarded_model": "Production, origin confusion, non-sandbox account, missing flag, wrong confirmation, and nonce replay are refused.",
+      "expected_vulnerable": "NOT_RUN_BY_BOUNDARY",
+      "expected_guarded": "PASS"
+    },
+    {
+      "id": "CCG-SECRET-REDACTION",
+      "source_candidate": "CYB-TOOL-001",
+      "invariant": "Cookie, Authorization, API key, SID, session, and token values never enter logs or evidence.",
+      "vulnerable_model": "Historical full-header and raw-session diagnostics are represented only by sentinel inputs.",
+      "guarded_model": "Sensitive headers and text patterns are redacted before serialization.",
+      "expected_vulnerable": "NOT_EXECUTED",
+      "expected_guarded": "PASS"
+    },
+    {
+      "id": "CCG-BOUNDED-IO-AND-HTML",
+      "source_candidate": "CYB-HTTP-003,CYB-REPORT-004",
+      "invariant": "External calls use explicit finite timeouts and report content is HTML-escaped.",
+      "vulnerable_model": "Only harmless sentinel content is supplied; no network call or script execution occurs.",
+      "guarded_model": "Fake transport records a five-second timeout and hostile HTML remains escaped text.",
+      "expected_vulnerable": "NOT_EXECUTED",
+      "expected_guarded": "PASS"
+    },
+    {
+      "id": "CCG-EVIDENCE-CLASS-SEPARATION",
+      "source_candidate": "CYB-EVID-005",
+      "invariant": "Mocked, skipped, unavailable, and live outcomes retain distinct result classes.",
+      "vulnerable_model": "Broad success aggregation is represented as the rejected alternative.",
+      "guarded_model": "SIMULATED_PASS, NOT_RUN, UNAVAILABLE, and LIVE_PASS remain distinct.",
+      "expected_vulnerable": "REJECTED_MODEL",
+      "expected_guarded": "PASS"
+    }
+  ],
+  "completion_signal": {
+    "expected_scenario_count": 8,
+    "expected_mechanism_scenario_count": 4,
+    "expected_verdict": "CONFIRMED_LOCAL_MECHANISM_REPRODUCTION_AND_GUARDRAIL_PASS",
+    "workflow_event_bases": [
+      "main",
+      "agent/cyber-causal-audit-skills-v0-1"
+    ],
+    "registered_ci_workflow": ".github/workflows/ci.yml",
+    "registered_ci_job": "guardrail-replay",
+    "require_byte_identical_replay": true,
+    "require_exact_head": true,
+    "require_clean_initial_and_final_worktree": true,
+    "require_artifact_manifest": true,
+    "expected_artifact_file_count": 3
+  },
+  "non_claims": [
+    "No Tradernet internal root cause is confirmed.",
+    "No server-side Redis or connection leak is confirmed.",
+    "No authenticated-account equivalence is asserted.",
+    "No order-execution or financial impact is tested.",
+    "No production readiness conclusion is produced."
+  ]
+}
