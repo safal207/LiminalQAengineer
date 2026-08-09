@@ -2,6 +2,14 @@
 
 Status: shortest entry point for grant, fellowship, and external reviewers.
 
+## Grant-specific entry point
+
+NLnet Commons Fund application **2026-06-0c5** — *LiminalQAengineer: Open Causality and Temporal Memory for QA Pipelines*:
+
+[`NLNET_COMMONS_REVIEWER_PATH_2026-06-0c5.md`](NLNET_COMMONS_REVIEWER_PATH_2026-06-0c5.md)
+
+That document maps the submitted work packages directly to current repository evidence and separates the existing baseline from the grant-funded hardening delta.
+
 ## One sentence
 
 LiminalQAengineer is a causality-aware QA/CI reliability substrate for turning raw test outcomes into reproducible quality decisions.
