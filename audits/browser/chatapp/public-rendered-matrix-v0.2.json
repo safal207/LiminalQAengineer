@@ -1,0 +1,51 @@
+{
+  "schema_version": "liminalqa-chatapp-public-rendered-v1",
+  "audit_id": "CHATAPP-OUTSIDE-IN-2026-07-23-V0.2",
+  "canonical_origin": "https://chatapp.online",
+  "navigation_timeout_ms": 45000,
+  "settle_ms": 3500,
+  "keyboard_tab_steps": 20,
+  "max_console_entries": 100,
+  "max_failed_requests": 100,
+  "max_response_entries": 300,
+  "max_visible_links": 250,
+  "max_body_sample_chars": 6000,
+  "profiles": [
+    {
+      "id": "desktop",
+      "viewport": {"width": 1440, "height": 1000, "deviceScaleFactor": 1},
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36 LiminalQA-Desktop/0.2"
+    },
+    {
+      "id": "mobile",
+      "viewport": {"width": 412, "height": 915, "deviceScaleFactor": 1, "isMobile": true, "hasTouch": true},
+      "user_agent": "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36 LiminalQA-Mobile/0.2"
+    }
+  ],
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authentication": false,
+    "account_access": false,
+    "form_submission": false,
+    "button_clicks": false,
+    "direct_api_testing": false,
+    "email_or_external_contact": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "limitations": [
+    "A rendered marker confirms visible public copy, not internal root cause.",
+    "Screenshots and DOM state do not quantify conversion or revenue impact.",
+    "Keyboard traces sample the first twenty Tab transitions and are not a complete WCAG audit.",
+    "No CTA, form, account, payment, or application control is activated."
+  ]
+}

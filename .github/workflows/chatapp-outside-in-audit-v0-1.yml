@@ -1,0 +1,129 @@
+name: ChatApp Outside-In Audit v0.1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/chatapp-outside-in-audit-v0-1
+    paths:
+      - .github/workflows/chatapp-outside-in-audit-v0-1.yml
+      - .github/workflows/chatapp-rendered-audit-v0-2.yml
+      - audits/chatapp/public-audit-v0.1/contract.json
+      - scripts/chatapp_public_audit_probe.py
+      - tests/test_chatapp_public_audit_probe.py
+      - docs/audits/CHATAPP_OUTSIDE_IN_AUDIT_V0_1.md
+      - docs/audits/CHATAPP_COLLABORATION_BRIEF.md
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/chatapp-outside-in-audit-v0-1.yml
+      - .github/workflows/chatapp-rendered-audit-v0-2.yml
+      - audits/chatapp/public-audit-v0.1/contract.json
+      - scripts/chatapp_public_audit_probe.py
+      - tests/test_chatapp_public_audit_probe.py
+      - docs/audits/CHATAPP_OUTSIDE_IN_AUDIT_V0_1.md
+      - docs/audits/CHATAPP_COLLABORATION_BRIEF.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chatapp-outside-in-audit-v0-1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Validate ChatApp audit contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate syntax and fail-closed contract
+        run: |
+          set -euo pipefail
+          python3 -m json.tool audits/chatapp/public-audit-v0.1/contract.json >/dev/null
+          python3 -m py_compile scripts/chatapp_public_audit_probe.py
+          python3 scripts/chatapp_public_audit_probe.py --validate-only
+
+      - name: Run regression tests
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_chatapp_public_audit_probe.py -v
+
+  observe:
+    name: Recheck allowlisted ChatApp public content
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run passive sequential audit
+        run: |
+          set -euo pipefail
+          rm -rf reports/chatapp/public-audit-v0.1
+          python3 scripts/chatapp_public_audit_probe.py \
+            --contract audits/chatapp/public-audit-v0.1/contract.json \
+            --output-dir reports/chatapp/public-audit-v0.1
+          cat reports/chatapp/public-audit-v0.1/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate evidence and authority boundary
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == "liminalqa-chatapp-public-audit-result-v1" and
+            .target.canonical_origin == "https://chatapp.online" and
+            .boundaries.public_pages_only == true and
+            .boundaries.authentication == false and
+            .boundaries.form_submission == false and
+            .boundaries.button_clicks == false and
+            .boundaries.email_or_external_contact == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.external_submission_authorized == false and
+            .boundaries.merge_authorized == false and
+            .authority.mode == "evidence_only" and
+            .authority.grants.external_submission == false and
+            .authority.grants.merge == false and
+            .aggregate.expected_target_count == 6 and
+            (.aggregate.findings | length) == 4
+          ' reports/chatapp/public-audit-v0.1/result.json >/dev/null
+
+      - name: Record exact attempt and verify checksums
+        run: |
+          set -euo pipefail
+          OUT=reports/chatapp/public-audit-v0.1
+          jq -n \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg source_head_sha "$GITHUB_HEAD_SHA" \
+            --arg workflow_sha "$GITHUB_SHA" \
+            --arg base_sha "$GITHUB_BASE_SHA" \
+            --arg event_name "$GITHUB_EVENT_NAME" \
+            '{run_id:$run_id,run_attempt:$run_attempt,source_head_sha:$source_head_sha,workflow_sha:$workflow_sha,base_sha:$base_sha,event_name:$event_name,tested_revision_kind:(if $event_name == "pull_request" then "pull_request_merge_ref_with_separate_source_head" else "branch_head" end)}' \
+            > "$OUT/exact-attempt.json"
+          (
+            cd "$OUT"
+            find . -maxdepth 1 -type f ! -name 'ARTIFACT_SHA256SUMS.txt' -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > ARTIFACT_SHA256SUMS.txt
+            sha256sum -c ARTIFACT_SHA256SUMS.txt
+          )
+
+      - name: Upload exact-attempt evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatapp-outside-in-v0-1-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/chatapp/public-audit-v0.1/
+          if-no-files-found: error
+          retention-days: 14
