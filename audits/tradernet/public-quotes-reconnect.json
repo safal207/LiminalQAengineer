@@ -1,0 +1,26 @@
+{
+  "schema_version": "liminalqa-tradernet-public-quotes-reconnect-config-v2",
+  "tickers": ["AAPL.US", "MSFT.US"],
+  "websocket_endpoint": "wss://wss.tradernet.com",
+  "phase_ms": 12000,
+  "reconnect_delay_ms": 1000,
+  "handshake_timeout_ms": 10000,
+  "subscription_idempotency": {
+    "enabled": true,
+    "repeat_after_ms": 4000,
+    "observation_ms": 12000
+  },
+  "boundaries": {
+    "public_unauthenticated_only": true,
+    "maximum_tickers": 2,
+    "maximum_active_websocket_connections": 1,
+    "controlled_disconnects": 1,
+    "maximum_subscription_messages_per_connection": 2,
+    "order_book_subscription": false,
+    "portfolio_access": false,
+    "order_entry": false,
+    "form_submission": false,
+    "fuzzing": false,
+    "load_testing": false
+  }
+}
