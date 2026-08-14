@@ -1,0 +1,162 @@
+name: Bell Integrator Rendered Audit v0.2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/bell-integrator-outside-in-audit-v0-1
+    paths:
+      - .github/workflows/bell-integrator-rendered-audit-v0-2.yml
+      - audits/browser/bell-integrator/public-rendered-matrix-v0.2.json
+      - audits/bell-integrator/public-audit-v0.1/contract.json
+      - scripts/bell_integrator_rendered_audit_probe.mjs
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/bell-integrator-rendered-audit-v0-2.yml
+      - audits/browser/bell-integrator/public-rendered-matrix-v0.2.json
+      - audits/bell-integrator/public-audit-v0.1/contract.json
+      - scripts/bell_integrator_rendered_audit_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bell-integrator-rendered-v0-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Confirm Bell Integrator signals in desktop and mobile browsers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/bell-integrator/public-rendered-matrix-v0.2.json"
+          contract="audits/bell-integrator/public-audit-v0.1/contract.json"
+          python3 -m json.tool "${config}" >/dev/null
+          python3 -m json.tool "${contract}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-bell-integrator-public-rendered-v1" and
+            (.profiles | length) == 2 and
+            ([.profiles[].id] | sort) == ["desktop", "mobile"] and
+            .boundaries.public_pages_only == true and
+            .boundaries.natural_navigation_only == true and
+            .boundaries.passive_browser_observation == true and
+            .boundaries.keyboard_navigation_only == true and
+            .boundaries.authentication == false and
+            .boundaries.account_access == false and
+            .boundaries.form_submission == false and
+            .boundaries.button_clicks == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.email_or_external_contact == false and
+            .boundaries.enumeration == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.server_state_change == false and
+            .boundaries.external_submission_authorized == false and
+            .boundaries.deployment_authorized == false and
+            .boundaries.merge_authorized == false
+          ' "${config}" >/dev/null
+          jq -e '
+            .target.canonical_origin == "https://bellintegrator.ru" and
+            ([.targets[].url | startswith("https://bellintegrator.ru/")] | all) and
+            .boundaries.external_submission_authorized == false and
+            .boundaries.merge_authorized == false
+          ' "${contract}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --check scripts/bell_integrator_rendered_audit_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run bounded rendered matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/bell-integrator/rendered-v0.2
+          node scripts/bell_integrator_rendered_audit_probe.mjs \
+            --config audits/browser/bell-integrator/public-rendered-matrix-v0.2.json \
+            --contract audits/bell-integrator/public-audit-v0.1/contract.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/bell-integrator/rendered-v0.2
+          cat reports/bell-integrator/rendered-v0.2/bell-integrator-rendered-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate evidence and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/bell-integrator/rendered-v0.2/bell-integrator-rendered-result.json"
+          expected="$(jq '(.targets | length) * 2' audits/bell-integrator/public-audit-v0.1/contract.json)"
+          jq -e \
+            --argjson expected "${expected}" '
+            .schema_version == "liminalqa-bell-integrator-public-rendered-result-v1" and
+            (.observations | length) == $expected and
+            .aggregate.expected_observation_count == $expected and
+            .aggregate.observed_route_profile_count == $expected and
+            .authority.mode == "evidence_only" and
+            .authority.grants.ownership == false and
+            .authority.grants.approval == false and
+            .authority.grants.execution == false and
+            .authority.grants.external_submission == false and
+            .authority.grants.delivery == false and
+            .authority.grants.deployment == false and
+            .authority.grants.merge == false
+          ' "${result}" >/dev/null
+          ! grep -R -E -i 'authorization:|cookie:|set-cookie:|access_token|refresh_token|sessionid' \
+            reports/bell-integrator/rendered-v0.2 \
+            --exclude='*.png'
+
+      - name: Record exact attempt and verify checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="reports/bell-integrator/rendered-v0.2"
+          jq -n \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_attempt "${{ github.run_attempt }}" \
+            --arg source_head_sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --arg workflow_sha "${{ github.sha }}" \
+            --arg base_sha "${{ github.event.pull_request.base.sha || '' }}" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{run_id:$run_id,run_attempt:$run_attempt,source_head_sha:$source_head_sha,workflow_sha:$workflow_sha,base_sha:$base_sha,generated_at:$generated_at}' \
+            > "${output}/exact-attempt.json"
+          find "${output}" -maxdepth 1 -type f ! -name ARTIFACT_SHA256SUMS.txt -printf '%f\0' \
+            | sort -z \
+            | while IFS= read -r -d '' file; do (cd "${output}" && sha256sum "${file}"); done \
+            > "${output}/ARTIFACT_SHA256SUMS.txt"
+          (cd "${output}" && sha256sum -c ARTIFACT_SHA256SUMS.txt)
+
+      - name: Upload exact rendered evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bell-integrator-rendered-v0-2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/bell-integrator/rendered-v0.2/
+          if-no-files-found: error
+          retention-days: 30

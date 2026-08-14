@@ -1,0 +1,62 @@
+{
+  "schema_version": "liminalqa-bell-integrator-public-rendered-v1",
+  "name": "Bell Integrator public desktop and mobile rendered audit",
+  "profiles": [
+    {
+      "id": "desktop",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1440,
+        "height": 1000,
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "hasTouch": false
+      }
+    },
+    {
+      "id": "mobile",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {
+        "width": 412,
+        "height": 915,
+        "deviceScaleFactor": 2.625,
+        "isMobile": true,
+        "hasTouch": true
+      }
+    }
+  ],
+  "navigation_timeout_ms": 90000,
+  "settle_ms": 7000,
+  "max_body_sample_chars": 7000,
+  "max_visible_links": 300,
+  "max_console_entries": 200,
+  "max_failed_requests": 100,
+  "max_response_entries": 1000,
+  "keyboard_tab_steps": 20,
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authentication": false,
+    "account_access": false,
+    "form_submission": false,
+    "button_clicks": false,
+    "direct_api_testing": false,
+    "email_or_external_contact": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "limitations": [
+    "A headless public browser may receive a regional or anti-bot variant; this is recorded as an environment outcome, not a product defect.",
+    "Rendered text confirms public user impact but does not prove the internal CMS, ownership model, or root cause.",
+    "Corporate metrics may intentionally use different definitions; final severity requires Bell Integrator context.",
+    "One browser observation per route and profile is not a field performance percentile."
+  ]
+}
