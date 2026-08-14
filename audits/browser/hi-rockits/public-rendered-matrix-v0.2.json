@@ -1,0 +1,40 @@
+{
+  "schema_version": "liminalqa-hi-rockits-public-rendered-v1",
+  "audit_id": "HI-ROCKITS-RENDERED-2026-07-25-V0.2",
+  "contract_path": "audits/hi-rockits/public-audit-v0.1/contract.json",
+  "profiles": [
+    {
+      "id": "desktop",
+      "viewport": {"width": 1440, "height": 1000},
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/136 Safari/537.36"
+    },
+    {
+      "id": "mobile",
+      "viewport": {"width": 412, "height": 915, "isMobile": true, "hasTouch": true},
+      "user_agent": "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/136 Mobile Safari/537.36"
+    }
+  ],
+  "runtime": {
+    "navigation_timeout_ms": 60000,
+    "settle_ms": 5000,
+    "tab_steps": 16,
+    "max_console_items": 40,
+    "max_network_items": 80
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "passive_rendering_only": true,
+    "keyboard_tab_only": true,
+    "authentication": false,
+    "form_submission": false,
+    "button_clicks": false,
+    "resume_upload": false,
+    "external_contact": false,
+    "direct_api_testing": false,
+    "active_security_testing": false,
+    "load_testing": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  }
+}
