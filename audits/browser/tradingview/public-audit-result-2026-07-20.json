@@ -1,0 +1,147 @@
+{
+  "schema_version": "liminalqa-tradingview-public-audit-canonical-v1",
+  "observed_at": "2026-07-20T17:43:42Z",
+  "coordinate_model": {
+    "O": "official public TradingView URL + browser profile + viewport + unauthenticated state + observation time",
+    "N": "passive unauthenticated and keyboard-only browser observer",
+    "X": "route -> visible market/community/chart component -> interactive control",
+    "Y": "loading -> rendered -> accessible -> focused or unreachable",
+    "Z": "desktop/mobile user-agent and viewport",
+    "T": "navigation -> settled render -> Tab sequence -> neutral chart activation -> second Tab sequence"
+  },
+  "scope": {
+    "routes": ["home", "BTCUSD symbol", "BITSTAMP:BTCUSD chart", "BTCUSD ideas", "scripts", "accessibility statement"],
+    "profiles": ["desktop", "mobile"],
+    "route_profile_observations": 12,
+    "anti_bot_variants": 0,
+    "all_navigations_returned_http_response": true
+  },
+  "verdicts": {
+    "chart_keyboard_navigation_contract": "CONFIRMED_GAP",
+    "chart_enabled_control_without_accessible_name": "CONFIRMED_PUBLIC_SURFACE",
+    "homepage_nested_interactive_market_status": "CONFIRMED_INVALID_INTERACTIVE_STRUCTURE",
+    "fedcm_login_integration_console_error": "CONFIRMED_TECHNICAL_SIGNAL_USER_IMPACT_UNPROVEN",
+    "btc_symbol_market_closed_no_trades_contradiction": "NOT_CONFIRMED",
+    "mobile_desktop_route_divergence": "NOT_OBSERVED",
+    "public_chart_loading": "CONFIRMED",
+    "website_skip_content_outside_chart": "CONFIRMED_ON_TESTED_NON_CHART_ROUTES"
+  },
+  "chart_keyboard_evidence": {
+    "accessibility_statement": {
+      "claims_tab_navigation_for_chart_top_bar_drawings_right_and_bottom_panels": true,
+      "claims_focus_visibility": true,
+      "body_sha256": "5912f647643153d27c44ff1e06aa474d5aa1800db9de267466d5210ff7b42de1"
+    },
+    "desktop": {
+      "http": 200,
+      "canvas_count": 11,
+      "svg_count": 109,
+      "visible_interactive_count": 81,
+      "enabled_interactive_count": 79,
+      "sequential_focusable_count": 12,
+      "initial_tab_presses": 40,
+      "initial_unique_focus_targets": 0,
+      "post_neutral_click_tab_presses": 40,
+      "post_click_unique_focus_targets": 0,
+      "enabled_controls_without_name": 3,
+      "unnamed_sequential_controls": 1,
+      "main_landmarks": 0,
+      "navigation_landmarks": 0
+    },
+    "mobile": {
+      "http": 200,
+      "canvas_count": 7,
+      "svg_count": 41,
+      "visible_interactive_count": 39,
+      "enabled_interactive_count": 37,
+      "sequential_focusable_count": 1,
+      "initial_tab_presses": 40,
+      "initial_unique_focus_targets": 0,
+      "post_neutral_click_tab_presses": 40,
+      "post_click_unique_focus_targets": 0,
+      "enabled_controls_without_name": 1,
+      "unnamed_sequential_controls": 0,
+      "main_landmarks": 0,
+      "navigation_landmarks": 0
+    },
+    "concrete_unnamed_controls": [
+      "main-menu-button: enabled, no accessible name, tabindex=-1 on desktop and mobile",
+      "desktop flag icon button: enabled, tabindex=0, no accessible name",
+      "desktop dropdown icon button: enabled, no accessible name, tabindex=-1"
+    ]
+  },
+  "homepage_structure": {
+    "reproduced_profiles": ["desktop", "mobile"],
+    "outer_element": "button[data-qa-id=symbol-overview-chart-header-market-status]",
+    "nested_element": "button[data-qa-id=legend-source-item-status][title=Market open]",
+    "classification": "interactive button nested inside interactive button",
+    "outer_accessible_name": "missing in captured DOM"
+  },
+  "console_signal": {
+    "routes_with_fedcm_error": 12,
+    "total_route_profile_observations": 12,
+    "signature": "FedCM get() rejects because IdentityCredentialRequestOptions mode 'widget' is not a valid enum value",
+    "likely_surface": "Google One Tap / identity integration",
+    "login_failure_claimed": false
+  },
+  "rejected_hypotheses": {
+    "market_closed_and_no_trades_with_current_price": {
+      "status": "NOT_CONFIRMED",
+      "desktop_market_closed_count": 0,
+      "desktop_no_trades_count": 0,
+      "mobile_market_closed_count": 0,
+      "mobile_no_trades_count": 0,
+      "reason": "live browser result did not reproduce crawler/search text"
+    },
+    "anti_bot_as_product_defect": {
+      "status": "REJECTED",
+      "anti_bot_variant_count": 0
+    },
+    "analytics_abort_as_product_failure": {
+      "status": "REJECTED",
+      "reason": "failed requests were primarily aborted third-party telemetry and were not promoted"
+    }
+  },
+  "evidence": {
+    "surface_run_id": 29764249089,
+    "surface_source_head": "8c0ab0a1b37423b0e467903335512a74ed26cd5f",
+    "surface_execution_sha": "35c4c906efc3cb9d970ec054616c4f035578c223",
+    "surface_artifact_id": 8470164725,
+    "surface_artifact_digest": "sha256:2acdc7322329ea39da6cea71079b36d7048ec6761ab8d02b69656e783b4dab95",
+    "surface_result_sha256": "12221152da5b70ff1527d51b51e7520c760a0f8e5f17d15ee3a2bc04c3d811b2",
+    "surface_summary_sha256": "9225ea3ab4af077aa7f74baf6b39767ff3f12d4b1399c3051d747332c223bbf4",
+    "keyboard_run_id": 29764685551,
+    "keyboard_source_head": "669e42be9533310287c0d15475bd6ec8e8f04bdc",
+    "keyboard_execution_sha": "74d90104c50ce363a9a3ff0befbc3ebca38f879c",
+    "keyboard_artifact_id": 8470305230,
+    "keyboard_artifact_digest": "sha256:6d54f020d56cedd4c99c23b11dac340099682841c7c74e1587017cb9e8be8d4f",
+    "keyboard_result_sha256": "0bab1d9435569f4bb95847536fbe0e9481e0683271bd9870d50bcb1ba62d0359",
+    "keyboard_summary_sha256": "d23b21e14e624f9db010bfc9e9557a8d57b2d1000c493d2c2d03a2981a62a1d4"
+  },
+  "severity_candidates": {
+    "chart_keyboard_navigation_contract": "P2 accessibility",
+    "unnamed_enabled_chart_controls": "P2/P3 accessibility",
+    "homepage_nested_interactive_control": "P3 accessibility/markup",
+    "fedcm_console_error": "P3 technical until user impact is reproduced"
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "publishing": false,
+    "trading_actions": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false
+  },
+  "limitations": [
+    "The keyboard result applies to the tested public BITSTAMP:BTCUSD route and two Chrome profiles.",
+    "The neutral click targeted an empty chart coordinate and did not submit, publish, trade, or modify server state.",
+    "The FedCM error is a technical integration signal; a visible sign-in failure was not tested or claimed.",
+    "Decorative aria-hidden image links were excluded from the promoted accessible-name finding even though the general matrix counted them at DOM level."
+  ]
+}
