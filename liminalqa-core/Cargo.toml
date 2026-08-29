@@ -11,7 +11,7 @@ ulid.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
-prometheus-client = "0.24.0"
+prometheus-client = "0.25.0"
 sha2.workspace = true
 
 [dev-dependencies]
