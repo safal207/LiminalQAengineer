@@ -1,0 +1,121 @@
+name: ChatGPT Public Mobile-Web Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/chatgpt-mobile-web-audit-v0-1
+    paths:
+      - .github/workflows/chatgpt-mobile-web-public.yml
+      - audits/chatgpt/mobile-web-public.json
+      - scripts/chatgpt_mobile_web_public_observer.mjs
+      - docs/audits/CHATGPT_MOBILE_WEB_PUBLIC_AUDIT.md
+      - tests/test_chatgpt_mobile_web_public_audit.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/chatgpt-mobile-web-public.yml
+      - audits/chatgpt/mobile-web-public.json
+      - scripts/chatgpt_mobile_web_public_observer.mjs
+      - docs/audits/CHATGPT_MOBILE_WEB_PUBLIC_AUDIT.md
+      - tests/test_chatgpt_mobile_web_public_audit.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chatgpt-public-mobile-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Passive signed-out mobile-web matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v6
+
+      - name: Validate bounded config
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/chatgpt/mobile-web-public.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            (.target_url == "https://chatgpt.com/") and
+            (.login_url == "https://chatgpt.com/auth/login") and
+            (.observation_ms <= 15000) and
+            ((.profiles | length) == 5) and
+            (.boundaries.public_pages_only == true) and
+            (.boundaries.authenticated_testing == false) and
+            (.boundaries.message_submission == false) and
+            (.boundaries.login_submission == false) and
+            (.boundaries.file_upload == false) and
+            (.boundaries.microphone_permission == false) and
+            (.boundaries.camera_permission == false) and
+            (.boundaries.direct_application_api_testing == false) and
+            (.boundaries.fuzzing == false) and
+            (.boundaries.load_testing == false) and
+            (.boundaries.active_security_testing == false) and
+            (.boundaries.captcha_or_access_control_bypass == false) and
+            (.boundaries.private_data_collection == false)
+          ' "${config}" >/dev/null
+
+      - name: Validate contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import runpy
+
+          namespace = runpy.run_path("tests/test_chatgpt_mobile_web_public_audit.py")
+          tests = sorted(
+              (name, function)
+              for name, function in namespace.items()
+              if name.startswith("test_") and callable(function)
+          )
+          for name, function in tests:
+              function()
+              print(f"PASS {name}")
+          print(f"Validated {len(tests)} contract tests")
+          PY
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Locate Chrome and validate observer
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/chatgpt_mobile_web_public_observer.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Observe public home and login states
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/chatgpt-mobile-web
+          node scripts/chatgpt_mobile_web_public_observer.mjs \
+            --config audits/chatgpt/mobile-web-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/chatgpt-mobile-web
+          cat reports/chatgpt-mobile-web/chatgpt-mobile-web-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload exact public evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-mobile-web-public-${{ github.run_id }}
+          path: reports/chatgpt-mobile-web/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,163 @@
+{
+  "schema_version": "liminalqa-public-mobile-web-result-v1",
+  "case_id": "chatgpt-mobile-web-public-2026-07-21",
+  "generated_at": "2026-07-20T22:25:36Z",
+  "source": {
+    "repository": "safal207/LiminalQAengineer",
+    "pull_request": 106,
+    "baseline_exact_head": "6d77761f2f224afc8983660bcf095a39a243c385",
+    "baseline_workflow_run_id": 29783360123,
+    "baseline_artifact_id": 8477529579,
+    "baseline_artifact_sha256": "1be5ceda6b73ff4a92ff13fc793c22366a05c97069392ad2ac0ec4a3c5ae7316",
+    "baseline_packet_sha256": "b28f6ad07c93f6ddc7e0105b6ce4a9f773763957228d2e7f1dd9361ca7fa1a00",
+    "diagnostic_exact_head": "e56e2e86770e4ed198380800d970a7198020d6e1",
+    "diagnostic_workflow_run_id": 29783766882,
+    "diagnostic_artifact_id": 8477666575,
+    "diagnostic_artifact_sha256": "dc76eadf08f34a03273f95aee2ff3a7256b39c1a600af5cef91c0c0fd799056c",
+    "diagnostic_packet_sha256": "545480af7621ee11a7c7bbaaca65c2d134791abab43cddddb1ae0a39a2357434"
+  },
+  "scope": {
+    "surface": "ChatGPT public signed-out mobile web",
+    "targets": [
+      "https://chatgpt.com/",
+      "https://chatgpt.com/auth/login"
+    ],
+    "rounds_per_state": 2,
+    "profiles": [
+      "desktop-ua-desktop-viewport",
+      "desktop-ua-mobile-viewport",
+      "mobile-ua-desktop-viewport",
+      "mobile-ua-mobile-viewport",
+      "mobile-ua-compact-height"
+    ]
+  },
+  "authority": {
+    "mode": "audit_only",
+    "authenticated_testing": false,
+    "prompt_submission": false,
+    "login_submission": false,
+    "account_access": false,
+    "file_upload": false,
+    "permission_request": false,
+    "direct_application_api_testing": false,
+    "access_control_bypass": false,
+    "security_claim": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  },
+  "passed_checks": [
+    {
+      "id": "public-route-availability",
+      "result": "PASS",
+      "claim": "All five home-page profiles returned HTTP 200 and remained on https://chatgpt.com/."
+    },
+    {
+      "id": "horizontal-overflow",
+      "result": "PASS",
+      "claim": "No horizontal document overflow was detected in any profile or round."
+    },
+    {
+      "id": "primary-mobile-control-size",
+      "result": "PASS_WITH_CONTEXT",
+      "claim": "Under the Android mobile user-agent at 412x915, sidebar, login, attachment, dictation and send controls exposed 44x44 CSS-pixel boxes."
+    },
+    {
+      "id": "compact-height-composer",
+      "result": "PASS_WITH_BOUNDARY",
+      "claim": "At 412x520, the signed-out composer and suggestion CTA remained visible without horizontal overflow. A real virtual keyboard was not opened."
+    },
+    {
+      "id": "mobile-login-layout",
+      "result": "PASS",
+      "claim": "The mobile login page displayed provider choices, email input, Continue and Try it first without horizontal overflow; primary provider and Continue controls were 340x44 CSS pixels."
+    },
+    {
+      "id": "home-runtime-errors",
+      "result": "PASS",
+      "claim": "No console or page runtime error was recorded on the public home page in either primary mobile round."
+    },
+    {
+      "id": "layout-stability",
+      "result": "PASS_IN_OBSERVATION_WINDOW",
+      "claim": "Observed CLS ranged from 0 to 0.0004 across the public profiles."
+    },
+    {
+      "id": "mobile-event-delivery",
+      "result": "PASS_WITH_DETECTOR_CORRECTION",
+      "claim": "The event POSTs received successful HTTP 200 or 204 responses before CDP emitted net::ERR_ABORTED; the generic failed-request detector must not treat them as failed delivery."
+    }
+  ],
+  "confirmed_observations": [
+    {
+      "id": "mobile-user-agent-variant",
+      "status": "CONFIRMED_ARCHITECTURE_NOT_DEFECT",
+      "severity": "informational",
+      "claim": "At the same 412x915 viewport, desktop and Android mobile user-agents received materially different signed-out home variants.",
+      "evidence": {
+        "desktop_ua_heading": "What’s on the agenda today?",
+        "mobile_ua_heading": "Where should we begin?",
+        "desktop_ua_header": "Sidebar + ChatGPT model selector + Log in",
+        "mobile_ua_header": "Sidebar + centered ChatGPT + Log in",
+        "mobile_only_visible_cta": "What can I do?",
+        "mobile_event_namespace": "/unauth-mweb/events/"
+      },
+      "impact": "This confirms a separate mobile-web delivery branch. It is not a defect by itself, but fixes and experiments must be validated on both branches rather than inferred from viewport-only testing."
+    },
+    {
+      "id": "mobile-login-console-error",
+      "status": "CONFIRMED_DIAGNOSTIC_USER_IMPACT_UNKNOWN",
+      "severity": "P3-diagnostic",
+      "claim": "The mobile login page emitted one stable first-party console.error in both rounds.",
+      "evidence": {
+        "console_text": "JSHandle@error",
+        "serialized_values": [{}, "undefined"],
+        "source": "https://chatgpt.com/cdn/assets/2340486e-dndlwhxa5s7p8x6d.js",
+        "line": 27,
+        "column": 11836,
+        "page_errors": 0,
+        "visible_login_failure": false
+      },
+      "impact": "No visible user-task failure is established. Preserve as a low-severity diagnostic finding, not a security or login-failure claim."
+    }
+  ],
+  "rejected_signals": [
+    {
+      "id": "mobile-event-post-aborts",
+      "status": "REJECTED_FALSE_NETWORK_FAILURE",
+      "reason": "Every recorded event request received HTTP 200 or 204 before the loading-aborted signal. No lifecycle event occurred before capture and no visible failure was observed."
+    },
+    {
+      "id": "small-target-detector",
+      "status": "ADJUDICATED_NOT_A_CONFIRMED_DEFECT",
+      "reason": "The composer uses a larger container and critical icon buttons are 44x44. Suggestion and legal links require context/spacing review rather than raw 44-pixel counting."
+    },
+    {
+      "id": "composer-overlap-detector",
+      "status": "REJECTED_FALSE_POSITIVE",
+      "reason": "Screenshots show no obstruction; the detected fixed/sticky surface was an ancestor container containing the composer."
+    },
+    {
+      "id": "public-text-duplicate-heading-hypothesis",
+      "status": "REJECTED_BY_BROWSER_MATRIX",
+      "reason": "The controlled browser matrix found no duplicate visible heading in any profile."
+    }
+  ],
+  "unknowns": [
+    "Real virtual-keyboard resize, safe-area and browser-chrome interaction.",
+    "Authenticated long-chat scrolling, streaming and return-to-latest behaviour.",
+    "Offline/reconnect and stale-draft recovery.",
+    "Attachments, camera, image/file preview and permission recovery.",
+    "Search sources, widgets, Projects, Work, custom GPTs and plan-limit states.",
+    "TalkBack, browser zoom, external keyboard and switch-control behaviour.",
+    "The semantic meaning of the opaque Error object logged by the mobile login bundle."
+  ],
+  "recommended_next_tests": [
+    "Map the public login bundle stack through first-party source maps and replace opaque console logging with an explicit error code/message if intentional.",
+    "Run an authorised mobile account matrix for long chat, streaming, sidebar history, attachment tray and offline recovery.",
+    "Run a real Android Chrome session with virtual keyboard and visualViewport tracing.",
+    "Run TalkBack and 200% browser zoom task checks on the primary composer and login path."
+  ],
+  "verdict": "ONE_P3_DIAGNOSTIC_ONLY",
+  "verdict_meaning": "The signed-out mobile web passes the bounded route, overflow, compact-height, primary-control and event-delivery checks. One repeated public-login console diagnostic remains without demonstrated user impact."
+}
