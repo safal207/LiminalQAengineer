@@ -1,0 +1,125 @@
+name: Tradernet Public Connection Lifecycle Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-zombie-connections-v0-1
+    paths:
+      - .github/workflows/tradernet-connection-lifecycle.yml
+      - audits/tradernet/connection-lifecycle-public.json
+      - scripts/tradernet_connection_lifecycle_probe.mjs
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-connection-lifecycle.yml
+      - audits/tradernet/connection-lifecycle-public.json
+      - scripts/tradernet_connection_lifecycle_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-connection-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Passive WebSocket, reconnect and teardown observation
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate safety and decision boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/tradernet/connection-lifecycle-public.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            (.targets | length) == 2 and
+            (.targets | map(.url) | sort) == ([
+              "https://tradernet.ru/charts/MICEXINDEXCF",
+              "https://tradernet.ru/terminal"
+            ] | sort) and
+            .timings_ms.bootstrap <= 20000 and
+            .timings_ms.offline <= 15000 and
+            .timings_ms.recovery <= 30000 and
+            .timings_ms.post_reload <= 20000 and
+            .timings_ms.post_navigation_teardown <= 12000 and
+            .boundaries.public_pages_only == true and
+            .boundaries.natural_page_requests_only == true and
+            .boundaries.browser_local_offline_toggle == true and
+            .boundaries.maximum_navigations_per_target <= 3 and
+            .boundaries.authenticated_testing == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.portfolio_access == false and
+            .boundaries.personal_data_access == false and
+            .boundaries.market_depth_subscription == false and
+            .boundaries.order_entry == false and
+            .boundaries.form_submission == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.raw_websocket_payload_storage == false and
+            .boundaries.raw_response_body_storage == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate probe and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/tradernet_connection_lifecycle_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Observe bounded public connection lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradernet-connection-lifecycle
+          node scripts/tradernet_connection_lifecycle_probe.mjs \
+            --config audits/tradernet/connection-lifecycle-public.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradernet-connection-lifecycle
+          cat reports/tradernet-connection-lifecycle/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate artifact privacy and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.external_submission == false and
+            .authority.merge == false
+          ' reports/tradernet-connection-lifecycle/aggregate.json >/dev/null
+          ! grep -R -E 'authorization:|cookie:|set-cookie:|payloadData|response_body' reports/tradernet-connection-lifecycle --exclude='*.png'
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-connection-lifecycle-${{ github.run_id }}
+          path: reports/tradernet-connection-lifecycle/
+          if-no-files-found: error
+          retention-days: 14

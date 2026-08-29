@@ -1,0 +1,87 @@
+name: Tradernet Connection Lotus Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-zombie-connections-v0-1
+    paths:
+      - .github/workflows/tradernet-connection-lotus.yml
+      - audits/lotus/tradernet/tradernet-connection-lotus-v0.1.json
+      - tests/test_tradernet_connection_lotus.py
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-connection-lotus.yml
+      - audits/lotus/tradernet/tradernet-connection-lotus-v0.1.json
+      - tests/test_tradernet_connection_lotus.py
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Pythia, CML, LS and authority contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate JSON and run exact contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/tradernet-connection-lotus
+          packet="audits/lotus/tradernet/tradernet-connection-lotus-v0.1.json"
+          python3 -m json.tool "${packet}" >/dev/null
+          set +e
+          python3 -m unittest discover \
+            -s tests \
+            -p 'test_tradernet_connection_lotus.py' \
+            -v 2>&1 | tee reports/tradernet-connection-lotus/unittest.log
+          status=${PIPESTATUS[0]}
+          set -e
+          exit "${status}"
+
+      - name: Enforce no-authority and evidence-state boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          packet="audits/lotus/tradernet/tradernet-connection-lotus-v0.1.json"
+          jq -e '
+            ([.findings[] | select(.status == "CONFIRMED")] | length) == 1 and
+            .pythia.verdicts["TRADERNET-PUBLIC-DUPLICATE-SETTINGS-001"] == "ALLOW" and
+            .pythia.verdicts["TRADERNET-PUBLIC-ZOMBIE-WS-001"] == "BLOCK" and
+            .pythia.verdicts["TRADERNET-PUBLIC-STALE-STATE-001"] == "ESCALATE" and
+            .pythia.verdicts["TRADERNET-PUBLIC-SETTINGS-POST-001"] == "ESCALATE" and
+            .cml.memory_mode == "PROPOSE_ONLY" and
+            .cml.durable_acceptance == false and
+            .liminaldb.write_mode == "artifact_only" and
+            .liminaldb.durable_memory == false and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.external_submission == false and
+            .authority.merge == false
+          ' "${packet}" >/dev/null
+
+      - name: Upload Lotus contract diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-connection-lotus-${{ github.run_id }}
+          path: reports/tradernet-connection-lotus/
+          if-no-files-found: warn
+          retention-days: 14
