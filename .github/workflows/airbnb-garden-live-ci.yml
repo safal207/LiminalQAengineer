@@ -1,0 +1,369 @@
+name: Airbnb Garden Live CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/airbnb-garden-live-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airbnb-garden-live-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 6eda85415feae21af117aa09125dcc88a1a3f9c1
+  PROBE_SHA: c89aa1ae920e1254b668aebfdf0a8c04e3c2738e
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+  LISTING_URL: https://www.airbnb.com/rooms/1418689551881927394
+
+jobs:
+  live:
+    name: Exact read-only Airbnb probe inside Garden
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout CI branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact Garden
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Checkout exact Airbnb probe
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ env.PROBE_SHA }}
+          path: vendor/airbnb-probe
+          persist-credentials: false
+
+      - name: Verify exact pins and prepare directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          test "$(git -C vendor/airbnb-probe rev-parse HEAD)" = "$PROBE_SHA"
+          test -f vendor/airbnb-probe/scripts/airbnb_readonly_probe.py
+          test -f vendor/airbnb-probe/scripts/airbnb_readonly_probe_guard.py
+          test -f vendor/airbnb-probe/scripts/airbnb_readonly_discovered_dates_probe.py
+          test -f vendor/airbnb-probe/scripts/airbnb_readonly_discovered_dates_probe_v4.py
+          mkdir -p reports/airbnb-live/{rootfs,garden-image,probe-image,evidence}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+
+      - name: Build and test exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_root="$RUNNER_TEMP/GardenLiminal-airbnb-live"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/airbnb-live/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/airbnb-live/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/airbnb-live/garden-image/gl"
+
+      - name: Build exact Playwright probe rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$PLAYWRIGHT_IMAGE"
+          docker image inspect "$PLAYWRIGHT_IMAGE" --format '{{json .RepoDigests}}' \
+            > reports/airbnb-live/playwright-image-digests.json
+
+          cat > reports/airbnb-live/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN python -m pip install --no-cache-dir playwright==1.60.0 \
+              && python -c 'import encodings, playwright; print("python-runtime-ok")'
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+
+          docker build -t airbnb-garden-live-rootfs:${GITHUB_SHA} \
+            reports/airbnb-live/probe-image \
+            2>&1 | tee reports/airbnb-live/probe-image-build.log
+          container_id="$(docker create airbnb-garden-live-rootfs:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
+          docker export "$container_id" -o reports/airbnb-live/rootfs.tar
+          sudo tar -xf reports/airbnb-live/rootfs.tar -C reports/airbnb-live/rootfs
+
+          sudo mkdir -p \
+            reports/airbnb-live/rootfs/opt/liminalqa \
+            reports/airbnb-live/rootfs/evidence
+          sudo cp \
+            vendor/airbnb-probe/scripts/airbnb_readonly_probe.py \
+            vendor/airbnb-probe/scripts/airbnb_readonly_probe_guard.py \
+            vendor/airbnb-probe/scripts/airbnb_readonly_discovered_dates_probe.py \
+            vendor/airbnb-probe/scripts/airbnb_readonly_discovered_dates_probe_v4.py \
+            reports/airbnb-live/rootfs/opt/liminalqa/
+          sudo chmod -R a+rX reports/airbnb-live/rootfs/opt/liminalqa
+
+          # docker export omits the runtime-provided /dev device mounts. Node's
+          # child_process uses /dev/null for Playwright's ignored stdio, and an
+          # absent device is reported misleadingly as browser-path ENOENT.
+          dev=reports/airbnb-live/rootfs/dev
+          sudo mkdir -p "$dev" "$dev/pts" "$dev/shm"
+          for entry in null zero random urandom; do
+            sudo rm -f "$dev/$entry"
+          done
+          sudo mknod -m 666 "$dev/null" c 1 3
+          sudo mknod -m 666 "$dev/zero" c 1 5
+          sudo mknod -m 666 "$dev/random" c 1 8
+          sudo mknod -m 666 "$dev/urandom" c 1 9
+          sudo ln -sfn /proc/self/fd "$dev/fd"
+          sudo ln -sfn /proc/self/fd/0 "$dev/stdin"
+          sudo ln -sfn /proc/self/fd/1 "$dev/stdout"
+          sudo ln -sfn /proc/self/fd/2 "$dev/stderr"
+          find "$dev" -maxdepth 1 -ls > reports/airbnb-live/minimal-dev.txt
+
+          browser="$(find reports/airbnb-live/rootfs/opt/liminal-playwright \
+            -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          node="$(find reports/airbnb-live/rootfs/usr/local/lib \
+            -type f -path '*/playwright/driver/node' -perm -111 -print -quit)"
+          test -n "$browser"
+          test -n "$node"
+          printf '/%s\n' "${browser#reports/airbnb-live/rootfs/}" > reports/airbnb-live/browser-path.txt
+          printf '/%s\n' "${node#reports/airbnb-live/rootfs/}" > reports/airbnb-live/node-path.txt
+
+          # Garden inherits the outer Docker network namespace. Preserve the
+          # Docker embedded resolver used in that namespace after pivot_root.
+          printf 'nameserver 127.0.0.11\noptions ndots:0\n' \
+            | sudo tee reports/airbnb-live/rootfs/etc/resolv.conf >/dev/null
+
+          set +e
+          timeout 30 sudo chroot reports/airbnb-live/rootfs \
+            "$(cat reports/airbnb-live/browser-path.txt)" --version \
+            > reports/airbnb-live/browser-preflight.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/airbnb-live/browser-preflight.exit
+          test "$code" = 0
+
+      - name: Build Garden harness and exact Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/airbnb-live/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-airbnb-live:${GITHUB_SHA} \
+            reports/airbnb-live/garden-image \
+            2>&1 | tee reports/airbnb-live/garden-image-build.log
+
+          cat > reports/airbnb-live/seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: airbnb-readonly-live
+            id: airbnb-readonly-live-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - /usr/bin/python
+              - /opt/liminalqa/airbnb_readonly_discovered_dates_probe_v4.py
+              - --listing-url
+              - ${LISTING_URL}
+              - --output-root
+              - /evidence/ABNB-GARDEN-LIVE
+            env:
+              - PYTHONPATH=/opt/liminalqa
+              - HOME=/tmp
+              - PLAYWRIGHT_BROWSERS_PATH=/opt/liminal-playwright
+              - PYTHONUNBUFFERED=1
+            cwd: /opt/liminalqa
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: airbnb-garden
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+
+          docker run --rm --network none \
+            -v "$GITHUB_WORKSPACE/reports/airbnb-live/seed.yaml:/work/seed.yaml:ro" \
+            garden-airbnb-live:${GITHUB_SHA} inspect -f /work/seed.yaml \
+            2>&1 | tee reports/airbnb-live/inspect.log
+
+      - name: Execute bounded live probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          name="airbnb-garden-live-${GITHUB_RUN_ID}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          set +e
+          timeout 900 docker run \
+            --name "$name" \
+            --privileged \
+            --cpus 1.50 \
+            --memory 2g \
+            --pids-limit 512 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/airbnb-live/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/airbnb-live/seed.yaml:/work/seed.yaml:ro" \
+            garden-airbnb-live:${GITHUB_SHA} \
+            run -f /work/seed.yaml --store mem \
+            > reports/airbnb-live/run.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/airbnb-live/run.exit
+          docker inspect "$name" --format '{{json .HostConfig}}' \
+            > reports/airbnb-live/docker-host-config.json
+          docker rm -f "$name" >/dev/null
+          tail -350 reports/airbnb-live/run.log
+
+      - name: Extract and classify live evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir=reports/airbnb-live/rootfs/evidence/ABNB-GARDEN-LIVE
+          if [ -d "$source_dir" ]; then
+            sudo cp -a "$source_dir" reports/airbnb-live/evidence/
+            sudo chown -R "$(id -u):$(id -g)" reports/airbnb-live/evidence
+          fi
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('reports/airbnb-live')
+          run_code = int((root / 'run.exit').read_text().strip())
+          host = json.loads((root / 'docker-host-config.json').read_text())
+          records = []
+          for line in (root / 'run.log').read_text(errors='replace').splitlines():
+              try:
+                  item = json.loads(line)
+              except Exception:
+                  continue
+              if isinstance(item, dict) and item.get('event'):
+                  records.append(item)
+          events = [item['event'] for item in records]
+          required = [
+              'RUN_CREATED','SEED_LOADED','NS_CREATED','MOUNT_DONE',
+              'CAPS_DROPPED','SECCOMP_ENABLED','PROCESS_START','PROCESS_EXIT',
+          ]
+          exit_zero = any(
+              item.get('event') == 'PROCESS_EXIT' and item.get('code') == 0
+              for item in records
+          )
+          probe_paths = list((root / 'evidence').rglob('probe-result.json'))
+          probe = json.loads(probe_paths[0].read_text()) if len(probe_paths) == 1 else None
+          limits = {
+              'nano_cpus': host.get('NanoCpus'),
+              'memory_bytes': host.get('Memory'),
+              'pids_limit': host.get('PidsLimit'),
+          }
+          expected_limits = {
+              'nano_cpus': 1_500_000_000,
+              'memory_bytes': 2_147_483_648,
+              'pids_limit': 512,
+          }
+          safe = bool(probe) and all([
+              probe.get('confirmed_defect') is False,
+              probe.get('payment_submitted') is False,
+              probe.get('reservation_created') is False,
+          ])
+          confirmed = all([
+              run_code == 0,
+              all(event in events for event in required),
+              exit_zero,
+              limits == expected_limits,
+              safe,
+          ])
+          result = {
+              'schema_version': 'airbnb-garden-live-ci-v0.2',
+              'garden_commit': '6eda85415feae21af117aa09125dcc88a1a3f9c1',
+              'probe_commit': 'c89aa1ae920e1254b668aebfdf0a8c04e3c2738e',
+              'target': 'https://www.airbnb.com/rooms/1418689551881927394',
+              'minimal_dev_provided': True,
+              'garden_run_exit': run_code,
+              'garden_events': events,
+              'missing_garden_events': [event for event in required if event not in events],
+              'garden_process_exit_zero': exit_zero,
+              'outer_limits': {
+                  'configured': limits,
+                  'expected': expected_limits,
+                  'matches': limits == expected_limits,
+              },
+              'probe_present': probe is not None,
+              'probe_summary': None if probe is None else {
+                  'classifier_revision': probe.get('classifier_revision'),
+                  'outcomes': probe.get('outcomes'),
+                  'normalized_signatures': probe.get('normalized_signatures'),
+                  'evidence_grade': probe.get('evidence_grade'),
+                  'confirmed_defect': probe.get('confirmed_defect'),
+                  'payment_submitted': probe.get('payment_submitted'),
+                  'reservation_created': probe.get('reservation_created'),
+                  'resolved_target': probe.get('resolved_target'),
+                  'reload_outcome': (probe.get('reload_probe') or {}).get('outcome'),
+              },
+              'safe_readonly_probe': safe,
+              'live_garden_probe_confirmed': confirmed,
+              'truth_boundary': [
+                  'The probe is public, unauthenticated and read-only.',
+                  'No login, form submission, host contact, payment or reservation is permitted.',
+                  'A product defect remains unconfirmed unless Lotus separately adjudicates the evidence.',
+              ],
+              'authority': {
+                  'mode': 'audit_only',
+                  'ownership': False,
+                  'approval': False,
+                  'external_submission': False,
+                  'deployment': False,
+                  'merge': False,
+              },
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if not confirmed:
+              raise SystemExit(1)
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/airbnb-live/rootfs
+          rm -f reports/airbnb-live/rootfs.tar
+          find reports/airbnb-live -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/airbnb-live/SHA256SUMS.txt
+
+      - name: Upload exact live evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airbnb-garden-live-ci-${{ github.run_id }}
+          path: reports/airbnb-live/
+          if-no-files-found: error
+          retention-days: 14

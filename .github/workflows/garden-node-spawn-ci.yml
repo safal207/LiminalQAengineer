@@ -1,0 +1,237 @@
+name: Garden Node Spawn CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/garden-node-spawn-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: garden-node-spawn-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 6eda85415feae21af117aa09125dcc88a1a3f9c1
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+
+jobs:
+  node-spawn:
+    name: Node spawn under fixed Garden seccomp
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout CI branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact Garden
+        uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Prepare and build exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/GardenLiminal rev-parse HEAD)" = "$GARDEN_SHA"
+          mkdir -p reports/node-spawn/{rootfs,garden-image,probe-image}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+          build_root="$RUNNER_TEMP/GardenLiminal-node-spawn"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/node-spawn/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/node-spawn/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/node-spawn/garden-image/gl"
+
+      - name: Build browser and Node rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/node-spawn/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+          docker build -t garden-node-spawn-rootfs:${GITHUB_SHA} \
+            reports/node-spawn/probe-image \
+            2>&1 | tee reports/node-spawn/probe-image-build.log
+          id="$(docker create garden-node-spawn-rootfs:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/node-spawn/rootfs.tar
+          sudo tar -xf reports/node-spawn/rootfs.tar -C reports/node-spawn/rootfs
+
+          browser_host="$(find reports/node-spawn/rootfs/opt/liminal-playwright \
+            -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          test -n "$browser_host"
+          browser_inside="/${browser_host#reports/node-spawn/rootfs/}"
+
+          node_host="$(find reports/node-spawn/rootfs/ms-playwright reports/node-spawn/rootfs/opt/liminal-playwright \
+            -type f -name node -perm -111 -print -quit 2>/dev/null || true)"
+          if [ -z "$node_host" ]; then
+            node_host=reports/node-spawn/rootfs/usr/bin/node
+          fi
+          test -e "$node_host" || test -L "$node_host"
+          node_inside="/${node_host#reports/node-spawn/rootfs/}"
+
+          sudo mkdir -p reports/node-spawn/rootfs/opt/diagnostic
+          cat > /tmp/node-spawn.js <<'JS'
+          const { spawnSync } = require('child_process');
+          const fs = require('fs');
+          const browser = fs.readFileSync('/opt/diagnostic/browser-path.txt', 'utf8').trim();
+          const result = spawnSync(browser, ['--version'], { encoding: 'utf8' });
+          console.log(JSON.stringify({
+            status: result.status,
+            signal: result.signal,
+            error: result.error ? {code: result.error.code, errno: result.error.errno, message: result.error.message} : null,
+            stdout: result.stdout,
+            stderr: result.stderr
+          }));
+          process.exit(result.status === 0 ? 0 : 1);
+          JS
+          sudo cp /tmp/node-spawn.js reports/node-spawn/rootfs/opt/diagnostic/node-spawn.js
+          printf '%s\n' "$browser_inside" | sudo tee reports/node-spawn/rootfs/opt/diagnostic/browser-path.txt >/dev/null
+          printf '%s\n' "$browser_inside" > reports/node-spawn/browser-path.txt
+          printf '%s\n' "$node_inside" > reports/node-spawn/node-path.txt
+
+          set +e
+          timeout 30 sudo chroot reports/node-spawn/rootfs "$node_inside" /opt/diagnostic/node-spawn.js \
+            > reports/node-spawn/chroot-node-spawn.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/node-spawn/chroot-node-spawn.exit
+          test "$code" = 0
+
+      - name: Build Garden harness and Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/node-spawn/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-node-spawn:${GITHUB_SHA} \
+            reports/node-spawn/garden-image \
+            2>&1 | tee reports/node-spawn/garden-image-build.log
+
+          node="$(cat reports/node-spawn/node-path.txt)"
+          cat > reports/node-spawn/seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: garden-node-browser-spawn
+            id: garden-node-browser-spawn-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - ${node}
+              - /opt/diagnostic/node-spawn.js
+            env:
+              - HOME=/tmp
+            cwd: /
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: node-spawn
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+
+      - name: Execute Node child spawn inside Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          timeout 90 docker run --rm \
+            --privileged \
+            --pids-limit 128 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/node-spawn/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/node-spawn/seed.yaml:/work/seed.yaml:ro" \
+            garden-node-spawn:${GITHUB_SHA} \
+            run -f /work/seed.yaml --store mem \
+            > reports/node-spawn/run.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/node-spawn/run.exit
+          cat reports/node-spawn/run.log
+
+      - name: Validate exact boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat reports/node-spawn/chroot-node-spawn.exit)" = 0
+          test "$(cat reports/node-spawn/run.exit)" = 0
+          grep -q '"event":"SECCOMP_ENABLED"' reports/node-spawn/run.log
+          grep -q '"event":"PROCESS_EXIT"' reports/node-spawn/run.log
+          grep -q '"code":0' reports/node-spawn/run.log
+          grep -q '"status":0' reports/node-spawn/run.log
+          ! grep -q 'ENOENT' reports/node-spawn/run.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('reports/node-spawn')
+          result = {
+              'schema_version': 'garden-node-spawn-ci-v0.1',
+              'garden_commit': '6eda85415feae21af117aa09125dcc88a1a3f9c1',
+              'chroot_exit': int((root / 'chroot-node-spawn.exit').read_text()),
+              'garden_exit': int((root / 'run.exit').read_text()),
+              'node_spawn_confirmed': True,
+              'airbnb_navigation': False,
+              'authority': {
+                  'mode': 'runtime_diagnostic_only',
+                  'external_submission': False,
+                  'deployment': False,
+                  'merge': False,
+              },
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/node-spawn/rootfs
+          rm -f reports/node-spawn/rootfs.tar
+          find reports/node-spawn -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/node-spawn/SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-node-spawn-ci-${{ github.run_id }}
+          path: reports/node-spawn/
+          if-no-files-found: error
+          retention-days: 14
