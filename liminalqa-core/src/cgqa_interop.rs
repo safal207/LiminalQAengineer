@@ -11,15 +11,13 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 pub const CGQA_EVIDENCE_SCHEMA: &str = "org.contractgraph-qa.liminalqa-evidence.v0.1";
-pub const CGQA_EVIDENCE_PROFILE: &str =
-    "org.contractgraph-qa.bounded-invariant-evidence.v0.1";
+pub const CGQA_EVIDENCE_PROFILE: &str = "org.contractgraph-qa.bounded-invariant-evidence.v0.1";
 pub const CGQA_EVIDENCE_SCHEMA_SHA256: &str =
     "53b0b4a0b1f4d77de26b8be9dbb90006ea0bd30c5cd3960a2f3e7d44d9664184";
 pub const LIMINAL_IMPORT_SCHEMA: &str = "org.liminalqa.cgqa-import-receipt.v0.1";
 pub const LIMINAL_IMPORT_PROFILE: &str = "org.liminalqa.bounded-evidence-intake.v0.1";
 pub const LIMINAL_CANDIDATE_SCHEMA: &str = "org.liminalqa.cgqa-candidates.v0.1";
-pub const LIMINAL_CANDIDATE_PROFILE: &str =
-    "org.liminalqa.non-authoritative-candidate-seeds.v0.1";
+pub const LIMINAL_CANDIDATE_PROFILE: &str = "org.liminalqa.non-authoritative-candidate-seeds.v0.1";
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum CgqaInteropError {
@@ -285,8 +283,11 @@ fn valid_sha256(value: &str) -> bool {
 }
 
 fn timestamp(value: &str, field: &str) -> Result<DateTime<FixedOffset>, CgqaInteropError> {
-    DateTime::parse_from_rfc3339(value)
-        .map_err(|_| invalid(format!("{field} must be an RFC 3339 timestamp with explicit offset")))
+    DateTime::parse_from_rfc3339(value).map_err(|_| {
+        invalid(format!(
+            "{field} must be an RFC 3339 timestamp with explicit offset"
+        ))
+    })
 }
 
 fn validate_subject(subject: &Subject) -> Result<(), CgqaInteropError> {
@@ -360,8 +361,7 @@ impl CgqaEvidenceExport {
 
         non_blank(&self.adapter.id, "adapter.id")?;
         non_blank(&self.adapter.version, "adapter.version")?;
-        if self.adapter.digest.algorithm != "sha256" || !valid_sha256(&self.adapter.digest.value)
-        {
+        if self.adapter.digest.algorithm != "sha256" || !valid_sha256(&self.adapter.digest.value) {
             return Err(invalid("adapter.digest must contain lowercase sha256"));
         }
         safe_id(&self.bound.search_run_id, "bound.searchRunId")?;
@@ -409,9 +409,7 @@ impl CgqaEvidenceExport {
                 check.severity.as_str(),
                 "critical" | "high" | "medium" | "low" | "info"
             ) {
-                return Err(invalid(format!(
-                    "checks[{index}].severity is unsupported"
-                )));
+                return Err(invalid(format!("checks[{index}].severity is unsupported")));
             }
             non_blank(&check.notes, &format!("checks[{index}].notes"))?;
             explored = explored
@@ -421,7 +419,9 @@ impl CgqaEvidenceExport {
                 "violated" => {
                     violated += 1;
                     let finding_id = check.finding_id.as_deref().ok_or_else(|| {
-                        invalid(format!("checks[{index}] violated status requires findingId"))
+                        invalid(format!(
+                            "checks[{index}] violated status requires findingId"
+                        ))
                     })?;
                     safe_id(finding_id, &format!("checks[{index}].findingId"))?;
                     if check.path_length.unwrap_or(0) == 0 {
@@ -474,7 +474,10 @@ impl CgqaEvidenceExport {
                     artifact.artifact_id
                 )));
             }
-            non_blank(&artifact.media_type, &format!("artifacts[{index}].mediaType"))?;
+            non_blank(
+                &artifact.media_type,
+                &format!("artifacts[{index}].mediaType"),
+            )?;
             if !valid_sha256(&artifact.sha256) || artifact.bytes == 0 {
                 return Err(invalid(format!(
                     "artifacts[{index}] must contain lowercase sha256 and positive bytes"
@@ -592,7 +595,9 @@ pub fn export_candidates(
     let derived = timestamp(derived_at, "derivedAt")?;
     let recorded = timestamp(&evidence.times.recorded_at, "times.recordedAt")?;
     if derived < recorded {
-        return Err(invalid("derivedAt must not precede source times.recordedAt"));
+        return Err(invalid(
+            "derivedAt must not precede source times.recordedAt",
+        ));
     }
     safe_id(operation_id, "identity.operationId")?;
     safe_id(attempt_id, "identity.attemptId")?;
@@ -632,10 +637,7 @@ pub fn export_candidates(
             evidence.export_id, check.invariant_id, check.status, kind
         );
         candidates.push(Candidate {
-            candidate_id: format!(
-                "liminal-candidate-{}",
-                &sha256_hex(seed.as_bytes())[..24]
-            ),
+            candidate_id: format!("liminal-candidate-{}", &sha256_hex(seed.as_bytes())[..24]),
             invariant_id: check.invariant_id.clone(),
             source_status: check.status.clone(),
             kind: kind.to_string(),
@@ -721,7 +723,9 @@ mod tests {
         value["authority"]["mayAuthorizeAction"] = serde_json::Value::Bool(true);
         let bytes = serde_json::to_vec(&value).unwrap();
         let error = CgqaEvidenceExport::from_json(&bytes).unwrap_err();
-        assert!(error.to_string().contains("authority must remain evidence_only"));
+        assert!(error
+            .to_string()
+            .contains("authority must remain evidence_only"));
     }
 
     #[test]
@@ -731,7 +735,7 @@ mod tests {
         let duplicate = duplicate_debt["verificationDebt"][0].clone();
         duplicate_debt["verificationDebt"]
             .as_array_mut()
-            .unwrap()
+            .expect("fixture verificationDebt must be an array")
             .push(duplicate);
         let error = CgqaEvidenceExport::from_json(&serde_json::to_vec(&duplicate_debt).unwrap())
             .unwrap_err();
@@ -739,8 +743,7 @@ mod tests {
 
         let mut unknown_severity: serde_json::Value =
             serde_json::from_slice(fixture_bytes()).unwrap();
-        unknown_severity["checks"][0]["severity"] =
-            serde_json::Value::String("urgent".to_string());
+        unknown_severity["checks"][0]["severity"] = serde_json::Value::String("urgent".to_string());
         let error = CgqaEvidenceExport::from_json(&serde_json::to_vec(&unknown_severity).unwrap())
             .unwrap_err();
         assert!(error.to_string().contains("severity is unsupported"));
@@ -754,7 +757,9 @@ mod tests {
         let other_bytes = serde_json::to_vec(&other).unwrap();
 
         let import_error = import_receipt(&evidence, &other_bytes).unwrap_err();
-        assert!(import_error.to_string().contains("source bytes do not encode"));
+        assert!(import_error
+            .to_string()
+            .contains("source bytes do not encode"));
 
         let export_error = export_candidates(
             &evidence,
@@ -764,7 +769,9 @@ mod tests {
             "attempt-001",
         )
         .unwrap_err();
-        assert!(export_error.to_string().contains("source bytes do not encode"));
+        assert!(export_error
+            .to_string()
+            .contains("source bytes do not encode"));
     }
 
     #[test]

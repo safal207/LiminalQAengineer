@@ -1,9 +1,7 @@
 //! File-first CGQA interop commands. These paths deliberately do not open LIMINAL-DB.
 
 use anyhow::{anyhow, Context, Result};
-use liminalqa_core::cgqa_interop::{
-    export_candidates, import_receipt, CgqaEvidenceExport,
-};
+use liminalqa_core::cgqa_interop::{export_candidates, import_receipt, CgqaEvidenceExport};
 use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -14,7 +12,9 @@ fn reject_parent_traversal(path: &Path, label: &str) -> Result<()> {
         .components()
         .any(|component| component == Component::ParentDir)
     {
-        return Err(anyhow!("{label} must not contain parent-directory traversal"));
+        return Err(anyhow!(
+            "{label} must not contain parent-directory traversal"
+        ));
     }
     Ok(())
 }
