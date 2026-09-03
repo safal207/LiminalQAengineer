@@ -7,6 +7,8 @@
 
 pub mod baseline;
 pub mod causality;
+pub mod cgqa_conformance;
+pub mod cgqa_interop;
 pub mod community;
 pub mod context;
 pub mod dashboard;

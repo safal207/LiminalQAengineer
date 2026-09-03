@@ -4,6 +4,8 @@
 [![Security Audit](https://github.com/safal207/LiminalQAengineer/workflows/Security%20Audit/badge.svg)](https://github.com/safal207/LiminalQAengineer/actions/workflows/security-audit.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+Documentation: [English](https://github.com/safal207/ContractGraph-QA/blob/3ff86db99ecb0eeae7fa4b517ac7c8a157a2441a/docs/i18n/en/GETTING_STARTED.md) · [简体中文](https://github.com/safal207/ContractGraph-QA/blob/3ff86db99ecb0eeae7fa4b517ac7c8a157a2441a/docs/i18n/zh-CN/GETTING_STARTED.md) · [हिन्दी](https://github.com/safal207/ContractGraph-QA/blob/3ff86db99ecb0eeae7fa4b517ac7c8a157a2441a/docs/i18n/hi/GETTING_STARTED.md) · [Español](https://github.com/safal207/ContractGraph-QA/blob/3ff86db99ecb0eeae7fa4b517ac7c8a157a2441a/docs/i18n/es/GETTING_STARTED.md) · [العربية](https://github.com/safal207/ContractGraph-QA/blob/3ff86db99ecb0eeae7fa4b517ac7c8a157a2441a/docs/i18n/ar/GETTING_STARTED.md)
+
 > **From raw test outcomes to actionable quality decisions.**
 
 ---
@@ -169,6 +171,15 @@ Guidance → Co-Navigation → Inner Council → Reflection
 - **liminalqa-ingest** — REST API для приёма данных о прогонах
 - **limctl** — CLI для управления прогонами и генерации отчётов
 
+Файловый адаптер [ContractGraph-QA interoperability v0.1](docs/CGQA_INTEROP.md)
+принимает bounded evidence без подмены статусов и экспортирует только
+неавторитетные candidates для независимого CGQA replay.
+
+Общий interop-hub также даёт consumer SDK для TypeScript/JavaScript, Go,
+Java/JVM и .NET. Вместе с нативными runners на Python, Rust и Elixir это восемь
+языковых экосистем с одним pinned contract и без смешения verdict authority:
+[SDK matrix](https://github.com/safal207/ContractGraph-QA/blob/3ff86db99ecb0eeae7fa4b517ac7c8a157a2441a/sdks/README.md).
+
 ## 🚀 Быстрый старт
 
 ### Docker-развертывание (рекомендуется)
@@ -306,6 +317,9 @@ impl TestCase for LoginTest {
 - `limctl query` — выполнение би-временных запросов
 - `limctl collect` — сбор артефактов
 - `limctl init` — инициализация нового проекта
+- `limctl import-cgqa` — строгая офлайн-проверка bounded evidence из ContractGraph-QA
+- `limctl export-cgqa-candidates` — офлайн-экспорт неавторитетных candidate seeds
+- `limctl cgqa-conformance` — 14 канонических взаимных golden/fail-closed vectors на Rust
 
 ## 🔗 Связанные проекты
 
@@ -371,6 +385,7 @@ POST /query
 - **[Grant Evidence Package](docs/GRANT_EVIDENCE.md)** — reviewer-facing evidence matrix, product wedge, limitations, and roadmap
 - **[MVP-1 Quickstart](docs/MVP1_QUICKSTART.md)** — начало работы за 5 минут
 - **[Architecture](docs/ARCHITECTURE.md)** — подробная архитектура системы
+- **[ContractGraph-QA Interop](docs/CGQA_INTEROP.md)** — взаимный evidence/candidate адаптер
 - **[Quickstart (Development)](docs/QUICKSTART.md)** — локальная разработка
 - **[Demo Guide](DEMO_GUIDE.md)** — руководство по демонстрации возможностей
 
