@@ -14,14 +14,11 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 
-pub const SUITE_SCHEMA: &str =
-    "org.contractgraph-qa.liminalqa-interop-conformance-suite.v0.1";
-pub const RESULT_SCHEMA: &str =
-    "org.contractgraph-qa.liminalqa-interop-conformance-result.v0.1";
+pub const SUITE_SCHEMA: &str = "org.contractgraph-qa.liminalqa-interop-conformance-suite.v0.1";
+pub const RESULT_SCHEMA: &str = "org.contractgraph-qa.liminalqa-interop-conformance-result.v0.1";
 pub const SUITE_ID: &str = "cgqa-liminalqa-v0.1";
 pub const SUITE_VERSION: &str = "0.1.0";
-pub const SUITE_SHA256: &str =
-    "562e2f9ae699f001b9ccf1b2b9f6dd30c435d53d668b5fd9a04ca15ca1e4faac";
+pub const SUITE_SHA256: &str = "562e2f9ae699f001b9ccf1b2b9f6dd30c435d53d668b5fd9a04ca15ca1e4faac";
 pub const SUITE_SCHEMA_SHA256: &str =
     "34acfc677802683c6c452a728ed533e92803a74d989b397d2d0fe549b1da93f9";
 pub const RESULT_SCHEMA_SHA256: &str =
@@ -31,8 +28,7 @@ pub const INVALID_BLOCKED: &str = "INVALID_BLOCKED";
 pub const UNSAFE_ACCEPTED: &str = "UNSAFE_ACCEPTED";
 pub const CLAIM_BOUNDARY: &str = "Synthetic conformance verifies adapter behavior only for these pinned fixtures and mutations. It does not verify a production system, prove security or completeness, authorize an action, or replace independent replay against the exact subject.";
 
-const CGQA_SCHEMA_SHA256: &str =
-    "53b0b4a0b1f4d77de26b8be9dbb90006ea0bd30c5cd3960a2f3e7d44d9664184";
+const CGQA_SCHEMA_SHA256: &str = "53b0b4a0b1f4d77de26b8be9dbb90006ea0bd30c5cd3960a2f3e7d44d9664184";
 const CGQA_FIXTURE_SHA256: &str =
     "e1d5a14c5c1b75e2cfffaf87bf526fd61e141a0c5b7828de4f275e9792fda3ce";
 const LIMINAL_SCHEMA_SHA256: &str =
@@ -185,7 +181,9 @@ fn read_external_asset(root: &Path, relative: &str) -> Result<Vec<u8>, CgqaConfo
     }
     let resolved = fs::canonicalize(&candidate)?;
     if !resolved.starts_with(root) {
-        return Err(invalid(format!("suite asset escapes suite root: {relative}")));
+        return Err(invalid(format!(
+            "suite asset escapes suite root: {relative}"
+        )));
     }
     Ok(fs::read(resolved)?)
 }
@@ -255,8 +253,7 @@ fn load_suite(path: Option<&Path>) -> Result<LoadedSuite, CgqaConformanceError> 
             )));
         }
         let fixture: Value = serde_json::from_slice(&fixture_raw)?;
-        if fixture.get("schema").and_then(Value::as_str)
-            != Some(contract.artifact_schema.as_str())
+        if fixture.get("schema").and_then(Value::as_str) != Some(contract.artifact_schema.as_str())
             || fixture.get("profile").and_then(Value::as_str)
                 != Some(contract.artifact_profile.as_str())
         {
@@ -310,7 +307,9 @@ fn validate_suite(suite: &Suite) -> Result<(), CgqaConformanceError> {
         return Err(invalid("suite schema pins are unsupported"));
     }
     if suite.contracts.len() != 2 || suite.cases.len() != 14 {
-        return Err(invalid("v0.1 suite must contain two contracts and 14 cases"));
+        return Err(invalid(
+            "v0.1 suite must contain two contracts and 14 cases",
+        ));
     }
 
     let mut contract_ids = HashSet::new();
@@ -319,12 +318,15 @@ fn validate_suite(suite: &Suite) -> Result<(), CgqaConformanceError> {
             || !valid_sha256(&contract.schema_sha256)
             || !valid_sha256(&contract.fixture_sha256)
             || contract.producer_commit.len() != 40
-            || !contract.producer_commit.bytes().all(|byte| {
-                byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
-            })
+            || !contract
+                .producer_commit
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
             || !contract_ids.insert(contract.id.as_str())
         {
-            return Err(invalid("suite contains an invalid or duplicate contract pin"));
+            return Err(invalid(
+                "suite contains an invalid or duplicate contract pin",
+            ));
         }
         let expected = match contract.id.as_str() {
             "cgqa-evidence" => (
@@ -437,7 +439,9 @@ fn pointer_tokens(pointer: &str) -> Result<Vec<String>, CgqaConformanceError> {
 
 fn array_index(token: &str) -> Result<usize, CgqaConformanceError> {
     if token.is_empty() || !token.bytes().all(|byte| byte.is_ascii_digit()) {
-        return Err(invalid(format!("operation list pointer is invalid: {token}")));
+        return Err(invalid(format!(
+            "operation list pointer is invalid: {token}"
+        )));
     }
     token
         .parse::<usize>()
@@ -450,9 +454,9 @@ fn navigate_mut<'a>(
 ) -> Result<&'a mut Value, CgqaConformanceError> {
     for token in tokens {
         current = match current {
-            Value::Object(object) => object
-                .get_mut(token)
-                .ok_or_else(|| invalid(format!("operation pointer component is absent: {token}")))?,
+            Value::Object(object) => object.get_mut(token).ok_or_else(|| {
+                invalid(format!("operation pointer component is absent: {token}"))
+            })?,
             Value::Array(array) => {
                 let index = array_index(token)?;
                 array.get_mut(index).ok_or_else(|| {
@@ -465,7 +469,10 @@ fn navigate_mut<'a>(
     Ok(current)
 }
 
-fn apply_operation(base_raw: &[u8], operation: &Operation) -> Result<Vec<u8>, CgqaConformanceError> {
+fn apply_operation(
+    base_raw: &[u8],
+    operation: &Operation,
+) -> Result<Vec<u8>, CgqaConformanceError> {
     if matches!(operation, Operation::Identity) {
         return Ok(base_raw.to_vec());
     }
@@ -523,7 +530,9 @@ fn apply_operation(base_raw: &[u8], operation: &Operation) -> Result<Vec<u8>, Cg
                 let target = object
                     .get_mut(last)
                     .ok_or_else(|| invalid(format!("operation target does not exist: {last}")))?;
-                *target = replacement.expect("replace has a replacement value").clone();
+                *target = replacement
+                    .expect("replace has a replacement value")
+                    .clone();
             }
             "remove" => {
                 if object.remove(last).is_none() {
@@ -550,7 +559,9 @@ fn apply_operation(base_raw: &[u8], operation: &Operation) -> Result<Vec<u8>, Cg
                     let target = array.get_mut(index).ok_or_else(|| {
                         invalid(format!("operation list index is out of range: {index}"))
                     })?;
-                    *target = replacement.expect("replace has a replacement value").clone();
+                    *target = replacement
+                        .expect("replace has a replacement value")
+                        .clone();
                 }
                 "remove" => {
                     if index >= array.len() {
@@ -563,7 +574,11 @@ fn apply_operation(base_raw: &[u8], operation: &Operation) -> Result<Vec<u8>, Cg
                 _ => unreachable!(),
             }
         }
-        _ => return Err(invalid("operation pointer parent must be an object or array")),
+        _ => {
+            return Err(invalid(
+                "operation pointer parent must be an object or array",
+            ))
+        }
     }
 
     let mut canonical = serde_json::to_vec(&document)?;
@@ -610,9 +625,7 @@ fn observe(artifact_schema: &str, raw: &[u8]) -> (String, String) {
 }
 
 /// Run all pinned vectors through the native Rust adapter.
-pub fn run_cgqa_conformance_suite(
-    path: Option<&Path>,
-) -> Result<Value, CgqaConformanceError> {
+pub fn run_cgqa_conformance_suite(path: Option<&Path>) -> Result<Value, CgqaConformanceError> {
     let loaded = load_suite(path)?;
     let contracts: BTreeMap<&str, &Contract> = loaded
         .suite
@@ -720,7 +733,7 @@ mod tests {
         assert_eq!(report["counts"]["failed"], 0);
         assert!(report["results"]
             .as_array()
-            .unwrap()
+            .expect("conformance results must be an array")
             .iter()
             .all(|result| result["sideEffectExecuted"] == false));
         assert_eq!(report["authority"]["mayAuthorizeAction"], false);
@@ -728,14 +741,15 @@ mod tests {
 
     #[test]
     fn candidate_decoder_rejects_weakened_fresh_verification() {
-        let fixture = embedded_asset("fixtures/liminalqa-cgqa-candidates-v0.1.json").unwrap();
+        let fixture = embedded_asset("fixtures/liminalqa-cgqa-candidates-v0.1.json")
+            .expect("candidate fixture must be embedded");
         let mut candidate: Value = serde_json::from_slice(fixture).unwrap();
         candidate["candidates"][0]["requiredChecks"]
             .as_array_mut()
-            .unwrap()
+            .expect("requiredChecks must be an array")
             .retain(|check| check != "independent_cgqa_replay");
-        let error = CgqaCandidateExport::from_json(&serde_json::to_vec(&candidate).unwrap())
-            .unwrap_err();
+        let error =
+            CgqaCandidateExport::from_json(&serde_json::to_vec(&candidate).unwrap()).unwrap_err();
         assert!(error.to_string().contains("independent_cgqa_replay"));
     }
 }
