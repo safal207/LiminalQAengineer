@@ -7,6 +7,8 @@
 //!   limctl query <query.json>    — Query LIMINAL-DB
 //!   limctl list runs             — List all runs
 //!   limctl list tests <run-id>   — List tests for a run
+//!   limctl import-cgqa           — Validate bounded CGQA evidence offline
+//!   limctl export-cgqa-candidates — Derive non-authoritative CGQA seeds offline
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -87,6 +89,48 @@ enum Commands {
         #[arg(default_value = ".")]
         directory: PathBuf,
     },
+
+    /// Validate bounded ContractGraph-QA evidence without opening LIMINAL-DB
+    ImportCgqa {
+        /// ContractGraph-QA LiminalQA Evidence v0.1 JSON
+        #[arg(long)]
+        input: PathBuf,
+
+        /// Destination import receipt JSON
+        #[arg(long)]
+        output: PathBuf,
+
+        /// Replace an existing regular output file
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Derive non-authoritative candidate seeds from bounded CGQA evidence
+    ExportCgqaCandidates {
+        /// ContractGraph-QA LiminalQA Evidence v0.1 JSON
+        #[arg(long)]
+        input: PathBuf,
+
+        /// Destination candidate export JSON
+        #[arg(long)]
+        output: PathBuf,
+
+        /// Derivation time as RFC 3339 with explicit offset
+        #[arg(long)]
+        derived_at: String,
+
+        /// Identifier for this derivation operation
+        #[arg(long)]
+        operation_id: String,
+
+        /// Identifier for this derivation attempt
+        #[arg(long)]
+        attempt_id: String,
+
+        /// Replace an existing regular output file
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -130,6 +174,35 @@ async fn main() -> Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
+    // File-only interop must not create or open LIMINAL-DB as an incidental side effect.
+    match &cli.command {
+        Commands::ImportCgqa {
+            input,
+            output,
+            force,
+        } => {
+            return cgqa_interop_command::execute_import(input, output, *force);
+        }
+        Commands::ExportCgqaCandidates {
+            input,
+            output,
+            derived_at,
+            operation_id,
+            attempt_id,
+            force,
+        } => {
+            return cgqa_interop_command::execute_candidate_export(
+                input,
+                output,
+                derived_at,
+                operation_id,
+                attempt_id,
+                *force,
+            );
+        }
+        _ => {}
+    }
+
     // Open database
     let db = LiminalDB::open(&cli.db_path)
         .context(format!("Failed to open database at {:?}", cli.db_path))?;
@@ -165,6 +238,9 @@ async fn main() -> Result<()> {
         },
         Commands::Init { directory } => {
             init_command::execute(&directory).await?;
+        }
+        Commands::ImportCgqa { .. } | Commands::ExportCgqaCandidates { .. } => {
+            unreachable!("file-only interop commands returned before opening LIMINAL-DB")
         }
     }
 

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/safal207/LiminalQAengineer/main/schemas/interop/liminalqa-cgqa-import-receipt-v0.1.schema.json",
+  "title": "LiminalQA CGQA bounded-evidence import receipt v0.1",
+  "type": "object",
+  "required": [
+    "schema",
+    "profile",
+    "receiptId",
+    "consumer",
+    "source",
+    "subject",
+    "identity",
+    "acceptedAs",
+    "mayAuthorizeAction",
+    "statusCounts",
+    "limitations"
+  ],
+  "properties": {
+    "schema": { "const": "org.liminalqa.cgqa-import-receipt.v0.1" },
+    "profile": { "const": "org.liminalqa.bounded-evidence-intake.v0.1" },
+    "receiptId": { "$ref": "#/$defs/safeId" },
+    "consumer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "liminalqa" },
+        "version": { "$ref": "#/$defs/nonBlank" }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["schema", "exportId", "sha256"],
+      "properties": {
+        "schema": { "const": "org.contractgraph-qa.liminalqa-evidence.v0.1" },
+        "exportId": { "$ref": "#/$defs/safeId" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "subject": { "$ref": "#/$defs/subject" },
+    "identity": { "$ref": "#/$defs/identity" },
+    "acceptedAs": { "const": "bounded_evidence" },
+    "mayAuthorizeAction": { "const": false },
+    "statusCounts": {
+      "type": "object",
+      "required": ["violated", "not_found_within_bound", "inconclusive"],
+      "properties": {
+        "violated": { "type": "integer", "minimum": 0 },
+        "not_found_within_bound": { "type": "integer", "minimum": 0 },
+        "inconclusive": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/nonBlank" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nonBlank": { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+    "safeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "subject": {
+      "type": "object",
+      "required": ["repository", "commitSha", "contract", "network", "scopeId"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/nonBlank" },
+        "commitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "contract": { "$ref": "#/$defs/nonBlank" },
+        "network": { "$ref": "#/$defs/nonBlank" },
+        "scopeId": { "$ref": "#/$defs/nonBlank" }
+      },
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "required": ["traceId", "operationId", "attemptId"],
+      "properties": {
+        "traceId": { "$ref": "#/$defs/safeId" },
+        "operationId": { "$ref": "#/$defs/safeId" },
+        "attemptId": { "$ref": "#/$defs/safeId" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

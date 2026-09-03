@@ -169,6 +169,10 @@ Guidance → Co-Navigation → Inner Council → Reflection
 - **liminalqa-ingest** — REST API для приёма данных о прогонах
 - **limctl** — CLI для управления прогонами и генерации отчётов
 
+Файловый адаптер [ContractGraph-QA interoperability v0.1](docs/CGQA_INTEROP.md)
+принимает bounded evidence без подмены статусов и экспортирует только
+неавторитетные candidates для независимого CGQA replay.
+
 ## 🚀 Быстрый старт
 
 ### Docker-развертывание (рекомендуется)
@@ -306,6 +310,8 @@ impl TestCase for LoginTest {
 - `limctl query` — выполнение би-временных запросов
 - `limctl collect` — сбор артефактов
 - `limctl init` — инициализация нового проекта
+- `limctl import-cgqa` — строгая офлайн-проверка bounded evidence из ContractGraph-QA
+- `limctl export-cgqa-candidates` — офлайн-экспорт неавторитетных candidate seeds
 
 ## 🔗 Связанные проекты
 
@@ -371,6 +377,7 @@ POST /query
 - **[Grant Evidence Package](docs/GRANT_EVIDENCE.md)** — reviewer-facing evidence matrix, product wedge, limitations, and roadmap
 - **[MVP-1 Quickstart](docs/MVP1_QUICKSTART.md)** — начало работы за 5 минут
 - **[Architecture](docs/ARCHITECTURE.md)** — подробная архитектура системы
+- **[ContractGraph-QA Interop](docs/CGQA_INTEROP.md)** — взаимный evidence/candidate адаптер
 - **[Quickstart (Development)](docs/QUICKSTART.md)** — локальная разработка
 - **[Demo Guide](DEMO_GUIDE.md)** — руководство по демонстрации возможностей
 
