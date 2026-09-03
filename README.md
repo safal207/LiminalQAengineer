@@ -4,6 +4,8 @@
 [![Security Audit](https://github.com/safal207/LiminalQAengineer/workflows/Security%20Audit/badge.svg)](https://github.com/safal207/LiminalQAengineer/actions/workflows/security-audit.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+Documentation: [English](https://github.com/safal207/ContractGraph-QA/blob/main/docs/i18n/en/GETTING_STARTED.md) · [简体中文](https://github.com/safal207/ContractGraph-QA/blob/main/docs/i18n/zh-CN/GETTING_STARTED.md) · [हिन्दी](https://github.com/safal207/ContractGraph-QA/blob/main/docs/i18n/hi/GETTING_STARTED.md) · [Español](https://github.com/safal207/ContractGraph-QA/blob/main/docs/i18n/es/GETTING_STARTED.md) · [العربية](https://github.com/safal207/ContractGraph-QA/blob/main/docs/i18n/ar/GETTING_STARTED.md)
+
 > **From raw test outcomes to actionable quality decisions.**
 
 ---
@@ -172,6 +174,11 @@ Guidance → Co-Navigation → Inner Council → Reflection
 Файловый адаптер [ContractGraph-QA interoperability v0.1](docs/CGQA_INTEROP.md)
 принимает bounded evidence без подмены статусов и экспортирует только
 неавторитетные candidates для независимого CGQA replay.
+
+Общий interop-hub также даёт consumer SDK для TypeScript/JavaScript, Go,
+Java/JVM и .NET. Вместе с нативными runners на Python, Rust и Elixir это восемь
+языковых экосистем с одним pinned contract и без смешения verdict authority:
+[SDK matrix](https://github.com/safal207/ContractGraph-QA/blob/main/sdks/README.md).
 
 ## 🚀 Быстрый старт
 
