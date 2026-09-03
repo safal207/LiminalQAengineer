@@ -79,7 +79,7 @@ Every result keeps `sideEffectExecuted=false`; `PASS` is bounded to the pinned
 synthetic fixtures and mutations and is not production or security proof.
 
 Application integrations can validate this report with the shared
-[TypeScript/JavaScript, Go, JVM, and .NET consumer SDKs](https://github.com/safal207/ContractGraph-QA/blob/main/sdks/README.md).
+[TypeScript/JavaScript, Go, JVM, and .NET consumer SDKs](https://github.com/safal207/ContractGraph-QA/blob/3ff86db99ecb0eeae7fa4b517ac7c8a157a2441a/sdks/README.md).
 Those packages pin the same 14 case digests and remain non-authorizing; the
 Rust runner in this repository remains the native LiminalQA implementation.
 
