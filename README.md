@@ -312,6 +312,7 @@ impl TestCase for LoginTest {
 - `limctl init` — инициализация нового проекта
 - `limctl import-cgqa` — строгая офлайн-проверка bounded evidence из ContractGraph-QA
 - `limctl export-cgqa-candidates` — офлайн-экспорт неавторитетных candidate seeds
+- `limctl cgqa-conformance` — 14 канонических взаимных golden/fail-closed vectors на Rust
 
 ## 🔗 Связанные проекты
 

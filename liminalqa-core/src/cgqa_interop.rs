@@ -540,6 +540,168 @@ impl CgqaEvidenceExport {
     }
 }
 
+impl CgqaCandidateExport {
+    /// Decode and validate a LiminalQA candidate export at the trust boundary.
+    pub fn from_json(bytes: &[u8]) -> Result<Self, CgqaInteropError> {
+        let profile: Self = serde_json::from_slice(bytes)
+            .map_err(|error| CgqaInteropError::Json(error.to_string()))?;
+        profile.validate()?;
+        Ok(profile)
+    }
+
+    /// Validate the non-authorizing candidate contract without executing a candidate.
+    pub fn validate(&self) -> Result<(), CgqaInteropError> {
+        if self.schema != LIMINAL_CANDIDATE_SCHEMA {
+            return Err(invalid("candidate schema is unsupported"));
+        }
+        if self.profile != LIMINAL_CANDIDATE_PROFILE {
+            return Err(invalid("candidate profile is unsupported"));
+        }
+        safe_id(&self.export_id, "exportId")?;
+        if self.producer.name != "liminalqa" {
+            return Err(invalid("producer.name must be liminalqa"));
+        }
+        non_blank(&self.producer.version, "producer.version")?;
+
+        if self.source_evidence.schema != CGQA_EVIDENCE_SCHEMA {
+            return Err(invalid("sourceEvidence.schema is unsupported"));
+        }
+        safe_id(&self.source_evidence.export_id, "sourceEvidence.exportId")?;
+        if !valid_sha256(&self.source_evidence.sha256) {
+            return Err(invalid("sourceEvidence.sha256 must be lowercase sha256"));
+        }
+        validate_subject(&self.subject)?;
+        validate_identity(&self.identity)?;
+        timestamp(&self.derived_at, "derivedAt")?;
+
+        if self.authority.classification != "non_authoritative_seed"
+            || self.authority.may_authorize_action
+            || !self.authority.requires_cgqa_verification
+        {
+            return Err(invalid(
+                "candidate authority must remain non_authoritative_seed, non-authorizing, and require CGQA verification",
+            ));
+        }
+
+        let mut candidate_ids = HashSet::new();
+        let mut invariant_ids = HashSet::new();
+        let mut expected_debt = HashSet::new();
+        for (index, candidate) in self.candidates.iter().enumerate() {
+            safe_id(
+                &candidate.candidate_id,
+                &format!("candidates[{index}].candidateId"),
+            )?;
+            if !candidate_ids.insert(candidate.candidate_id.as_str()) {
+                return Err(invalid("candidates contains duplicate candidate ids"));
+            }
+            safe_id(
+                &candidate.invariant_id,
+                &format!("candidates[{index}].invariantId"),
+            )?;
+            if !invariant_ids.insert(candidate.invariant_id.as_str()) {
+                return Err(invalid("candidates contains duplicate invariants"));
+            }
+            non_blank(&candidate.reason, &format!("candidates[{index}].reason"))?;
+            if !matches!(
+                candidate.priority.as_str(),
+                "critical" | "high" | "medium" | "low"
+            ) {
+                return Err(invalid(format!(
+                    "candidates[{index}].priority is unsupported"
+                )));
+            }
+
+            let expected_kind = match candidate.source_status.as_str() {
+                "violated" => "replay_regression",
+                "inconclusive" => {
+                    expected_debt.insert(candidate.invariant_id.as_str());
+                    "verification_debt"
+                }
+                _ => {
+                    return Err(invalid(format!(
+                        "candidates[{index}].sourceStatus is unsupported"
+                    )))
+                }
+            };
+            if candidate.kind != expected_kind {
+                return Err(invalid(format!(
+                    "candidates[{index}].kind does not match sourceStatus"
+                )));
+            }
+
+            let mut required_checks = HashSet::new();
+            for (check_index, check) in candidate.required_checks.iter().enumerate() {
+                non_blank(
+                    check,
+                    &format!("candidates[{index}].requiredChecks[{check_index}]"),
+                )?;
+                if !required_checks.insert(check.as_str()) {
+                    return Err(invalid(format!(
+                        "candidates[{index}].requiredChecks contains duplicates"
+                    )));
+                }
+            }
+            if !required_checks.contains("exact_subject")
+                || !required_checks.contains("independent_cgqa_replay")
+            {
+                return Err(invalid(format!(
+                    "candidates[{index}] must require exact_subject and independent_cgqa_replay"
+                )));
+            }
+            let status_specific_check = if candidate.source_status == "violated" {
+                "failing_path_integrity"
+            } else {
+                "reviewed_bound_change"
+            };
+            if !required_checks.contains(status_specific_check) {
+                return Err(invalid(format!(
+                    "candidates[{index}] is missing its status-specific verification check"
+                )));
+            }
+        }
+
+        let mut parents = HashSet::new();
+        for (index, parent) in self.causal_parents.iter().enumerate() {
+            safe_id(parent, &format!("causalParents[{index}]"))?;
+            if !parents.insert(parent.as_str()) {
+                return Err(invalid("causalParents contains duplicates"));
+            }
+        }
+        if parents.is_empty() || !parents.contains(self.source_evidence.export_id.as_str()) {
+            return Err(invalid(
+                "causalParents must contain sourceEvidence.exportId",
+            ));
+        }
+
+        if self.limitations.is_empty()
+            || self
+                .limitations
+                .iter()
+                .any(|limitation| limitation.trim().is_empty())
+        {
+            return Err(invalid("limitations must contain non-empty entries"));
+        }
+
+        let mut actual_debt = HashSet::new();
+        for (index, debt) in self.verification_debt.iter().enumerate() {
+            safe_id(
+                &debt.invariant_id,
+                &format!("verificationDebt[{index}].invariantId"),
+            )?;
+            non_blank(&debt.reason, &format!("verificationDebt[{index}].reason"))?;
+            if !actual_debt.insert(debt.invariant_id.as_str()) {
+                return Err(invalid("verificationDebt contains duplicate invariants"));
+            }
+        }
+        if expected_debt != actual_debt {
+            return Err(invalid(
+                "verificationDebt must enumerate every and only inconclusive candidate",
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub fn import_receipt(
     evidence: &CgqaEvidenceExport,
     source_bytes: &[u8],

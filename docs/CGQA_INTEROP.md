@@ -55,6 +55,29 @@ The Rust decoder denies unknown fields and validates exact subject identity,
 time ordering, adapter digest, status counts, artifact metadata, verification
 debt, and the evidence/authorization boundary.
 
+## Portable conformance runner
+
+LiminalQA vendors the canonical v0.1 suite byte-for-byte under
+[`conformance/cgqa-liminalqa-v0.1`](../conformance/cgqa-liminalqa-v0.1).
+Run all 14 golden and fail-closed vectors through the native Rust adapters:
+
+```bash
+cargo run --bin limctl -- cgqa-conformance
+```
+
+To check a separately downloaded exact copy, pass its `suite.json`:
+
+```bash
+cargo run --bin limctl -- cgqa-conformance \
+  --suite path/to/cgqa-liminalqa-v0.1/suite.json
+```
+
+The runner rejects suite or asset drift before invoking an adapter. The
+canonical `suite.json` SHA-256 is
+`562e2f9ae699f001b9ccf1b2b9f6dd30c435d53d668b5fd9a04ca15ca1e4faac`.
+Every result keeps `sideEffectExecuted=false`; `PASS` is bounded to the pinned
+synthetic fixtures and mutations and is not production or security proof.
+
 ## Boundary
 
 LiminalQA candidates are hypotheses, not findings. They cannot authorize an

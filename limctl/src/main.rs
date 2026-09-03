@@ -9,6 +9,7 @@
 //!   limctl list tests <run-id>   — List tests for a run
 //!   limctl import-cgqa           — Validate bounded CGQA evidence offline
 //!   limctl export-cgqa-candidates — Derive non-authoritative CGQA seeds offline
+//!   limctl cgqa-conformance      — Run the pinned bidirectional interop suite
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -131,6 +132,13 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
+
+    /// Run the pinned CGQA/LiminalQA golden and fail-closed vectors offline
+    CgqaConformance {
+        /// Optional path to an exact byte-for-byte copy of suite.json
+        #[arg(long)]
+        suite: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -200,6 +208,9 @@ async fn main() -> Result<()> {
                 *force,
             );
         }
+        Commands::CgqaConformance { suite } => {
+            return cgqa_conformance_command::execute(suite.as_deref());
+        }
         _ => {}
     }
 
@@ -239,7 +250,9 @@ async fn main() -> Result<()> {
         Commands::Init { directory } => {
             init_command::execute(&directory).await?;
         }
-        Commands::ImportCgqa { .. } | Commands::ExportCgqaCandidates { .. } => {
+        Commands::ImportCgqa { .. }
+        | Commands::ExportCgqaCandidates { .. }
+        | Commands::CgqaConformance { .. } => {
             unreachable!("file-only interop commands returned before opening LIMINAL-DB")
         }
     }
