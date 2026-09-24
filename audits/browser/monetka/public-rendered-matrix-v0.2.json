@@ -1,0 +1,36 @@
+{
+  "schema_version": "liminalqa-monetka-public-rendered-v1",
+  "audit_id": "MONETKA-RENDERED-2026-07-27-V0.2",
+  "contract_path": "audits/monetka/public-audit-v0.1/contract.json",
+  "navigation": {
+    "wait_until": "networkidle2",
+    "timeout_ms": 70000,
+    "settle_ms": 3500,
+    "max_parallel": 1,
+    "activate_controls": false,
+    "submit_forms": false
+  },
+  "profiles": [
+    {
+      "id": "desktop",
+      "viewport": {"width": 1440, "height": 1000, "deviceScaleFactor": 1},
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+      "mobile": false,
+      "touch": false
+    },
+    {
+      "id": "mobile",
+      "viewport": {"width": 390, "height": 844, "deviceScaleFactor": 1},
+      "user_agent": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36",
+      "mobile": true,
+      "touch": true
+    }
+  ],
+  "capture": {
+    "full_page_screenshot": true,
+    "visible_text_limit": 30000,
+    "console_limit": 100,
+    "failed_request_limit": 100,
+    "keyboard_tab_steps": 20
+  }
+}

@@ -1,0 +1,303 @@
+{
+  "schema_version": "liminalqa-monetka-public-audit-v1",
+  "audit_id": "MONETKA-OUTSIDE-IN-2026-07-27-V0.1",
+  "observation_date": "2026-07-27",
+  "name": "Monetka public commerce, policy, and distribution audit",
+  "target": {
+    "organization": "ТС «Монетка» / ООО «Элемент-Трейд»",
+    "allowed_origins": [
+      "https://monetka.ru",
+      "https://www.monetka.ru",
+      "https://play.google.com",
+      "https://apps.apple.com"
+    ],
+    "engagement_kind": "independent_outside_in",
+    "authorization_basis": "public_pages_passive_observation_only"
+  },
+  "coordinate_model": {
+    "O": "official public URL + unauthenticated state + observation time",
+    "N": "passive external observer",
+    "X": "channel -> route -> content block -> claim",
+    "Y": "current -> stale -> contradictory -> ambiguous -> context-required",
+    "Z": "raw public response first; rendered desktop/mobile confirmation second",
+    "T": "navigation -> settled response -> normalization -> human judgment"
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_get_navigation_only": true,
+    "authentication": false,
+    "form_submission": false,
+    "button_clicks": false,
+    "address_entry": false,
+    "cart_mutation": false,
+    "order_creation": false,
+    "payment_attempt": false,
+    "promo_activation": false,
+    "email_or_external_contact": false,
+    "direct_api_testing": false,
+    "active_security_testing": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "runtime": {
+    "timeout_seconds": 40,
+    "max_response_bytes": 5000000,
+    "max_parallel": 1,
+    "user_agent": "Mozilla/5.0 (compatible; LiminalQA-Passive-Public-Audit/0.1; +https://github.com/safal207/LiminalQAengineer)"
+  },
+  "allowed_urls": [
+    "https://monetka.ru/",
+    "https://monetka.ru/action/",
+    "https://monetka.ru/info/user-agreement/",
+    "https://www.monetka.ru/urfo",
+    "https://play.google.com/store/apps/details?hl=ru&id=ru.mntk.dostavka.prod",
+    "https://apps.apple.com/ru/app/%D0%BC%D0%BE%D0%BD%D0%B5%D1%82%D0%BA%D0%B0-%D0%B4%D0%BE%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B0-%D0%BF%D1%80%D0%BE%D0%B4%D1%83%D0%BA%D1%82%D0%BE%D0%B2/id6742408188"
+  ],
+  "targets": [
+    {
+      "slug": "web-home",
+      "url": "https://monetka.ru/",
+      "role": "current public delivery and catalog landing",
+      "assertions": [
+        {
+          "id": "web_commerce_controls",
+          "type": "all_of",
+          "markers": ["Доставка продуктов на дом", "Каталог", "Корзина", "Войти"]
+        }
+      ]
+    },
+    {
+      "slug": "web-actions",
+      "url": "https://monetka.ru/action/",
+      "role": "current promotions route before address entry",
+      "assertions": [
+        {
+          "id": "actions_route_identity",
+          "type": "all_of",
+          "markers": ["Акции", "Укажите адрес доставки"]
+        }
+      ]
+    },
+    {
+      "slug": "user-agreement",
+      "url": "https://monetka.ru/info/user-agreement/",
+      "role": "public ordering and eligibility policy",
+      "assertions": [
+        {
+          "id": "site_scope_app_ordering",
+          "type": "all_of",
+          "markers": [
+            "Официальный сайт Монетка",
+            "для осуществления поиска товаров Магазина, ознакомления с информацией акциях",
+            "Заказ — оформленный Пользователем в Приложении"
+          ]
+        },
+        {
+          "id": "agreement_age_18",
+          "type": "all_of",
+          "markers": ["Пользователь подтверждает", "достиг возраста 18 лет"]
+        },
+        {
+          "id": "agreement_copy_defects",
+          "type": "all_of",
+          "markers": [
+            "с информацией акциях",
+            "Временные сбои и перерывы в работе Приложения доступность функционала",
+            "В целях противодействия Злоупотреблению недобросовестному использованию"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "legacy-region",
+      "url": "https://www.monetka.ru/urfo",
+      "role": "legacy regional commercial landing",
+      "assertions": [
+        {
+          "id": "expired_june_promotion",
+          "type": "all_of",
+          "markers": ["Акция на товары с 1 июня по 7 июня 2026", "до 7 июня"]
+        }
+      ]
+    },
+    {
+      "slug": "google-play",
+      "url": "https://play.google.com/store/apps/details?hl=ru&id=ru.mntk.dostavka.prod",
+      "role": "official Android distribution listing",
+      "assertions": [
+        {
+          "id": "google_age_18",
+          "type": "all_of",
+          "markers": ["Монетка - доставка продуктов", "18+"]
+        },
+        {
+          "id": "google_delivery_from_30",
+          "type": "all_of",
+          "markers": ["с доставкой от 30 минут", "привезём всё что нужно от 30 минут"]
+        },
+        {
+          "id": "google_orphaned_first_order_terms",
+          "type": "all_of",
+          "markers": ["Действует на первый заказ от 1200 ₽", "Максимальная скидка — 1 000 ₽"]
+        },
+        {
+          "id": "google_missing_offer_value",
+          "type": "none_of",
+          "markers": ["скидка 25%", "скидка 20%", "скидка 15%", "скидка 10%"]
+        },
+        {
+          "id": "google_privacy_disclosure",
+          "type": "all_of",
+          "markers": [
+            "Личная информация, Финансовые данные",
+            "Данные не шифруются",
+            "Вы можете запросить удаление данных"
+          ]
+        },
+        {
+          "id": "google_cross_brand_support_routing",
+          "type": "all_of",
+          "markers": ["max.ru/lentacompany_bot", "t.me/LENTAcompany_bot"]
+        }
+      ]
+    },
+    {
+      "slug": "app-store",
+      "url": "https://apps.apple.com/ru/app/%D0%BC%D0%BE%D0%BD%D0%B5%D1%82%D0%BA%D0%B0-%D0%B4%D0%BE%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B0-%D0%BF%D1%80%D0%BE%D0%B4%D1%83%D0%BA%D1%82%D0%BE%D0%B2/id6742408188",
+      "role": "official iOS distribution listing",
+      "assertions": [
+        {
+          "id": "apple_age_13",
+          "type": "all_of",
+          "markers": ["Монетка – доставка продуктов", "13+"]
+        },
+        {
+          "id": "apple_delivery_from_30",
+          "type": "all_of",
+          "markers": ["Доставка продуктов от 30 мин", "с доставкой от 30 минут"]
+        },
+        {
+          "id": "apple_orphaned_first_order_terms",
+          "type": "all_of",
+          "markers": ["Действует на первый заказ от 1200 ₽", "Максимальная скидка — 1 000 ₽"]
+        },
+        {
+          "id": "apple_missing_offer_value",
+          "type": "none_of",
+          "markers": ["скидка 25%", "скидка 20%", "скидка 15%", "скидка 10%"]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "MON-001",
+      "title": "A legacy regional landing continues to publish an expired June promotion",
+      "severity": "HIGH",
+      "evidence_refs": ["legacy-region:expired_june_promotion"],
+      "quality_lens": "A commercial landing observed on 27 July 2026 still presents a 1–7 June 2026 promotion as the primary offer.",
+      "system_lens": "Legacy regional publishing and the current delivery site appear to have separate freshness and retirement controls.",
+      "business_lens": "Expired product prices can mislead shoppers and create avoidable support or store-level disputes.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the expired offer is visible in settled desktop and mobile renders and is not explicitly marked as archive content."
+    },
+    {
+      "id": "MON-002",
+      "title": "Age eligibility is inconsistent between the public agreement and app-store channels",
+      "severity": "MEDIUM",
+      "evidence_refs": ["user-agreement:agreement_age_18", "google-play:google_age_18", "app-store:apple_age_13"],
+      "quality_lens": "The agreement and Android listing require or display 18+, while the iOS listing displays 13+.",
+      "system_lens": "Eligibility metadata is not governed as one cross-channel policy value.",
+      "business_lens": "Different age promises can confuse families, support teams, and marketplace reviewers.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm all three values are visible; human review must account for platform-specific rating rules and must not infer legal non-compliance."
+    },
+    {
+      "id": "MON-003",
+      "title": "The public website exposes commerce controls while the agreement describes ordering as app-only",
+      "severity": "MEDIUM",
+      "evidence_refs": ["web-home:web_commerce_controls", "user-agreement:site_scope_app_ordering"],
+      "quality_lens": "The website presents catalog, login, and basket controls, while the agreement defines website use as search and promotion viewing and repeatedly defines orders through the application.",
+      "system_lens": "Channel capability and legal/content models are not expressed through one consistent typed journey definition.",
+      "business_lens": "A shopper may not know which terms govern website basket and ordering behavior.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the controls and policy wording are visible; final interpretation requires company context about whether web checkout is enabled."
+    },
+    {
+      "id": "MON-004",
+      "title": "First-order terms are published without the corresponding discount value",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "google-play:google_orphaned_first_order_terms",
+        "google-play:google_missing_offer_value",
+        "app-store:apple_orphaned_first_order_terms",
+        "app-store:apple_missing_offer_value"
+      ],
+      "quality_lens": "Both store descriptions show threshold and maximum-discount footnotes without stating the percentage or amount of the offer they qualify.",
+      "system_lens": "Promotional headline and legal terms appear to be maintained as separable content fragments without completeness validation.",
+      "business_lens": "Users cannot calculate the promised benefit before installation.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the terms are visible and no corresponding offer value is present in the settled listing text."
+    },
+    {
+      "id": "MON-005",
+      "title": "Fast-delivery copy uses wording that denotes a minimum wait",
+      "severity": "LOW",
+      "evidence_refs": ["google-play:google_delivery_from_30", "app-store:apple_delivery_from_30"],
+      "quality_lens": "The phrase ‘от 30 минут’ normally means 30 minutes or longer, although the copy is positioned as a speed promise.",
+      "system_lens": "The same ambiguous localization string is reused across both distribution channels.",
+      "business_lens": "The core delivery promise becomes less precise at the installation decision point.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the wording is visible on both channels; human semantic review determines final severity."
+    },
+    {
+      "id": "MON-006",
+      "title": "The Android listing publishes a high-friction privacy disclosure",
+      "severity": "MEDIUM",
+      "evidence_refs": ["google-play:google_privacy_disclosure"],
+      "quality_lens": "The listing states that personal and financial data may be shared and that data is not encrypted.",
+      "system_lens": "Public privacy declarations require reconciliation with actual mobile architecture and policy ownership.",
+      "business_lens": "The statement can materially affect installation trust for a payment-enabled grocery application.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_ceiling": "PUBLIC_DISCLOSURE_SIGNAL_ONLY",
+      "promotion_rule": "Confirm only the public declaration. Do not infer transport, storage, implementation, exploitability, or a vulnerability."
+    },
+    {
+      "id": "MON-007",
+      "title": "The public agreement contains visible language and sentence-structure defects",
+      "severity": "LOW",
+      "evidence_refs": ["user-agreement:agreement_copy_defects"],
+      "quality_lens": "Trust-building policy copy contains missing words and malformed sentence structure.",
+      "system_lens": "Legal and policy publishing lacks a consistent editorial acceptance gate.",
+      "business_lens": "Errors in ordering terms reduce confidence at a high-trust decision point.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the exact strings in settled desktop and mobile renders; do not claim legal invalidity."
+    },
+    {
+      "id": "MON-008",
+      "title": "A Monetka developer response routes a customer to LENTA-branded support bots",
+      "severity": "MEDIUM",
+      "evidence_refs": ["google-play:google_cross_brand_support_routing"],
+      "quality_lens": "A public developer reply on the Monetka Google Play listing directs a customer to MAX and Telegram bots named LENTAcompany.",
+      "system_lens": "Review-response templates, support routing, or channel ownership appear crossed between brand contexts.",
+      "business_lens": "A customer may send order or account details to a support route that appears to belong to another brand.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm both routes are visible in desktop and mobile. Human review must verify whether the shared support route is intentional and must not infer data exposure."
+    }
+  ],
+  "lotus_policy": {
+    "search_snippet_only": "NEEDS_EVIDENCE",
+    "public_response_marker_reproduced": "PRODUCT_SIGNAL",
+    "desktop_and_mobile_rendered_reproduction": "CONFIRMED_PRODUCT_DEFECT_CANDIDATE",
+    "public_disclosure_without_implementation_test": "PUBLIC_DISCLOSURE_SIGNAL_ONLY",
+    "root_cause_without_counterfactual": "HYPOTHESIS_ONLY",
+    "business_impact_without_metrics": "PLAUSIBLE_NOT_MEASURED",
+    "legal_or_security_claim_without_scoped_impact": "BLOCK",
+    "external_reporting": "BLOCK_UNTIL_HUMAN_REVIEW"
+  }
+}
