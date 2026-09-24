@@ -2,6 +2,11 @@ name: Tradernet Public Terminal Loading Audit
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Optional exact 40-character revision; defaults to the selected workflow ref
+        required: false
+        type: string
   push:
     branches:
       - agent/tradernet-terminal-loading-audit
@@ -9,6 +14,8 @@ on:
       - .github/workflows/tradernet-terminal-loading-public.yml
       - audits/tradernet/terminal-loading-public.json
       - scripts/tradernet_terminal_loading_observer.mjs
+      - scripts/write_exact_head_manifest.py
+      - tests/test_write_exact_head_manifest.py
   pull_request:
     branches:
       - main
@@ -16,6 +23,8 @@ on:
       - .github/workflows/tradernet-terminal-loading-public.yml
       - audits/tradernet/terminal-loading-public.json
       - scripts/tradernet_terminal_loading_observer.mjs
+      - scripts/write_exact_head_manifest.py
+      - tests/test_write_exact_head_manifest.py
 
 permissions:
   contents: read
@@ -32,12 +41,33 @@ jobs:
     env:
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
+      EVIDENCE_ARTIFACT_NAME: tradernet-public-terminal-loading-${{ github.run_id }}-${{ github.run_attempt }}
+      RECEIPT_ARTIFACT_NAME: tradernet-public-terminal-loading-receipt-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
-      - name: Checkout exact workflow revision
+      - name: Checkout exact audited revision
         uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify initial exact head
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "EXPECTED_SHA must be a lowercase 40-character SHA" >&2
+            exit 2
+          fi
+          initial_sha="$(git rev-parse HEAD)"
+          test "${initial_sha}" = "${EXPECTED_SHA}"
+          worktree_status="$(git status --porcelain=v1 --untracked-files=all)"
+          test -z "${worktree_status}"
+          echo "initial_sha=${initial_sha}" >> "${GITHUB_OUTPUT}"
+          echo "started_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
 
       - name: Validate exact safety boundary
         shell: bash
@@ -64,8 +94,30 @@ jobs:
             .boundaries.active_security_testing == false
           ' "${config}" >/dev/null
 
-      - name: Install pinned browser driver
-        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Validate evidence manifest helper
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          ast.parse(Path("scripts/write_exact_head_manifest.py").read_text(encoding="utf-8"))
+          PY
+          python3 -m unittest tests/test_write_exact_head_manifest.py -v
+          test -z "$(find scripts tests -type d -name __pycache__ -print -quit)"
+
+      - name: Install pinned browser driver outside the worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          deps_dir="${RUNNER_TEMP}/tradernet-node-deps"
+          rm -rf "${deps_dir}"
+          test ! -e node_modules
+          test ! -L node_modules
+          npm install --prefix "${deps_dir}" --no-save --package-lock=false puppeteer-core@24.16.0
+          ln -s "${deps_dir}/node_modules" node_modules
 
       - name: Validate observer and locate Chrome
         id: runtime
@@ -80,21 +132,101 @@ jobs:
           echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
 
       - name: Observe public terminal loading
+        id: capture
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf reports/tradernet-terminal-loading
+          evidence_dir="${RUNNER_TEMP}/tradernet-terminal-loading"
+          rm -rf "${evidence_dir}"
+          mkdir -p "${evidence_dir}"
           node scripts/tradernet_terminal_loading_observer.mjs \
             --config audits/tradernet/terminal-loading-public.json \
             --chrome "${{ steps.runtime.outputs.chrome }}" \
-            --output-dir reports/tradernet-terminal-loading
-          cat reports/tradernet-terminal-loading/result/terminal-loading-summary.md >> "${GITHUB_STEP_SUMMARY}"
+            --output-dir "${evidence_dir}"
+          cat "${evidence_dir}/result/terminal-loading-summary.md" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Verify final exact head and clean worktree
+        id: final_identity
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -L node_modules ]; then
+            rm node_modules
+          fi
+          final_sha="$(git rev-parse HEAD)"
+          test "${final_sha}" = "${EXPECTED_SHA}"
+          worktree_status="$(git status --porcelain=v1 --untracked-files=all)"
+          if [ -n "${worktree_status}" ]; then
+            printf '%s\n' "${worktree_status}" >&2
+            exit 2
+          fi
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+          echo "completed_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
+
+      - name: Write immutable evidence manifest
+        id: manifest
+        if: always() && steps.identity.outcome == 'success' && steps.final_identity.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="${RUNNER_TEMP}/tradernet-terminal-loading"
+          mkdir -p "${evidence_dir}"
+          python3 scripts/write_exact_head_manifest.py manifest \
+            --output-dir "${evidence_dir}" \
+            --audit-name "Tradernet public terminal loading audit" \
+            --target "https://tradernet.ru/terminal" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --expected-sha "${EXPECTED_SHA}" \
+            --initial-sha "${{ steps.identity.outputs.initial_sha }}" \
+            --final-sha "${{ steps.final_identity.outputs.final_sha }}" \
+            --workflow-sha "${{ github.workflow_sha }}" \
+            --event-name "${GITHUB_EVENT_NAME}" \
+            --git-ref "${GITHUB_REF}" \
+            --head-ref "${GITHUB_HEAD_REF}" \
+            --workflow-ref "${{ github.workflow_ref }}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --artifact-name "${EVIDENCE_ARTIFACT_NAME}" \
+            --started-at "${{ steps.identity.outputs.started_at }}" \
+            --completed-at "${{ steps.final_identity.outputs.completed_at }}" \
+            --execution-status "${{ steps.capture.outcome }}"
+          python3 -m json.tool "${evidence_dir}/manifest.json" >/dev/null
 
       - name: Upload exact evidence
-        if: always()
+        id: evidence_artifact
+        if: always() && steps.manifest.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: tradernet-public-terminal-loading-${{ github.run_id }}
-          path: reports/tradernet-terminal-loading/
+          name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/tradernet-terminal-loading/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write artifact receipt
+        if: always() && steps.evidence_artifact.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt_dir="${RUNNER_TEMP}/tradernet-terminal-loading-receipt"
+          rm -rf "${receipt_dir}"
+          mkdir -p "${receipt_dir}"
+          python3 scripts/write_exact_head_manifest.py receipt \
+            --manifest "${RUNNER_TEMP}/tradernet-terminal-loading/manifest.json" \
+            --output "${receipt_dir}/artifact-receipt.json" \
+            --artifact-name "${EVIDENCE_ARTIFACT_NAME}" \
+            --artifact-id "${{ steps.evidence_artifact.outputs.artifact-id }}" \
+            --artifact-url "${{ steps.evidence_artifact.outputs.artifact-url }}" \
+            --artifact-digest "${{ steps.evidence_artifact.outputs.artifact-digest }}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}"
+          python3 -m json.tool "${receipt_dir}/artifact-receipt.json" >/dev/null
+
+      - name: Upload artifact receipt
+        if: always() && steps.evidence_artifact.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RECEIPT_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/tradernet-terminal-loading-receipt/artifact-receipt.json
           if-no-files-found: error
           retention-days: 14
