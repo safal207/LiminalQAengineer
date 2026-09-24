@@ -1,0 +1,226 @@
+{
+  "schema_version": "liminalqa-product-funnel-audit-v1",
+  "case_id": "tradernet-product-funnel-2026-07-21",
+  "subject": {
+    "platform": "Tradernet",
+    "scope": "public unauthenticated desktop and mobile web with bounded authenticated-journey hypotheses",
+    "source_repository": "safal207/LiminalQAengineer",
+    "source_base_commit": "d1caf64db824aeb6486d1e741b999f74533e29b7"
+  },
+  "authority": {
+    "mode": "audit_only",
+    "private_account_access": false,
+    "order_execution": false,
+    "external_submission": false,
+    "pricing_authority": false,
+    "experiment_authority": false,
+    "deployment_authority": false,
+    "merge_authority": false
+  },
+  "method": {
+    "product_manager_review": true,
+    "lotus_product_lens": {
+      "repository": "safal207/LS",
+      "pull_request": 920,
+      "exact_head": "44087899bdaad86b32b13d89812cbf7a174db2fe"
+    },
+    "clickfunnels": {
+      "use": "pattern_reference_only",
+      "claims_are_subject_evidence": false,
+      "excluded_patterns": [
+        "false_urgency",
+        "artificial_scarcity",
+        "preselected_paid_or_risk_increasing_options",
+        "hidden_recurring_terms",
+        "obstructed_decline",
+        "pressure_to_trade"
+      ]
+    }
+  },
+  "evidence_chain": [
+    {
+      "layer": "LiminalQA",
+      "repository": "safal207/LiminalQAengineer",
+      "references": [54, 58, 60],
+      "exact_base": "d1caf64db824aeb6486d1e741b999f74533e29b7"
+    },
+    {
+      "layer": "Pythia",
+      "repository": "safal207/pythiaLabs",
+      "pull_request": 235,
+      "exact_head": "aa169a3a897a61bb578816ea9e8fb3e374405b34",
+      "verdict": "ESCALATE"
+    },
+    {
+      "layer": "CML",
+      "repository": "safal207/Causal-Memory-Layer",
+      "pull_request": 213,
+      "exact_head": "0a3995e2508d204cdff2a6817563fa7e3f7a46fe",
+      "pack_id": "f5bac00f1be20c9ca5717236b0e5d0b2c433bc8ff780101736fa267e1c097609"
+    },
+    {
+      "layer": "LS",
+      "repository": "safal207/LS",
+      "pull_request": 919,
+      "exact_head": "daab61e653d380e258df9db6bc13057315846c64",
+      "verdict": "HUMAN_REVIEW_REQUIRED"
+    }
+  ],
+  "labels": [
+    "CONFIRMED",
+    "SUPPORTED",
+    "HYPOTHESIS",
+    "NEEDS_AUTHENTICATED_EVIDENCE",
+    "UNKNOWN"
+  ],
+  "confirmed_findings": [
+    {
+      "id": "mobile-chart-user-agent-404",
+      "severity": "P1",
+      "status": "CONFIRMED",
+      "claim": "A public chart route returns the generic Tradernet 404 experience for mobile user-agents.",
+      "product_impact": "A mobile user loses access to a public analytical capability and receives no useful supported-state explanation.",
+      "repair": "Preserve instrument context and serve a supported mobile chart or explicit supported-state route.",
+      "source_pr": 58
+    },
+    {
+      "id": "mobile-hero-late-discovery",
+      "severity": "P1-performance",
+      "status": "CONFIRMED",
+      "claim": "Late discovery of the selected mobile hero image materially delays largest contentful paint.",
+      "product_impact": "Meaningful content appears several avoidable seconds late, increasing abandonment and uncertainty.",
+      "repair": "Expose the selected responsive LCP resource in initial HTML and prioritise only that resource.",
+      "source_pr": 54
+    },
+    {
+      "id": "terminal-hidden-mobile-asset",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "claim": "Mobile terminal entry downloads a 346800-byte image that renders at 0x0.",
+      "product_impact": "The user pays network, battery and time cost for an invisible resource.",
+      "repair": "Prevent the hidden responsive branch from requesting the asset.",
+      "source_pr": 60
+    },
+    {
+      "id": "terminal-missing-onboarding-asset",
+      "severity": "P3",
+      "status": "CONFIRMED",
+      "claim": "Terminal entry requests a missing first-party onboarding asset.",
+      "product_impact": "The product creates redundant request and diagnostic noise; no visible break is claimed.",
+      "repair": "Remove or correct the obsolete first-party asset reference.",
+      "source_pr": 60
+    }
+  ],
+  "product_hypotheses": [
+    {
+      "id": "persistent-system-state",
+      "status": "NEEDS_AUTHENTICATED_EVIDENCE",
+      "priority": "P0",
+      "claim": "Real/demo, market session, data freshness, account currency, margin state and buying power should remain visible on every trading surface.",
+      "next_test": "Run a desktop/mobile state matrix against an authorised test account."
+    },
+    {
+      "id": "complete-order-preview",
+      "status": "NEEDS_AUTHENTICATED_EVIDENCE",
+      "priority": "P0",
+      "claim": "The order confirmation should expose instrument, direction, quantity, type, estimated behaviour, fee, conversion, total, session consequence and post-action state.",
+      "next_test": "Capture market, limit, insufficient-funds and closed-session flows on an authorised test account."
+    },
+    {
+      "id": "marketable-limit-explanation",
+      "status": "NEEDS_AUTHENTICATED_EVIDENCE",
+      "priority": "P0",
+      "claim": "A buy limit above ask or sell limit below bid should explain likely immediate execution within the limit.",
+      "next_test": "Run bid/ask-bounded order-preview cases without submitting a real order unless separately authorised."
+    },
+    {
+      "id": "explicit-cancellation-state",
+      "status": "NEEDS_AUTHENTICATED_EVIDENCE",
+      "priority": "P0",
+      "claim": "Order cancellation should use an explicit label and show requested, confirmed or execution-won-the-race states.",
+      "next_test": "Record cancellation state transitions in a safe authorised environment."
+    },
+    {
+      "id": "position-protection-in-context",
+      "status": "NEEDS_AUTHENTICATED_EVIDENCE",
+      "priority": "P0",
+      "claim": "Stop Loss and Take Profit should be discoverable from the selected position with a financial risk preview.",
+      "next_test": "Measure task success, path length and comprehension on desktop and mobile web."
+    },
+    {
+      "id": "mobile-task-cards",
+      "status": "HYPOTHESIS",
+      "priority": "P0",
+      "claim": "Positions and orders should transform into task cards rather than compressed horizontally scrolling tables.",
+      "next_test": "Compare successful management tasks, mis-taps, scroll distance and completion time."
+    },
+    {
+      "id": "safe-mobile-draft-recovery",
+      "status": "NEEDS_AUTHENTICATED_EVIDENCE",
+      "priority": "P0",
+      "claim": "Interrupted drafts should restore input but invalidate stale previews and require a fresh review.",
+      "next_test": "Interrupt, resume and reconnect order drafts while tracing quote and session freshness."
+    },
+    {
+      "id": "intent-segmented-entry",
+      "status": "HYPOTHESIS",
+      "priority": "P1",
+      "claim": "Public entry should distinguish start investing, active trading and demo exploration.",
+      "next_test": "Run a controlled entry-page experiment with qualified activation as the primary metric."
+    },
+    {
+      "id": "demo-first-activation",
+      "status": "HYPOTHESIS",
+      "priority": "P1",
+      "claim": "Cold traffic should be able to realise low-risk value through a watchlist and simulated order preview before funding.",
+      "next_test": "Compare demo activation, qualified signup, KYC completion and seven-day return."
+    }
+  ],
+  "lotus_observations": [
+    {
+      "petal": "intent_before_conversion",
+      "label": "FRICTION_RISK"
+    },
+    {
+      "petal": "continuity_before_friction",
+      "label": "RECOVERY_GAP"
+    },
+    {
+      "petal": "complementary_value_before_upsell",
+      "label": "VALUE_UNPROVEN"
+    },
+    {
+      "petal": "one_click_without_hidden_commitment",
+      "label": "FRICTION_RISK"
+    },
+    {
+      "petal": "recovery_before_pressure",
+      "label": "RECOVERY_GAP"
+    },
+    {
+      "petal": "evidence_before_growth_claims",
+      "label": "MEASUREMENT_GAP"
+    },
+    {
+      "petal": "human_freedom_at_every_stage",
+      "label": "FRICTION_RISK"
+    }
+  ],
+  "primary_metric": {
+    "name": "qualified_seven_day_activation",
+    "definition": "Share of eligible new users who complete required identity steps, realise the first value for their selected intent, and complete one intentional product action without a preventable correction or support incident."
+  },
+  "guardrails": [
+    "immediate_order_cancellation_or_correction",
+    "repeated_submit_clicks",
+    "insufficient_funds_or_currency_mismatch",
+    "support_contact_after_financial_action",
+    "kyc_reupload_or_abandonment",
+    "real_demo_confusion",
+    "stale_preview_action_attempt",
+    "mobile_horizontal_scroll_before_critical_action",
+    "complaint_refund_churn_or_harm_signal"
+  ],
+  "verdict": "HUMAN_REVIEW_REQUIRED",
+  "verdict_meaning": "Confirmed public findings may be prepared for human reporting. Authenticated journey recommendations remain hypotheses until exact-build authorised evidence exists."
+}
