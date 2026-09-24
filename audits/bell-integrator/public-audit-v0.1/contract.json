@@ -1,0 +1,224 @@
+{
+  "schema_version": "liminalqa-bell-integrator-public-audit-v1",
+  "audit_id": "BELL-INTEGRATOR-OUTSIDE-IN-2026-07-22-V0.1",
+  "name": "Bell Integrator public quality, system, and business audit",
+  "target": {
+    "organization": "Bell Integrator",
+    "canonical_origin": "https://bellintegrator.ru",
+    "engagement_kind": "independent_outside_in",
+    "authorization_basis": "public_pages_passive_observation_only"
+  },
+  "coordinate_model": {
+    "O": "official public URL + unauthenticated state + observation time",
+    "N": "passive external observer",
+    "X": "domain -> route -> content block -> claim",
+    "Y": "current -> duplicated -> contradictory -> stale -> unclear",
+    "Z": "raw public response first; rendered desktop/mobile confirmation later",
+    "T": "navigation -> settled response -> normalization -> human judgment"
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_get_navigation_only": true,
+    "authentication": false,
+    "form_submission": false,
+    "email_or_external_contact": false,
+    "direct_api_testing": false,
+    "active_security_testing": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "runtime": {
+    "timeout_seconds": 30,
+    "max_response_bytes": 3000000,
+    "max_parallel": 1,
+    "user_agent": "LiminalQA-Passive-Public-Audit/0.1"
+  },
+  "allowed_paths": [
+    "/",
+    "/company",
+    "/information/careers",
+    "/information/vacancies",
+    "/node/12",
+    "/vacancy/2495",
+    "/vacancy/2496"
+  ],
+  "targets": [
+    {
+      "slug": "home",
+      "url": "https://bellintegrator.ru/",
+      "role": "current Russian commercial landing",
+      "assertions": [
+        {
+          "id": "qa_abs_duplicate_copy",
+          "type": "occurrence",
+          "marker": "Мы модернизируем существующие банковские системы исходя из меняющихся бизнес-требований наших заказчиков, а также осуществляем миграцию на новые технологии.",
+          "min_occurrences": 2
+        },
+        {
+          "id": "home_company_metrics",
+          "type": "all_of",
+          "markers": [
+            "7 Офисов",
+            "20 лет в ИТ-бизнесе",
+            "2700+ сотрудников"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qa-service",
+      "url": "https://bellintegrator.ru/node/12",
+      "role": "QA service detail surface",
+      "assertions": [
+        {
+          "id": "qa_service_abs_copy",
+          "type": "all_of",
+          "markers": [
+            "Комплексные услуги по обеспечению качества (QA)",
+            "Мы модернизируем существующие банковские системы исходя из меняющихся бизнес-требований наших заказчиков, а также осуществляем миграцию на новые технологии."
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "company",
+      "url": "https://bellintegrator.ru/company",
+      "role": "company identity surface",
+      "assertions": [
+        {
+          "id": "company_founding_and_footprint",
+          "type": "all_of",
+          "markers": [
+            "с 2003 года",
+            "девять представительств"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "careers",
+      "url": "https://bellintegrator.ru/information/careers",
+      "role": "candidate acquisition surface",
+      "assertions": [
+        {
+          "id": "careers_metrics",
+          "type": "all_of",
+          "markers": [
+            "7 представительств",
+            "20 лет в бизнесе",
+            "2700+ сотрудников в компании"
+          ]
+        },
+        {
+          "id": "careers_visible_grammar",
+          "type": "all_of",
+          "markers": [
+            "Мы предоставляет полный набор услуг"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qa-vacancy",
+      "url": "https://bellintegrator.ru/vacancy/2495",
+      "role": "senior QA candidate acquisition surface",
+      "assertions": [
+        {
+          "id": "qa_vacancy_mixed_script_signal",
+          "type": "all_of",
+          "markers": [
+            "Ведущий инженер по автотестированию",
+            "Опыт работы в QА от 6 лет"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "ios-vacancy",
+      "url": "https://bellintegrator.ru/vacancy/2496",
+      "role": "engineering candidate acquisition surface",
+      "assertions": [
+        {
+          "id": "ios_vacancy_copy_signal",
+          "type": "all_of",
+          "markers": [
+            "особенностей управление памятью",
+            "инстуменами отладки"
+          ]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "BELL-001",
+      "title": "The QA service is published with the ABS modernization description",
+      "severity": "HIGH",
+      "evidence_refs": [
+        "home:qa_abs_duplicate_copy",
+        "qa-service:qa_service_abs_copy"
+      ],
+      "quality_lens": "A core QA offering is described with unrelated banking-system modernization copy.",
+      "system_lens": "Service cards and detail routes appear to lack typed content ownership and duplication validation.",
+      "business_lens": "A prospect evaluating Bell Integrator's QA expertise may infer weak release controls from the QA storefront itself.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the copy and card-to-route mapping in settled desktop and mobile renders."
+    },
+    {
+      "id": "BELL-002",
+      "title": "Corporate age and office footprint are inconsistent across the current domain",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "home:home_company_metrics",
+        "company:company_founding_and_footprint",
+        "careers:careers_metrics"
+      ],
+      "quality_lens": "The same domain presents 7 offices or representatives and 9 representatives, while a fixed 20-year claim conflicts with a 2003 founding date in 2026.",
+      "system_lens": "Corporate facts are duplicated across templates instead of governed through a shared source with freshness rules.",
+      "business_lens": "Candidates and clients receive inconsistent scale and maturity signals during due diligence.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Human review must confirm intended definitions of office and representative office before final severity."
+    },
+    {
+      "id": "BELL-003",
+      "title": "The careers page contains a visible editorial defect in the software-development section",
+      "severity": "LOW",
+      "evidence_refs": [
+        "careers:careers_visible_grammar"
+      ],
+      "quality_lens": "Candidate-facing content contains a visible subject-verb agreement defect.",
+      "system_lens": "Long-lived employer-brand content appears to lack an editorial acceptance gate.",
+      "business_lens": "A visible grammar defect can weaken confidence among senior candidates evaluating the company's delivery culture.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm the wording is visible in settled desktop and mobile renders."
+    },
+    {
+      "id": "BELL-004",
+      "title": "Current engineering vacancies contain visible editorial defects",
+      "severity": "LOW",
+      "evidence_refs": [
+        "qa-vacancy:qa_vacancy_mixed_script_signal",
+        "ios-vacancy:ios_vacancy_copy_signal"
+      ],
+      "quality_lens": "Senior technical vacancies expose mixed-script, inflection, and spelling defects.",
+      "system_lens": "Vacancy publishing lacks automated language checks and role-template acceptance criteria.",
+      "business_lens": "Editorial defects weaken perceived process quality at the exact point where the company evaluates senior specialists.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm both vacancies remain active and the wording is visible in desktop and mobile views."
+    }
+  ],
+  "lotus_policy": {
+    "search_snippet_only": "NEEDS_EVIDENCE",
+    "public_response_marker_reproduced": "PRODUCT_SIGNAL",
+    "desktop_and_mobile_rendered_reproduction": "CONFIRMED_PRODUCT_DEFECT_CANDIDATE",
+    "root_cause_without_counterfactual": "HYPOTHESIS_ONLY",
+    "business_impact_without_metrics": "PLAUSIBLE_NOT_MEASURED",
+    "security_claim_without_scoped_impact": "BLOCK",
+    "external_reporting": "BLOCK_UNTIL_HUMAN_REVIEW"
+  }
+}
