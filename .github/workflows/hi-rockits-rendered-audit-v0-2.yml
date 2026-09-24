@@ -1,0 +1,121 @@
+name: Hi Rockits Rendered Audit v0.2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/hi-rockits-outside-in-audit-v0-1
+    paths:
+      - .github/workflows/hi-rockits-outside-in-audit-v0-1.yml
+      - .github/workflows/hi-rockits-rendered-audit-v0-2.yml
+      - audits/hi-rockits/public-audit-v0.1/contract.json
+      - audits/browser/hi-rockits/public-rendered-matrix-v0.2.json
+      - scripts/hi_rockits_public_audit_probe.py
+      - scripts/hi_rockits_rendered_audit_probe.mjs
+      - tests/test_hi_rockits_public_audit_probe.py
+      - docs/audits/HI_ROCKITS_OUTSIDE_IN_AUDIT_V0_1.md
+      - docs/audits/HI_ROCKITS_COLLABORATION_BRIEF.md
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/hi-rockits-outside-in-audit-v0-1.yml
+      - .github/workflows/hi-rockits-rendered-audit-v0-2.yml
+      - audits/hi-rockits/public-audit-v0.1/contract.json
+      - audits/browser/hi-rockits/public-rendered-matrix-v0.2.json
+      - scripts/hi_rockits_public_audit_probe.py
+      - scripts/hi_rockits_rendered_audit_probe.mjs
+      - tests/test_hi_rockits_public_audit_probe.py
+      - docs/audits/HI_ROCKITS_OUTSIDE_IN_AUDIT_V0_1.md
+      - docs/audits/HI_ROCKITS_COLLABORATION_BRIEF.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hi-rockits-rendered-v0-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rendered:
+    name: Confirm Hi Rockits signals in desktop and mobile browsers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate bounded configuration
+        run: |
+          set -euo pipefail
+          python3 -m json.tool audits/browser/hi-rockits/public-rendered-matrix-v0.2.json >/dev/null
+          python3 -m json.tool audits/hi-rockits/public-audit-v0.1/contract.json >/dev/null
+          node --check scripts/hi_rockits_rendered_audit_probe.mjs
+      - name: Install pinned browser driver
+        run: |
+          set -euo pipefail
+          npm install --no-save --ignore-scripts puppeteer-core@24.15.0
+      - name: Validate runtime and locate Chrome
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_PATH"
+          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          "$CHROME_PATH" --version
+      - name: Run bounded rendered matrix
+        run: |
+          set -euo pipefail
+          rm -rf reports/hi-rockits/rendered-audit-v0.2
+          node scripts/hi_rockits_rendered_audit_probe.mjs \
+            --config audits/browser/hi-rockits/public-rendered-matrix-v0.2.json \
+            --contract audits/hi-rockits/public-audit-v0.1/contract.json \
+            --chrome "$CHROME_PATH" \
+            --output-dir reports/hi-rockits/rendered-audit-v0.2
+          cat reports/hi-rockits/rendered-audit-v0.2/hi-rockits-rendered-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Validate evidence and authority boundary
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema_version == "liminalqa-hi-rockits-public-rendered-result-v1" and
+            .aggregate.expected_observation_count == 8 and
+            .aggregate.observed_route_profile_count == 8 and
+            (.aggregate.findings | length) == 6 and
+            .authority.mode == "evidence_only" and
+            .authority.grants.external_submission == false and
+            .authority.grants.deployment == false and
+            .authority.grants.merge == false
+          ' reports/hi-rockits/rendered-audit-v0.2/hi-rockits-rendered-result.json >/dev/null
+      - name: Record exact attempt and verify checksums
+        run: |
+          set -euo pipefail
+          OUT=reports/hi-rockits/rendered-audit-v0.2
+          jq -n \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg source_head_sha "$GITHUB_HEAD_SHA" \
+            --arg workflow_sha "$GITHUB_SHA" \
+            --arg base_sha "$GITHUB_BASE_SHA" \
+            --arg event_name "$GITHUB_EVENT_NAME" \
+            '{run_id:$run_id,run_attempt:$run_attempt,source_head_sha:$source_head_sha,workflow_sha:$workflow_sha,base_sha:$base_sha,event_name:$event_name,tested_revision_kind:(if $event_name == "pull_request" then "pull_request_merge_ref_with_separate_source_head" else "branch_head" end)}' \
+            > "$OUT/exact-attempt.json"
+          (
+            cd "$OUT"
+            find . -type f ! -name 'ARTIFACT_SHA256SUMS.txt' -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > ARTIFACT_SHA256SUMS.txt
+            sha256sum -c ARTIFACT_SHA256SUMS.txt
+          )
+      - name: Upload exact rendered evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hi-rockits-rendered-v0-2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/hi-rockits/rendered-audit-v0.2/
+          if-no-files-found: error
+          retention-days: 30
