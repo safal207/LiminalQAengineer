@@ -1,0 +1,168 @@
+{
+  "schema_version": "liminalqa-greg-boris-open-work-review-v1",
+  "observed_at": "2026-07-20",
+  "subjects": {
+    "greg": {
+      "name": "Greg Brockman",
+      "github_login": "gdb"
+    },
+    "boris": {
+      "name": "Boris Cherny",
+      "github_login": "bcherny"
+    }
+  },
+  "scope": {
+    "public_github_only": true,
+    "repositories_reviewed": [
+      "openai/codex",
+      "openai/openai-python",
+      "openai/openai-node",
+      "openai/openai-go",
+      "openai/openai-java",
+      "gdb/tee-output",
+      "bcherny/openclaw",
+      "openclaw/openclaw",
+      "anthropics/claude-code"
+    ],
+    "external_mutations": false
+  },
+  "greg": {
+    "current_public_openai_work": {
+      "open_prs_authored_in_openai_codex": 0,
+      "open_issues_assigned_in_reviewed_openai_repositories": 0,
+      "verdict": "NO_CURRENT_PUBLIC_ASSIGNED_WORK_FOUND"
+    },
+    "selected_issue": {
+      "repository": "gdb/tee-output",
+      "issue": 3,
+      "title": "Writes are dropped if tee object is closed too soon",
+      "url": "https://github.com/gdb/tee-output/issues/3",
+      "classification": "SUPPORTED_SHUTDOWN_PROTOCOL_DEFECT",
+      "confidence": "HIGH_FROM_REPORT_AND_CODE_REVIEW",
+      "severity_candidate": "P1_P2_RELIABILITY",
+      "observed_code_path": {
+        "close": "pause(); then _drain(stdout_pipe_proc, stderr_pipe_proc)",
+        "drain": "close writer pipe; immediately send SIGINT to tee process; wait",
+        "missing_before_fd_restore": [
+          "explicit sys.stdout.flush()",
+          "explicit sys.stderr.flush()"
+        ],
+        "risk": "pending pipe bytes can be discarded when the reader process is interrupted before natural EOF drain completes"
+      },
+      "recommended_fix": [
+        "flush Python stdout and stderr",
+        "restore original stdout and stderr file descriptors",
+        "close the tee writer ends to deliver EOF",
+        "wait for the tee reader process to exit naturally",
+        "only after a bounded timeout send SIGTERM or SIGINT, then SIGKILL as a last resort",
+        "make close idempotent and clear stored pipe/process handles"
+      ],
+      "required_regression_tests": [
+        "immediate close after one write without sleep",
+        "many stdout and stderr writes followed by immediate close",
+        "combined output preserves ordering and completeness within documented guarantees",
+        "repeated close is safe",
+        "hung child process follows timeout escalation without indefinite wait"
+      ]
+    }
+  },
+  "boris": {
+    "open_fork_pull_requests": [
+      {
+        "fork_pr": "bcherny/openclaw#1",
+        "title": "fix(cache): compact newest tool results first to preserve prompt cache prefix",
+        "fork_head_sha": "1358cba9626af1be68e5788db217654864e05889",
+        "upstream_pr": "openclaw/openclaw#58036",
+        "upstream_merge_sha": "f6380ae4b7886f0cb5cc7dca45e9457017864c39",
+        "upstream_merged_at": "2026-04-04T00:19:15Z",
+        "verdict": "CLOSE_AS_SUPERSEDED"
+      },
+      {
+        "fork_pr": "bcherny/openclaw#2",
+        "title": "fix(cache): sort MCP tools deterministically to stabilize prompt cache",
+        "fork_head_sha": "2ca9eed4001ca20ad132f9b40df0b102c21fc879",
+        "upstream_pr": "openclaw/openclaw#58037",
+        "upstream_merge_sha": "bc16b9dccf87e662a966e2c49dfb5a6923ae4e88",
+        "upstream_merged_at": "2026-04-04T00:19:54Z",
+        "verdict": "CLOSE_AS_SUPERSEDED"
+      },
+      {
+        "fork_pr": "bcherny/openclaw#3",
+        "title": "fix(cache): delay history image pruning to preserve prompt cache prefix",
+        "fork_head_sha": "922344f985d05546cae1a39964666a8e76889157",
+        "upstream_pr": "openclaw/openclaw#58038",
+        "upstream_merge_sha": "af81c437fafc97808e17af771aa9fbfb0fff83b7",
+        "upstream_merged_at": "2026-04-04T00:22:58Z",
+        "verdict": "CLOSE_AS_SUPERSEDED"
+      }
+    ],
+    "upstream_followup": {
+      "commit": "b474e098d15d8a0936153118adb6e28255b9071e",
+      "title": "docs: correct overstated prompt-cache comments from #58036 #58037 #58038",
+      "review_note": [
+        "newest-first compaction preserves more of the prefix, not necessarily the entire prefix",
+        "sorting the final MCP tool list cannot remove order-dependent collision-name assignment",
+        "delayed image pruning reduces cache churn but does not alone guarantee prompt-prefix stability"
+      ]
+    },
+    "assigned_claude_code_issues": [
+      {
+        "issue": "anthropics/claude-code#21151",
+        "title": "No indication of WHICH file for READ tool",
+        "comments": 132,
+        "verdict": "KEEP_OPEN_AND_DEFINE_ACCEPTANCE_CRITERIA",
+        "priority_candidate": "P1_P2_PRODUCT_AUDITABILITY",
+        "acceptance_criteria": [
+          "collapsed file-operation rows expose operation and a primary identifier",
+          "Read, Write and Edit show a basename or privacy-aware relative path",
+          "Glob and Grep show their pattern or query",
+          "blocked hooks always expose the blocked target in the collapsed state",
+          "multi-target operations show a count plus a deterministic bounded preview",
+          "a user setting supports compact and detailed display modes",
+          "all identifiers are represented in the accessibility name",
+          "regression coverage includes compaction and resumed sessions"
+        ]
+      },
+      {
+        "issue": "anthropics/claude-code#4937",
+        "title": "Add model selection support for custom commands",
+        "verdict": "VERIFY_CURRENT_CLI_PARITY_THEN_CLOSE_IF_IMPLEMENTED",
+        "review_note": "Current documentation surfaces model-selection metadata in command or skill workflows, but the issue should remain open until the installed CLI behavior, validation, fallback, team-shared commands and override precedence are confirmed end-to-end."
+      },
+      {
+        "issue": "anthropics/claude-code#1554",
+        "title": "Hanging or freezing in the middle of work",
+        "verdict": "CURRENT_VERSION_REPRO_REQUIRED",
+        "priority_candidate": "P1_RELIABILITY_IF_CURRENT",
+        "triage_requirements": [
+          "reproduce on the current Claude Code release and a supported Node runtime",
+          "separate CPU spin, blocked I/O, memory pressure, MCP wait and hook wait",
+          "capture event-loop delay, active tool, hook, MCP and subprocess state",
+          "verify escape and interrupt handling",
+          "verify crash-safe transcript and session recovery",
+          "document the fixed version before closing as resolved"
+        ]
+      }
+    ]
+  },
+  "review_order": [
+    "gdb/tee-output#3 because it risks silent loss of log and audit output",
+    "anthropics/claude-code#21151 because it hides file-operation identity and blocked targets",
+    "anthropics/claude-code#1554 if it reproduces on a current release",
+    "anthropics/claude-code#4937 after a fast current-behavior parity check",
+    "close bcherny/openclaw#1 through #3 as already merged upstream"
+  ],
+  "authority": {
+    "mode": "read_only_review",
+    "external_comments_posted": false,
+    "third_party_prs_closed": false,
+    "third_party_issues_modified": false,
+    "approval_granted": false,
+    "merge_authority": false
+  },
+  "limitations": [
+    "Private repositories, internal trackers and non-public assignments are outside scope.",
+    "The tee-output defect was reviewed from a public reproducer and current source; this pass did not execute the reproducer locally.",
+    "Issue priority labels and final ownership remain decisions for the respective maintainers."
+  ]
+}
