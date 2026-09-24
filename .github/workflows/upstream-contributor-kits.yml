@@ -1,0 +1,197 @@
+name: Upstream Contributor Kits
+
+on:
+  pull_request:
+    paths:
+      - "contrib/upstream-contributor-kits/**"
+      - ".github/workflows/upstream-contributor-kits.yml"
+  push:
+    branches:
+      - "agent/upstream-contributor-kits-v0-1"
+    paths:
+      - "contrib/upstream-contributor-kits/**"
+      - ".github/workflows/upstream-contributor-kits.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-contributor-kits-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boris-claude-code-action-1522:
+    name: Boris #1522 exact patch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout contributor kit
+        uses: actions/checkout@v4
+
+      - name: Checkout exact Claude Code Action source
+        uses: actions/checkout@v4
+        with:
+          repository: anthropics/claude-code-action
+          ref: b76a0776ae74036e77cd11018083743453d7ad35
+          path: upstream/claude-code-action
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install exact dependencies
+        working-directory: upstream/claude-code-action
+        run: bun install --frozen-lockfile
+
+      - name: Apply fail-closed triggering-review patch
+        run: |
+          python contrib/upstream-contributor-kits/apply_boris_1522.py \
+            upstream/claude-code-action \
+            --patch-out artifacts/boris/claude-code-action-1522.patch
+
+      - name: Format changed TypeScript
+        working-directory: upstream/claude-code-action
+        run: |
+          bunx prettier --write \
+            src/github/data/fetcher.ts \
+            src/modes/tag/index.ts \
+            test/data-fetcher.test.ts
+
+      - name: Run focused regression tests
+        working-directory: upstream/claude-code-action
+        run: bun test test/data-fetcher.test.ts
+
+      - name: Run typecheck
+        working-directory: upstream/claude-code-action
+        run: bun run typecheck
+
+      - name: Verify formatting and patch integrity
+        working-directory: upstream/claude-code-action
+        run: |
+          bun run format:check
+          git diff --check
+          git diff --binary > ../../artifacts/boris/claude-code-action-1522.patch
+          test -s ../../artifacts/boris/claude-code-action-1522.patch
+
+      - name: Record exact Boris receipt
+        run: |
+          cat > artifacts/boris/receipt.txt <<'EOF'
+          target=anthropics/claude-code-action
+          issue=1522
+          upstream_sha=b76a0776ae74036e77cd11018083743453d7ad35
+          contract=retain_exact_triggering_review_by_database_id
+          same_timestamp_unrelated_review=excluded
+          post_trigger_edit=excluded
+          triggering_inline_comments=retained
+          triggering_review_body=deduplicated_from_review_context
+          EOF
+          sha256sum artifacts/boris/claude-code-action-1522.patch >> artifacts/boris/receipt.txt
+
+      - name: Upload Boris contributor kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: boris-claude-code-action-1522-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/boris
+          if-no-files-found: error
+
+  greg-tee-output-3:
+    name: Greg #3 ${{ matrix.os }} Python ${{ matrix.python }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        python:
+          - "3.11"
+          - "3.13"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout contributor kit
+        uses: actions/checkout@v4
+
+      - name: Checkout exact tee-output source
+        uses: actions/checkout@v4
+        with:
+          repository: gdb/tee-output
+          ref: c41f8ff383200320b746e953e92709ae1b505a71
+          path: upstream/tee-output
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Apply READY and in-stream DRAIN-ACK candidate
+        run: |
+          python contrib/upstream-contributor-kits/apply_greg_3.py \
+            upstream/tee-output \
+            --patch-out artifacts/greg/tee-output-3.patch
+
+      - name: Install exact candidate
+        working-directory: upstream/tee-output
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Run PTY immediate-close regression
+        id: regression
+        continue-on-error: true
+        shell: bash
+        working-directory: upstream/tee-output
+        run: |
+          mkdir -p ../../artifacts/greg
+          set -o pipefail
+          python -m unittest discover -s tests -v 2>&1 | \
+            tee ../../artifacts/greg/regression-${{ matrix.os }}-py${{ matrix.python }}.log
+
+      - name: Verify Greg patch integrity
+        if: always()
+        run: |
+          mkdir -p artifacts/greg
+          git -C upstream/tee-output diff --check
+          git -C upstream/tee-output diff --binary > artifacts/greg/tee-output-3.patch
+          test -s artifacts/greg/tee-output-3.patch
+          cat > artifacts/greg/receipt-${{ matrix.os }}-py${{ matrix.python }}.txt <<EOF
+          target=gdb/tee-output
+          issue=3
+          upstream_sha=c41f8ff383200320b746e953e92709ae1b505a71
+          os=${{ matrix.os }}
+          python=${{ matrix.python }}
+          regression_outcome=${{ steps.regression.outcome }}
+          contract=ready_handshake_in_stream_sentinel_drain_ack_natural_exit_sigint_fallback
+          trajectory=pty_print_traceback_immediate_close_25_rounds
+          EOF
+          shasum -a 256 artifacts/greg/tee-output-3.patch >> artifacts/greg/receipt-${{ matrix.os }}-py${{ matrix.python }}.txt
+
+      - name: Upload Greg contributor kit and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greg-tee-output-3-${{ matrix.os }}-py${{ matrix.python }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/greg
+          if-no-files-found: error
+
+      - name: Enforce Greg regression result
+        if: always()
+        env:
+          REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
+        run: test "$REGRESSION_OUTCOME" = success
+
+  contributor-gate:
+    name: Contributor kit gate
+    if: always()
+    needs:
+      - boris-claude-code-action-1522
+      - greg-tee-output-3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce all candidate checks
+        env:
+          BORIS_RESULT: ${{ needs.boris-claude-code-action-1522.result }}
+          GREG_RESULT: ${{ needs.greg-tee-output-3.result }}
+        run: |
+          test "$BORIS_RESULT" = success
+          test "$GREG_RESULT" = success
+          echo "Both upstream contributor kits are exact-source, tested, and ready for fork-based PR publication."
