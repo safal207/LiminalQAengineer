@@ -1,0 +1,30 @@
+name: Company Public Quality Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  public-audit:
+    # Replace PINNED_LIMINALQA_SHA with a reviewed release SHA or tag.
+    uses: safal207/LiminalQAengineer/.github/workflows/company-public-audit.yml@PINNED_LIMINALQA_SHA
+    with:
+      config_path: .github/liminalqa/public-audit.json
+      engine_ref: PINNED_LIMINALQA_SHA
+      retention_days: 30
+      fail_on: never
+
+  consume-result:
+    needs: public-audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print reusable workflow outputs
+        run: |
+          echo "Verdict: ${{ needs.public-audit.outputs.verdict }}"
+          echo "Severity: ${{ needs.public-audit.outputs.severity }}"
+          echo "Artifact: ${{ needs.public-audit.outputs.artifact_name }}"
+          echo "Result SHA-256: ${{ needs.public-audit.outputs.result_sha256 }}"

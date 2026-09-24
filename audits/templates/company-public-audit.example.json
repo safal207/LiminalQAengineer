@@ -1,0 +1,58 @@
+{
+  "schema_version": "liminalqa-company-public-audit-v1",
+  "company": {
+    "name": "Example Company",
+    "audit_name": "Public website quality baseline"
+  },
+  "allowed_origins": [
+    "https://example.com"
+  ],
+  "allowed_query_keys": [],
+  "targets": [
+    {
+      "id": "home",
+      "url": "https://example.com/",
+      "kind": "marketing"
+    }
+  ],
+  "profiles": [
+    "desktop",
+    "mobile"
+  ],
+  "settings": {
+    "settle_ms": 3000,
+    "keyboard_tab_steps": 20,
+    "lighthouse_runs": 1,
+    "max_parallel": 2,
+    "retain_body_sample": false
+  },
+  "category_thresholds": {
+    "performance": 0.65,
+    "accessibility": 0.85,
+    "best-practices": 0.85,
+    "seo": 0.85
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "credentials_or_secrets": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "publishing": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false,
+    "vulnerability_claim": false
+  },
+  "notes": [
+    "Replace example.com with public HTTPS origins owned or explicitly authorized by the company.",
+    "The pipeline produces quality and accessibility evidence, not a penetration test or compliance certification.",
+    "No credentials, cookies, custom headers, form actions, direct application API calls, or state-changing instructions are accepted by the schema."
+  ]
+}

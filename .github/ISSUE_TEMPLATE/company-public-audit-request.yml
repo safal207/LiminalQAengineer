@@ -1,0 +1,106 @@
+name: Company public audit request
+description: Request onboarding to the bounded LiminalQA self-service public quality audit
+title: "[Company audit] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form only for public HTTPS pages owned by your company or explicitly authorized for review.
+
+        Do not include passwords, tokens, API keys, cookies, private URLs, customer/account data, or security-vulnerability details. The self-service workflow is limited to passive public quality and accessibility evidence.
+
+  - type: input
+    id: company
+    attributes:
+      label: Company or project name
+      placeholder: Example Company
+    validations:
+      required: true
+
+  - type: input
+    id: repository
+    attributes:
+      label: Company GitHub repository
+      description: Repository that will call the reusable workflow or host the audit contract
+      placeholder: https://github.com/example/company-web
+    validations:
+      required: true
+
+  - type: textarea
+    id: origins
+    attributes:
+      label: Authorized public origins
+      description: One exact public HTTPS origin per line. Do not include paths, credentials, tokens, or private hosts.
+      placeholder: |
+        https://www.example.com
+        https://docs.example.com
+    validations:
+      required: true
+
+  - type: textarea
+    id: routes
+    attributes:
+      label: Initial public routes
+      description: List up to eight public routes and their purpose. Query keys must be declared separately and must not contain sensitive values.
+      placeholder: |
+        / — marketing homepage
+        /pricing — pricing information
+        /docs — public documentation
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cadence
+    attributes:
+      label: Intended cadence
+      options:
+        - One-time baseline
+        - Manual on demand
+        - Weekly
+        - Before releases
+        - On pull requests
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gate
+    attributes:
+      label: Initial gate mode
+      description: New integrations should normally begin with evidence-only mode.
+      options:
+        - never — evidence only
+        - high — fail only on HIGH aggregate severity
+        - any-signal — fail on any WARN
+    validations:
+      required: true
+
+  - type: textarea
+    id: goals
+    attributes:
+      label: Audit goals
+      description: Describe the public user journeys, accessibility expectations, and quality risks you want the evidence to cover.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Authorization and safety confirmation
+      options:
+        - label: I am authorized to request passive quality testing for the listed public origins.
+          required: true
+        - label: I understand the workflow does not authenticate, submit forms, publish content, call private APIs, perform financial actions, fuzz, exploit, or load test.
+          required: true
+        - label: I will not place credentials, secrets, customer data, or private vulnerability details in the issue or audit contract.
+          required: true
+        - label: I understand automated signals require human review and are not a security or compliance certification.
+          required: true
+
+  - type: input
+    id: contact
+    attributes:
+      label: Public contact or GitHub handle
+      description: Optional public contact for onboarding questions. Do not provide private credentials or account information.
+      placeholder: "@company-engineering"
+    validations:
+      required: false
