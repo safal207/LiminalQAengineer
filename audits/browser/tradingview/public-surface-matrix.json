@@ -1,0 +1,53 @@
+{
+  "schema_version": "liminalqa-tradingview-public-surface-v1",
+  "name": "TradingView public unauthenticated surface and state audit",
+  "targets": [
+    {"id": "home", "url": "https://www.tradingview.com/", "kind": "marketing"},
+    {"id": "btc-symbol", "url": "https://www.tradingview.com/symbols/BTCUSD/", "kind": "symbol"},
+    {"id": "btc-chart", "url": "https://www.tradingview.com/chart/?symbol=BITSTAMP%3ABTCUSD", "kind": "chart"},
+    {"id": "btc-ideas", "url": "https://www.tradingview.com/ideas/btcusd/", "kind": "community"},
+    {"id": "scripts", "url": "https://www.tradingview.com/scripts/", "kind": "community"},
+    {"id": "accessibility", "url": "https://www.tradingview.com/accessibility/", "kind": "documentation"}
+  ],
+  "profiles": [
+    {
+      "id": "desktop",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {"width": 1440, "height": 1000, "deviceScaleFactor": 1, "isMobile": false, "hasTouch": false}
+    },
+    {
+      "id": "mobile",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {"width": 412, "height": 915, "deviceScaleFactor": 2.625, "isMobile": true, "hasTouch": true}
+    }
+  ],
+  "navigation_timeout_ms": 90000,
+  "settle_ms": 10000,
+  "max_body_sample_chars": 5000,
+  "max_console_entries": 200,
+  "max_failed_requests": 100,
+  "keyboard_tab_steps": 30,
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "passive_browser_observation": true,
+    "keyboard_navigation_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "publishing": false,
+    "trading_actions": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false
+  },
+  "limitations": [
+    "A headless public browser may be served anti-bot or regional variants; those are recorded as environment outcomes, not product defects.",
+    "Market-state contradictions require at least two independent public contexts before promotion to a defect.",
+    "Accessibility observations are bounded to rendered DOM, accessibility tree, and keyboard focus in the tested public pages.",
+    "One laboratory navigation per profile and route is not a field performance percentile."
+  ]
+}

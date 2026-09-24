@@ -1,0 +1,137 @@
+name: TradingView Chart Keyboard Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradingview-public-audit-v0-1
+    paths:
+      - .github/workflows/tradingview-chart-keyboard-contract.yml
+      - audits/browser/tradingview/chart-keyboard-contract.json
+      - scripts/tradingview_chart_keyboard_probe.mjs
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradingview-chart-keyboard-contract.yml
+      - audits/browser/tradingview/chart-keyboard-contract.json
+      - scripts/tradingview_chart_keyboard_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradingview-chart-keyboard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Verify public chart keyboard contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate bounded configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="audits/browser/tradingview/chart-keyboard-contract.json"
+          python3 -m json.tool "${config}" >/dev/null
+          jq -e '
+            .schema_version == "liminalqa-tradingview-chart-keyboard-v1" and
+            .chart_url == "https://www.tradingview.com/chart/?symbol=BITSTAMP%3ABTCUSD" and
+            .accessibility_url == "https://www.tradingview.com/accessibility/" and
+            (.profiles | length) == 2 and
+            .tab_steps == 40 and
+            .boundaries.public_pages_only == true and
+            .boundaries.natural_navigation_only == true and
+            .boundaries.keyboard_and_single_neutral_click_only == true and
+            .boundaries.authenticated_testing == false and
+            .boundaries.account_access == false and
+            .boundaries.direct_api_testing == false and
+            .boundaries.form_submission == false and
+            .boundaries.publishing == false and
+            .boundaries.trading_actions == false and
+            .boundaries.financial_operations == false and
+            .boundaries.fuzzing == false and
+            .boundaries.load_testing == false and
+            .boundaries.active_security_testing == false and
+            .boundaries.server_state_change == false
+          ' "${config}" >/dev/null
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate runtime and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/tradingview_chart_keyboard_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          "${chrome}" --version
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run keyboard contract probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradingview-chart-keyboard
+          node scripts/tradingview_chart_keyboard_probe.mjs \
+            --config audits/browser/tradingview/chart-keyboard-contract.json \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradingview-chart-keyboard
+          cat reports/tradingview-chart-keyboard/tradingview-chart-keyboard-summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate evidence and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/tradingview-chart-keyboard/tradingview-chart-keyboard-result.json"
+          jq -e '
+            .schema_version == "liminalqa-tradingview-chart-keyboard-result-v1" and
+            (.profiles | length) == 2 and
+            .authority.mode == "evidence_only" and
+            .authority.grants.ownership == false and
+            .authority.grants.approval == false and
+            .authority.grants.execution == false and
+            .authority.grants.external_submission == false and
+            .authority.grants.delivery == false and
+            .authority.grants.deployment == false and
+            .authority.grants.merge == false
+          ' "${result}" >/dev/null
+          ! grep -R -E -i 'authorization:|cookie:|set-cookie:|access_token|refresh_token|sessionid' \
+            reports/tradingview-chart-keyboard \
+            --exclude='*.png'
+
+      - name: Record exact attempt manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_attempt "${{ github.run_attempt }}" \
+            --arg head_sha "${{ github.sha }}" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{run_id:$run_id,run_attempt:$run_attempt,head_sha:$head_sha,generated_at:$generated_at}' \
+            > reports/tradingview-chart-keyboard/exact-attempt.json
+          sha256sum reports/tradingview-chart-keyboard/* \
+            > reports/tradingview-chart-keyboard/ARTIFACT_SHA256SUMS.txt
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradingview-chart-keyboard-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/tradingview-chart-keyboard/
+          if-no-files-found: error
+          retention-days: 30
