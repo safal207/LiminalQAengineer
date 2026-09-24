@@ -1,0 +1,136 @@
+{
+  "schema_version": "tradernet-founder-growth-model-v1",
+  "case_id": "tradernet-founder-growth-2026-07-21",
+  "authority": {
+    "mode": "advisory_only",
+    "forecast": false,
+    "investment_advice": false,
+    "experiment_launch": false,
+    "account_access": false,
+    "order_execution": false,
+    "external_submission": false,
+    "deployment": false,
+    "merge": false
+  },
+  "source_audit": {
+    "repository": "safal207/LiminalQAengineer",
+    "pull_request": 102,
+    "exact_head": "d14d0e0cf434000c10609dc8627c288df5306df6"
+  },
+  "north_star": {
+    "name": "weekly_completed_investor_intent_loops",
+    "definition": "Users who select an intent, understand relevant state and cost, preview an action, complete or consciously decline it, and later return to monitor or adjust."
+  },
+  "illustrative_monthly_funnel": {
+    "qualified_visits": 100000,
+    "stages": [
+      {
+        "id": "signup",
+        "current_rate": 0.04,
+        "target_rate": 0.055,
+        "current_count": 4000,
+        "target_count": 5500
+      },
+      {
+        "id": "kyc_approved",
+        "current_rate_from_previous": 0.45,
+        "target_rate_from_previous": 0.60,
+        "current_count": 1800,
+        "target_count": 3300
+      },
+      {
+        "id": "funded",
+        "current_rate_from_previous": 0.35,
+        "target_rate_from_previous": 0.45,
+        "current_count": 630,
+        "target_count": 1485
+      },
+      {
+        "id": "first_intentional_action",
+        "current_rate_from_previous": 0.50,
+        "target_rate_from_previous": 0.60,
+        "current_count": 315,
+        "target_count": 891
+      }
+    ],
+    "incremental_activated_funded_users": 576
+  },
+  "gross_contribution_sensitivity": [
+    {
+      "monthly_contribution_per_incremental_user_eur": 5,
+      "monthly_uplift_eur": 2880,
+      "annualised_uplift_eur": 34560
+    },
+    {
+      "monthly_contribution_per_incremental_user_eur": 10,
+      "monthly_uplift_eur": 5760,
+      "annualised_uplift_eur": 69120
+    },
+    {
+      "monthly_contribution_per_incremental_user_eur": 20,
+      "monthly_uplift_eur": 11520,
+      "annualised_uplift_eur": 138240
+    }
+  ],
+  "retention_sensitivity": {
+    "monthly_contribution_range_eur": [8, 15],
+    "current_monthly_churn": 0.04,
+    "target_monthly_churn": 0.035,
+    "incremental_lifetime_contribution_per_user_eur": [28.57, 53.57],
+    "incremental_lifetime_contribution_per_1000_users_eur": [28570, 53570]
+  },
+  "clickfunnels_boundary": {
+    "role": "pattern_reference_only",
+    "false_urgency": false,
+    "artificial_scarcity": false,
+    "pressure_to_trade": false,
+    "preselected_paid_or_risk_increasing_choices": false,
+    "vendor_claims_are_subject_evidence": false
+  },
+  "plf_launch": {
+    "name": "First Portfolio Week",
+    "transformation": "comprehension_before_commitment",
+    "promise_of_returns": false,
+    "permanent_education_or_demo_path": true,
+    "legitimate_scarcity": [
+      "cohort_dates",
+      "live_office_hour_capacity",
+      "regional_eligibility"
+    ],
+    "forbidden_scarcity": [
+      "market_movement_fomo",
+      "promised_returns",
+      "gift_share_pressure",
+      "fear_of_missing_profit"
+    ]
+  },
+  "pilot": {
+    "duration_days": 90,
+    "phases": [
+      "instrument",
+      "convert",
+      "activate",
+      "mobile",
+      "launch",
+      "decide"
+    ],
+    "primary_metric": "qualified_activation",
+    "guardrails": [
+      "kyc_reupload_or_abandonment",
+      "immediate_order_correction_or_cancellation",
+      "rejected_orders",
+      "support_contacts_after_financial_action",
+      "real_demo_confusion",
+      "stale_preview_action_attempt",
+      "complaint_or_harm_signal",
+      "market_data_cost",
+      "regulatory_noncompliance"
+    ]
+  },
+  "limitations": [
+    "Internal traffic, CAC, KYC approval, funding, contribution margin, trading mix, churn and retention are unknown.",
+    "Conversion and revenue values are scenario sensitivities rather than forecasts.",
+    "Authenticated journey defects require an authorised exact-build test account.",
+    "ClickFunnels and Product Launch Formula patterns do not prove subject-specific lift."
+  ]
+}
