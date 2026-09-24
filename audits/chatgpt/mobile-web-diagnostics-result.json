@@ -1,0 +1,73 @@
+{
+  "schema_version": "liminalqa-chatgpt-mobile-diagnostics-adjudication-v1",
+  "case_id": "chatgpt-mobile-web-public-2026-07-21",
+  "source": {
+    "repository": "safal207/LiminalQAengineer",
+    "pull_request": 106,
+    "exact_head": "e56e2e86770e4ed198380800d970a7198020d6e1",
+    "workflow_run_id": 29783766882,
+    "artifact_id": 8477666575,
+    "artifact_name": "chatgpt-mobile-web-diagnostics-29783766882",
+    "artifact_sha256": "dc76eadf08f34a03273f95aee2ff3a7256b39c1a600af5cef91c0c0fd799056c",
+    "packet_sha256": "545480af7621ee11a7c7bbaaca65c2d134791abab43cddddb1ae0a39a2357434"
+  },
+  "authority": {
+    "mode": "audit_only",
+    "authenticated_testing": false,
+    "prompt_submission": false,
+    "login_submission": false,
+    "direct_application_api_testing": false,
+    "access_control_bypass": false,
+    "security_claim": false,
+    "external_submission": false,
+    "merge": false
+  },
+  "adjudications": [
+    {
+      "id": "unauth-mweb-event-aborts",
+      "status": "REJECTED_FALSE_NETWORK_FAILURE",
+      "severity": "none",
+      "evidence": {
+        "rounds": 2,
+        "lifecycle_events_before_capture": [],
+        "page_view_response": 204,
+        "performance_response": 204,
+        "business_response": 204,
+        "statsc_flush_response": 200,
+        "cdp_terminal_signal": "net::ERR_ABORTED",
+        "timing": "Each successful HTTP response was followed within 0–33 ms by the CDP/Puppeteer requestfailed signal."
+      },
+      "decision": "The POSTs reached the first-party server and received successful HTTP responses before the browser loading-aborted signal. No pagehide, visibilitychange, beforeunload or unload event occurred before capture. The original generic failed-request detector must not count these as delivery failures."
+    },
+    {
+      "id": "mobile-login-console-error",
+      "status": "CONFIRMED_DIAGNOSTIC_USER_IMPACT_UNKNOWN",
+      "severity": "P3-diagnostic",
+      "evidence": {
+        "rounds": 2,
+        "elapsed_ms": [1284, 1010],
+        "console_type": "error",
+        "console_text": "JSHandle@error",
+        "serialized_values": [{}, "undefined"],
+        "source": "https://chatgpt.com/cdn/assets/2340486e-dndlwhxa5s7p8x6d.js",
+        "line": 27,
+        "column": 11836,
+        "stack_sources": [
+          "https://chatgpt.com/cdn/assets/2340486e-dndlwhxa5s7p8x6d.js:27:11836",
+          "https://chatgpt.com/cdn/assets/4813494d-fwc98srcx5jfpxqd.js:1:45686",
+          "https://chatgpt.com/cdn/assets/4813494d-fwc98srcx5jfpxqd.js:4:61078"
+        ],
+        "page_errors": [],
+        "visible_login_failure": false
+      },
+      "decision": "A stable first-party console.error exists on the public mobile login page, but the logged object is not serializable through the current probe and no visible task failure is established. Preserve as a low-severity diagnostic finding, not a security or user-impact claim."
+    }
+  ],
+  "recommended_repairs": [
+    "Update the generic network detector so a successful 2xx response followed by loadingFailed/ERR_ABORTED is not counted as a failed delivery without additional evidence.",
+    "In a first-party development environment, map the login bundle stack to source maps and log an explicit error code/message instead of an opaque Error object if the console.error is intentional.",
+    "Re-run the login probe after bundle changes and verify both console cleanliness and visible authentication options."
+  ],
+  "verdict": "ONE_P3_DIAGNOSTIC_ONLY",
+  "verdict_meaning": "The mobile event signal is rejected as a detector false positive. One repeated public-login console diagnostic remains, with no demonstrated user impact."
+}
