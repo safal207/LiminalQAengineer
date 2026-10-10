@@ -1,0 +1,256 @@
+name: Garden Dev Null A-B
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/garden-dev-null-ab.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: garden-dev-null-ab-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 6eda85415feae21af117aa09125dcc88a1a3f9c1
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+
+jobs:
+  dev-ab:
+    name: Compare stdio ignore before and after minimal dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Build exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/dev-ab/{rootfs,garden-image,probe-image}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+          build_root="$RUNNER_TEMP/GardenLiminal-dev-ab"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/dev-ab/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/dev-ab/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/dev-ab/garden-image/gl"
+
+      - name: Export exact Node and browser rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/dev-ab/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN python -m pip install --no-cache-dir playwright==1.60.0
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+          docker build -t garden-dev-ab-rootfs:${GITHUB_SHA} \
+            reports/dev-ab/probe-image \
+            2>&1 | tee reports/dev-ab/probe-image-build.log
+          id="$(docker create garden-dev-ab-rootfs:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/dev-ab/rootfs.tar
+          sudo tar -xf reports/dev-ab/rootfs.tar -C reports/dev-ab/rootfs
+
+          browser_host="$(find reports/dev-ab/rootfs/opt/liminal-playwright \
+            -type f -name chrome-headless-shell -perm -111 -print -quit)"
+          node_host="$(find reports/dev-ab/rootfs/usr/local/lib \
+            -type f -path '*/playwright/driver/node' -perm -111 -print -quit)"
+          test -n "$browser_host"
+          test -n "$node_host"
+          browser_inside="/${browser_host#reports/dev-ab/rootfs/}"
+          node_inside="/${node_host#reports/dev-ab/rootfs/}"
+
+          sudo mkdir -p reports/dev-ab/rootfs/opt/diagnostic
+          cat > /tmp/stdio-ignore.js <<'JS'
+          const { spawnSync } = require('child_process');
+          const fs = require('fs');
+          const browser = fs.readFileSync('/opt/diagnostic/browser-path.txt', 'utf8').trim();
+          const result = spawnSync(browser, ['--version'], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            encoding: 'utf8'
+          });
+          console.log(JSON.stringify({
+            status: result.status,
+            error: result.error ? {code: result.error.code, errno: result.error.errno, message: result.error.message} : null,
+            stdout: result.stdout,
+            stderr: result.stderr
+          }));
+          process.exit(result.status === 0 ? 0 : 1);
+          JS
+          sudo cp /tmp/stdio-ignore.js reports/dev-ab/rootfs/opt/diagnostic/stdio-ignore.js
+          printf '%s\n' "$browser_inside" | sudo tee reports/dev-ab/rootfs/opt/diagnostic/browser-path.txt >/dev/null
+          printf '%s\n' "$node_inside" > reports/dev-ab/node-path.txt
+          find reports/dev-ab/rootfs/dev -maxdepth 1 -ls > reports/dev-ab/dev-before.txt 2>&1 || true
+
+      - name: Run without minimal devices
+        shell: bash
+        run: |
+          set -uo pipefail
+          node="$(cat reports/dev-ab/node-path.txt)"
+          set +e
+          timeout 30 sudo chroot reports/dev-ab/rootfs "$node" /opt/diagnostic/stdio-ignore.js \
+            > reports/dev-ab/without-dev.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/dev-ab/without-dev.exit
+          cat reports/dev-ab/without-dev.log
+
+      - name: Create minimal device nodes and rerun
+        shell: bash
+        run: |
+          set -euo pipefail
+          dev=reports/dev-ab/rootfs/dev
+          sudo mkdir -p "$dev" "$dev/pts" "$dev/shm"
+          for entry in null zero random urandom; do
+            sudo rm -f "$dev/$entry"
+          done
+          sudo mknod -m 666 "$dev/null" c 1 3
+          sudo mknod -m 666 "$dev/zero" c 1 5
+          sudo mknod -m 666 "$dev/random" c 1 8
+          sudo mknod -m 666 "$dev/urandom" c 1 9
+          sudo ln -sfn /proc/self/fd "$dev/fd"
+          sudo ln -sfn /proc/self/fd/0 "$dev/stdin"
+          sudo ln -sfn /proc/self/fd/1 "$dev/stdout"
+          sudo ln -sfn /proc/self/fd/2 "$dev/stderr"
+          find "$dev" -maxdepth 1 -ls > reports/dev-ab/dev-after.txt
+
+          node="$(cat reports/dev-ab/node-path.txt)"
+          set +e
+          timeout 30 sudo chroot reports/dev-ab/rootfs "$node" /opt/diagnostic/stdio-ignore.js \
+            > reports/dev-ab/with-dev.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/dev-ab/with-dev.exit
+          cat reports/dev-ab/with-dev.log
+
+      - name: Build Garden harness and Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/dev-ab/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-dev-ab:${GITHUB_SHA} reports/dev-ab/garden-image
+
+          node="$(cat reports/dev-ab/node-path.txt)"
+          cat > reports/dev-ab/seed.yaml <<YAML
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: garden-dev-null-ab
+            id: garden-dev-null-ab-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - ${node}
+              - /opt/diagnostic/stdio-ignore.js
+            env:
+              - HOME=/tmp
+            cwd: /
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: dev-ab
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+
+      - name: Run with minimal devices inside Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          timeout 90 docker run --rm \
+            --privileged \
+            --pids-limit 128 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/dev-ab/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/dev-ab/seed.yaml:/work/seed.yaml:ro" \
+            garden-dev-ab:${GITHUB_SHA} run -f /work/seed.yaml --store mem \
+            > reports/dev-ab/garden.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/dev-ab/garden.exit
+          cat reports/dev-ab/garden.log
+
+      - name: Classify device boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('reports/dev-ab')
+          without = int((root / 'without-dev.exit').read_text())
+          with_dev = int((root / 'with-dev.exit').read_text())
+          garden = int((root / 'garden.exit').read_text())
+          result = {
+              'schema_version':'garden-dev-null-ab-v0.1',
+              'garden_commit':'6eda85415feae21af117aa09125dcc88a1a3f9c1',
+              'without_minimal_dev_exit':without,
+              'with_minimal_dev_exit':with_dev,
+              'garden_with_minimal_dev_exit':garden,
+              'minimal_dev_is_causal': without != 0 and with_dev == 0 and garden == 0,
+              'airbnb_navigation':False,
+              'authority':{'mode':'runtime_diagnostic_only','external_submission':False,'deployment':False,'merge':False},
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if not result['minimal_dev_is_causal']:
+              raise SystemExit(1)
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/dev-ab/rootfs
+          rm -f reports/dev-ab/rootfs.tar
+          find reports/dev-ab -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/dev-ab/SHA256SUMS.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-dev-null-ab-${{ github.run_id }}
+          path: reports/dev-ab/
+          if-no-files-found: error
+          retention-days: 14

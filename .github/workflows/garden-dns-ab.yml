@@ -1,0 +1,246 @@
+name: Garden DNS A-B
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/garden-dns-ab.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: garden-dns-ab-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 9c43a78082d8bf943dd8d11e741b9a0c7cc61f65
+  ROOTFS_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+
+jobs:
+  dns:
+    name: Compare DNS outside and inside Garden
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Build exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/dns-ab/{rootfs,garden-image,network-files}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+          build_root="$RUNNER_TEMP/GardenLiminal-dns-ab"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/dns-ab/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/dns-ab/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/dns-ab/garden-image/gl"
+
+      - name: Export rootfs and exact Docker network files
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$ROOTFS_IMAGE"
+          id="$(docker create "$ROOTFS_IMAGE" /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/dns-ab/rootfs.tar
+          sudo tar -xf reports/dns-ab/rootfs.tar -C reports/dns-ab/rootfs
+
+          for file in resolv.conf hosts hostname; do
+            docker cp "$id:/etc/$file" "reports/dns-ab/network-files/$file"
+            sudo cp "reports/dns-ab/network-files/$file" "reports/dns-ab/rootfs/etc/$file"
+          done
+
+          dev=reports/dns-ab/rootfs/dev
+          sudo mkdir -p "$dev" "$dev/pts" "$dev/shm" reports/dns-ab/rootfs/opt/diagnostic reports/dns-ab/rootfs/evidence
+          for entry in null zero random urandom; do sudo rm -f "$dev/$entry"; done
+          sudo mknod -m 666 "$dev/null" c 1 3
+          sudo mknod -m 666 "$dev/zero" c 1 5
+          sudo mknod -m 666 "$dev/random" c 1 8
+          sudo mknod -m 666 "$dev/urandom" c 1 9
+          sudo ln -sfn /proc/self/fd "$dev/fd"
+          sudo ln -sfn /proc/self/fd/0 "$dev/stdin"
+          sudo ln -sfn /proc/self/fd/1 "$dev/stdout"
+          sudo ln -sfn /proc/self/fd/2 "$dev/stderr"
+
+          cat > /tmp/dns-probe.py <<'PY'
+          import json
+          import socket
+          import traceback
+          from pathlib import Path
+
+          result = {
+              'resolv_conf': Path('/etc/resolv.conf').read_text(errors='replace'),
+              'hosts': Path('/etc/hosts').read_text(errors='replace'),
+              'addresses': [],
+              'error': None,
+          }
+          try:
+              rows = socket.getaddrinfo('www.airbnb.com', 443, type=socket.SOCK_STREAM)
+              result['addresses'] = sorted({row[4][0] for row in rows})
+          except Exception as exc:
+              result['error'] = {'type': type(exc).__name__, 'message': str(exc), 'traceback': traceback.format_exc()}
+          Path('/evidence').mkdir(parents=True, exist_ok=True)
+          Path('/evidence/dns-result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2), flush=True)
+          raise SystemExit(0 if result['addresses'] else 1)
+          PY
+          sudo cp /tmp/dns-probe.py reports/dns-ab/rootfs/opt/diagnostic/dns-probe.py
+          sudo chmod -R a+rX reports/dns-ab/rootfs/opt/diagnostic
+
+      - name: Run DNS in chroot without Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          timeout 30 sudo chroot reports/dns-ab/rootfs /usr/bin/python /opt/diagnostic/dns-probe.py \
+            > reports/dns-ab/chroot.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/dns-ab/chroot.exit
+          cat reports/dns-ab/chroot.log
+          sudo cp reports/dns-ab/rootfs/evidence/dns-result.json reports/dns-ab/chroot-result.json || true
+          sudo rm -f reports/dns-ab/rootfs/evidence/dns-result.json
+
+      - name: Build Garden harness and Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/dns-ab/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-dns-ab:${GITHUB_SHA} reports/dns-ab/garden-image
+
+          cat > reports/dns-ab/seed.yaml <<'YAML'
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: garden-dns-ab
+            id: garden-dns-ab-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - /usr/bin/python
+              - /opt/diagnostic/dns-probe.py
+            env:
+              - HOME=/tmp
+              - PYTHONUNBUFFERED=1
+            cwd: /
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: dns-ab
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+
+      - name: Run DNS inside Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          timeout 60 docker run --rm \
+            --privileged \
+            --pids-limit 128 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/dns-ab/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/dns-ab/seed.yaml:/work/seed.yaml:ro" \
+            garden-dns-ab:${GITHUB_SHA} run -f /work/seed.yaml --store mem \
+            > reports/dns-ab/garden.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/dns-ab/garden.exit
+          cat reports/dns-ab/garden.log
+          if [ -f reports/dns-ab/rootfs/evidence/dns-result.json ]; then
+            sudo cp reports/dns-ab/rootfs/evidence/dns-result.json reports/dns-ab/garden-result.json
+            sudo chown "$(id -u):$(id -g)" reports/dns-ab/garden-result.json
+          fi
+
+      - name: Classify DNS boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('reports/dns-ab')
+          chroot_code = int((root / 'chroot.exit').read_text())
+          garden_code = int((root / 'garden.exit').read_text())
+          chroot = json.loads((root / 'chroot-result.json').read_text()) if (root / 'chroot-result.json').exists() else None
+          garden = json.loads((root / 'garden-result.json').read_text()) if (root / 'garden-result.json').exists() else None
+          if chroot_code == 0 and garden_code == 0:
+              boundary = 'DNS_CONFIRMED_INSIDE_GARDEN'
+          elif chroot_code == 0 and garden_code != 0:
+              boundary = 'GARDEN_SECCOMP_OR_RUNTIME_DNS_BLOCK'
+          elif chroot_code != 0:
+              boundary = 'NETWORK_CONFIGURATION_INVALID_BEFORE_GARDEN'
+          else:
+              boundary = 'UNRESOLVED'
+          result = {
+              'schema_version':'garden-dns-ab-v0.1',
+              'garden_commit':'9c43a78082d8bf943dd8d11e741b9a0c7cc61f65',
+              'chroot_exit':chroot_code,
+              'garden_exit':garden_code,
+              'chroot_result':chroot,
+              'garden_result':garden,
+              'boundary':boundary,
+              'airbnb_http_navigation':False,
+              'authority':{'mode':'runtime_diagnostic_only','external_submission':False,'deployment':False,'merge':False},
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if boundary == 'UNRESOLVED': raise SystemExit(1)
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/dns-ab/rootfs
+          rm -f reports/dns-ab/rootfs.tar
+          find reports/dns-ab -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/dns-ab/SHA256SUMS.txt
+
+      - name: Upload DNS evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-dns-ab-${{ github.run_id }}
+          path: reports/dns-ab/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,237 @@
+name: Garden Playwright Crash Debug
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/garden-playwright-crash-debug.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: garden-playwright-crash-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GARDEN_SHA: 6eda85415feae21af117aa09125dcc88a1a3f9c1
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.60.0-noble
+
+jobs:
+  debug:
+    name: Capture Playwright browser stderr under Garden
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/GardenLiminal
+          ref: ${{ env.GARDEN_SHA }}
+          path: vendor/GardenLiminal
+          persist-credentials: false
+
+      - name: Build exact Garden
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/browser-debug/{rootfs,garden-image,probe-image}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libseccomp-dev pkg-config
+          build_root="$RUNNER_TEMP/GardenLiminal-browser-debug"
+          cp -a vendor/GardenLiminal "$build_root"
+          cd "$build_root"
+          cargo build --release 2>&1 | tee "$GITHUB_WORKSPACE/reports/browser-debug/cargo-build.log"
+          cargo test 2>&1 | tee "$GITHUB_WORKSPACE/reports/browser-debug/cargo-test.log"
+          cp target/release/gl "$GITHUB_WORKSPACE/reports/browser-debug/garden-image/gl"
+
+      - name: Build debug rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/browser-debug/probe-image/Dockerfile <<DOCKERFILE
+          FROM ${PLAYWRIGHT_IMAGE}
+          RUN python -m pip install --no-cache-dir playwright==1.60.0
+          RUN mkdir -p /opt/liminal-playwright \
+              && cp -a /ms-playwright/. /opt/liminal-playwright/
+          DOCKERFILE
+          docker build -t garden-browser-debug-rootfs:${GITHUB_SHA} \
+            reports/browser-debug/probe-image \
+            2>&1 | tee reports/browser-debug/probe-image-build.log
+          id="$(docker create garden-browser-debug-rootfs:${GITHUB_SHA} /bin/true)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          docker export "$id" -o reports/browser-debug/rootfs.tar
+          sudo tar -xf reports/browser-debug/rootfs.tar -C reports/browser-debug/rootfs
+
+          dev=reports/browser-debug/rootfs/dev
+          sudo mkdir -p "$dev" "$dev/pts" "$dev/shm" reports/browser-debug/rootfs/opt/diagnostic
+          for entry in null zero random urandom; do sudo rm -f "$dev/$entry"; done
+          sudo mknod -m 666 "$dev/null" c 1 3
+          sudo mknod -m 666 "$dev/zero" c 1 5
+          sudo mknod -m 666 "$dev/random" c 1 8
+          sudo mknod -m 666 "$dev/urandom" c 1 9
+          sudo ln -sfn /proc/self/fd "$dev/fd"
+          sudo ln -sfn /proc/self/fd/0 "$dev/stdin"
+          sudo ln -sfn /proc/self/fd/1 "$dev/stdout"
+          sudo ln -sfn /proc/self/fd/2 "$dev/stderr"
+
+          cat > /tmp/browser-debug.py <<'PY'
+          import json
+          import traceback
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+
+          result = {"launched": False, "connected_after_launch": False, "context": False, "page": False, "error": None}
+          try:
+              with sync_playwright() as playwright:
+                  browser = playwright.chromium.launch(
+                      headless=True,
+                      args=["--no-sandbox", "--disable-dev-shm-usage"],
+                  )
+                  result["launched"] = True
+                  result["connected_after_launch"] = browser.is_connected()
+                  context = browser.new_context(locale="en-US", timezone_id="Europe/Istanbul")
+                  result["context"] = True
+                  page = context.new_page()
+                  result["page"] = True
+                  result["connected_after_page"] = browser.is_connected()
+                  page.set_content("<title>Garden browser debug</title><p>ok</p>")
+                  result["title"] = page.title()
+                  browser.close()
+          except Exception as exc:
+              result["error"] = {"type": type(exc).__name__, "message": str(exc), "traceback": traceback.format_exc()}
+          Path("/evidence").mkdir(parents=True, exist_ok=True)
+          Path("/evidence/browser-debug.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(result, indent=2), flush=True)
+          raise SystemExit(0 if result.get("page") else 1)
+          PY
+          sudo cp /tmp/browser-debug.py reports/browser-debug/rootfs/opt/diagnostic/browser-debug.py
+          sudo chmod -R a+rX reports/browser-debug/rootfs/opt/diagnostic
+          sudo mkdir -p reports/browser-debug/rootfs/evidence
+
+      - name: Build harness and Seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > reports/browser-debug/garden-image/Dockerfile <<'DOCKERFILE'
+          FROM ubuntu:24.04
+          RUN apt-get update \
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                   libseccomp2 ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+          COPY gl /opt/garden/gl
+          RUN chmod 0755 /opt/garden/gl
+          ENTRYPOINT ["/opt/garden/gl"]
+          DOCKERFILE
+          docker build -t garden-browser-debug:${GITHUB_SHA} reports/browser-debug/garden-image
+
+          cat > reports/browser-debug/seed.yaml <<'YAML'
+          apiVersion: v0
+          kind: Seed
+          meta:
+            name: garden-playwright-crash-debug
+            id: garden-playwright-crash-debug-001
+          rootfs:
+            path: /work/rootfs
+          entrypoint:
+            cmd:
+              - /usr/bin/python
+              - /opt/diagnostic/browser-debug.py
+            env:
+              - HOME=/tmp
+              - PLAYWRIGHT_BROWSERS_PATH=/opt/liminal-playwright
+              - PYTHONUNBUFFERED=1
+              - DEBUG=pw:browser
+            cwd: /
+          mounts:
+            - type: proc
+              target: /proc
+            - type: tmpfs
+              target: /tmp
+            - type: tmpfs
+              target: /dev/shm
+          security:
+            hostname: browser-debug
+            drop_caps: ["NET_ADMIN", "SYS_ADMIN"]
+            seccomp_profile: default
+          user:
+            uid: 0
+            gid: 0
+            map_rootless: false
+          store:
+            kind: mem
+          YAML
+
+      - name: Run browser debug inside Garden
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          timeout 120 docker run --rm \
+            --privileged \
+            --cpus 1.50 \
+            --memory 2g \
+            --pids-limit 512 \
+            --security-opt seccomp=unconfined \
+            --security-opt apparmor=unconfined \
+            -v "$GITHUB_WORKSPACE/reports/browser-debug/rootfs:/work/rootfs:rw" \
+            -v "$GITHUB_WORKSPACE/reports/browser-debug/seed.yaml:/work/seed.yaml:ro" \
+            garden-browser-debug:${GITHUB_SHA} run -f /work/seed.yaml --store mem \
+            > reports/browser-debug/run.log 2>&1
+          code=$?
+          set -e
+          echo "$code" > reports/browser-debug/run.exit
+          cat reports/browser-debug/run.log
+          if [ -f reports/browser-debug/rootfs/evidence/browser-debug.json ]; then
+            sudo cp reports/browser-debug/rootfs/evidence/browser-debug.json reports/browser-debug/browser-debug.json
+            sudo chown "$(id -u):$(id -g)" reports/browser-debug/browser-debug.json
+          fi
+
+      - name: Classify captured crash
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('reports/browser-debug')
+          detail = json.loads((root / 'browser-debug.json').read_text()) if (root / 'browser-debug.json').exists() else None
+          log = (root / 'run.log').read_text(errors='replace')
+          result = {
+              'schema_version':'garden-playwright-crash-debug-v0.1',
+              'garden_commit':'6eda85415feae21af117aa09125dcc88a1a3f9c1',
+              'run_exit':int((root / 'run.exit').read_text()),
+              'detail':detail,
+              'browser_stderr_lines':[line for line in log.splitlines() if '[pid=' in line or 'ERROR:' in line or 'FATAL:' in line or 'zygote' in line.lower()],
+              'evidence_captured':detail is not None,
+              'airbnb_navigation':False,
+              'authority':{'mode':'runtime_diagnostic_only','external_submission':False,'deployment':False,'merge':False},
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(result, indent=2))
+          if detail is None: raise SystemExit(1)
+          PY
+
+      - name: Remove rootfs and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -rf reports/browser-debug/rootfs
+          rm -f reports/browser-debug/rootfs.tar
+          find reports/browser-debug -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 sha256sum > reports/browser-debug/SHA256SUMS.txt
+
+      - name: Upload crash evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: garden-playwright-crash-debug-${{ github.run_id }}
+          path: reports/browser-debug/
+          if-no-files-found: error
+          retention-days: 14
