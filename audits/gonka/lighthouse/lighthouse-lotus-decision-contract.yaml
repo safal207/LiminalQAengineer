@@ -1,0 +1,89 @@
+apiVersion: liminalqa.io/v1alpha1
+kind: LighthouseDecisionContract
+metadata:
+  name: gonka-lighthouse-lotus-contract-v0-1
+
+spec:
+  role: advisory-sensor
+  direct_final_verdict_allowed: false
+
+  required_evidence:
+    - exact_seed_hash
+    - protocol_repository_head
+    - docs_repository_head
+    - lighthouse_version
+    - chrome_version
+    - profile
+    - target_url
+    - final_url
+    - http_status
+    - raw_lhr_json
+    - run_count
+    - observed_network_origins
+
+  classifications:
+    BLOCKED_BY_ENVIRONMENT:
+      when:
+        - navigation_blocked
+        - browser_crashed
+        - missing_required_evidence
+
+    NEEDS_EVIDENCE:
+      when:
+        - failed_in_only_one_run
+        - score_only_without_failed_audit
+        - result_depends_on_network_variance
+        - result_depends_on_third_party
+
+    PRODUCT_SIGNAL:
+      when:
+        - same_audit_failed_in_mobile_and_desktop
+        - raw_artifact_is_available
+        - same_final_url
+
+    CONFIRMED_PRODUCT_DEFECT:
+      when:
+        - product_signal_reproduced_in_three_run_manual_pass
+        - user_impact_is_described
+        - cml_causal_chain_is_complete
+        - lotus_evidence_review_passed
+
+    SECURITY_CANDIDATE:
+      when:
+        - confidentiality_integrity_or_availability_impact_is_demonstrated
+        - finding_is_in_hackerone_scope
+        - no_prohibited_action_was_used
+
+  verdict_policy:
+    external_target:
+      maximum: WARN
+      block_allowed: false
+      hackerone_submission_allowed: false
+
+  causal_rules:
+    - if: low_performance_score_without_three_runs
+      classify_as: NEEDS_EVIDENCE
+    - if: accessibility_failure_repeated_across_profiles
+      classify_as: PRODUCT_SIGNAL
+    - if: docs_link_or_route_fails_across_profiles
+      classify_as: PRODUCT_SIGNAL
+    - if: vulnerability_form_exists_but_security_impact_missing
+      classify_as: PRODUCT_SUPPORT_ONLY
+    - if: automated_accessibility_score_is_100
+      conclusion: AUTOMATED_CHECKS_PASSED_NOT_FULL_ACCESSIBILITY
+
+  decision_packet_fields:
+    - target.protocol_head
+    - target.docs_head
+    - lighthouse.profile
+    - lighthouse.category_scores
+    - lighthouse.core_metrics
+    - lighthouse.failed_audits
+    - lighthouse.run_variance
+    - lighthouse.final_url
+    - lighthouse.http_status
+    - evidence.lhr_artifact_ids
+    - evidence.seed_hash
+    - cml.root_cause
+    - ls.user_impact
+    - pythia.verdict

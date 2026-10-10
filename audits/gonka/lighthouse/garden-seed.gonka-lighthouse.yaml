@@ -1,0 +1,91 @@
+apiVersion: liminalqa.io/v1alpha1
+kind: GardenSeed
+metadata:
+  name: gonka-lighthouse-public-v0-1
+  labels:
+    product: gonka-web-docs
+    sensor: lighthouse
+    mode: public-read-only
+
+spec:
+  target_identity:
+    protocol_repository: gonka-ai/gonka
+    protocol_head: 8a35022bea25ebee4b7356314a0a262edbaa82db
+    docs_repository: gonka-ai/gonka-docs
+    docs_head: 902f9074b70cbdbcbf9343bc0e22a153503b87aa
+
+  authorization:
+    owner: external
+    permission_mode: passive-public-audit
+    allowed_http_methods: [GET, HEAD]
+    forbidden_actions:
+      - form-submit
+      - wallet-connect
+      - wallet-signature
+      - transaction-submit
+      - api-key-generation
+      - inference-request
+      - node-operation
+      - mining
+      - account-enumeration
+      - api-fuzzing
+      - load-test
+      - hackerone-submit
+
+  runner:
+    image: liminalqa-lighthouse-runner@sha256:REPLACE_WITH_EXACT_DIGEST
+    workdir: /workspace
+    command:
+      - npx
+      - lhci
+      - autorun
+      - --config=./lighthouserc.cjs
+    environment:
+      TZ: Europe/Istanbul
+      LH_PROFILE: mobile
+      LH_RUNS: "3"
+
+  isolation:
+    rootless: true
+    read_only_root_filesystem: true
+    no_new_privileges: true
+    drop_capabilities: ["ALL"]
+    seccomp_pact: qa-browser-public@1
+
+  resources:
+    cpu: "2"
+    memory: 2Gi
+    pids: 256
+    timeout: 20m
+
+  network:
+    mode: record-and-observe
+    deny_private_networks: true
+    max_parallel_pages: 1
+    target_origins:
+      - https://gonka.ai
+    third_party_policy: observe
+
+  matrix:
+    profiles:
+      - name: mobile
+        environment:
+          LH_PROFILE: mobile
+      - name: desktop
+        environment:
+          LH_PROFILE: desktop
+    runs_per_url: 3
+    execution_order: serial
+
+  evidence:
+    run_id: GONKA-LH-${GIT_SHA:-external}-${TIMESTAMP}
+    capture:
+      - .lighthouseci/**
+      - artifacts/lighthouse/**
+      - artifacts/environment/**
+      - artifacts/logs/**
+    hashes:
+      - seed
+      - runner-image
+      - lighthouserc
+      - lighthouse-json
