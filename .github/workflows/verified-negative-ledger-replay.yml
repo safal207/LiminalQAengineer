@@ -1,0 +1,88 @@
+name: LiminalDB Verified-Negative Ledger Replay
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/verified-negative-ledger-replay.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verified-negative-ledger-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LIMINALDB_LEDGER_SHA: 47b3d4f15182f213df4ff460ce71ad158076be63
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/LiminalDB
+          ref: ${{ env.LIMINALDB_LEDGER_SHA }}
+          path: vendor/LiminalDBLedger
+          persist-credentials: false
+
+      - name: Verify exact ledger replay source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/LiminalDBLedger rev-parse HEAD)" = "$LIMINALDB_LEDGER_SHA"
+          mkdir -p reports/ledger
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pkg-config libssl-dev
+
+      - name: Run exact verified-negative ledger tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test \
+            --manifest-path vendor/LiminalDBLedger/liminal-db/Cargo.toml \
+            -p liminal-store \
+            --test verified_negative_memory_ledger \
+            -- --nocapture \
+            2>&1 | tee reports/ledger/test.log
+
+      - name: Extract and validate replay receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt_line="$(grep '^VERIFIED_NEGATIVE_LEDGER_RECEIPT=' reports/ledger/test.log | tail -1)"
+          test -n "$receipt_line"
+          printf '%s\n' "${receipt_line#VERIFIED_NEGATIVE_LEDGER_RECEIPT=}" \
+            | jq -S . > reports/ledger/replay-receipt.json
+          jq -e '
+            .event_count == 5 and
+            .replay_equal == true and
+            .dimensions.authority == "VALID" and
+            .dimensions.execution == "OBSERVED_EXECUTED" and
+            .dimensions.response_integrity == "VERIFIED" and
+            .dimensions.causal_validity == "NOT_EVALUATED" and
+            .dimensions.continuity_posture == "REPORT_ONLY" and
+            .memory.result_class == "VERIFIED_NEGATIVE_OBSERVATION" and
+            .memory.durable_memory_accepted == false and
+            .memory.storage_rehearsal == "EPHEMERAL_WAL_AND_SNAPSHOT" and
+            .memory.production_write == false and
+            .authority.external_submission == false and
+            .authority.deployment == false and
+            .authority.merge == false
+          ' reports/ledger/replay-receipt.json >/dev/null
+          sha256sum reports/ledger/replay-receipt.json > reports/ledger/SHA256SUMS.txt
+          cat reports/ledger/replay-receipt.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-negative-ledger-replay-${{ github.run_id }}
+          path: reports/ledger/
+          if-no-files-found: error
+          retention-days: 14

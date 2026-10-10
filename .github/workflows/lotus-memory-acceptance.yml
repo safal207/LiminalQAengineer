@@ -1,0 +1,192 @@
+name: Pythia and LiminalDB Negative Memory Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/lotus-memory-acceptance.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: lotus-memory-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOURCE_RUN_ID: '29702510829'
+  SOURCE_ARTIFACT_ID: '8446921466'
+  SOURCE_ARTIFACT_SHA256: 4b33451c6d96d72705c18d88613555fdcb9be16af03425cb59539585ea9e11be
+  SOURCE_HEAD_SHA: c7af3e210d007026fedc57eb9435069a958fac6f
+  PYTHIA_SHA: 92b4ade7c2057f6d5cf542dca1bf474360cd74c1
+  LIMINALDB_SHA: 5596dcb379c459dba56e2d8578b919faa8015143
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/pythiaLabs
+          ref: ${{ env.PYTHIA_SHA }}
+          path: vendor/Pythia
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          repository: safal207/LiminalDB
+          ref: ${{ env.LIMINALDB_SHA }}
+          path: vendor/LiminalDB
+          persist-credentials: false
+
+      - name: Verify exact adapter pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C vendor/Pythia rev-parse HEAD)" = "$PYTHIA_SHA"
+          test "$(git -C vendor/LiminalDB rev-parse HEAD)" = "$LIMINALDB_SHA"
+          mkdir -p reports/{input,pythia,liminaldb}
+
+      - name: Run exact adapter contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            vendor/Pythia/tools/lotus_ltp_acceptance.py \
+            vendor/Pythia/test/lotus_ltp_acceptance_test.py \
+            vendor/LiminalDB/scripts/validate_lotus_memory.py \
+            vendor/LiminalDB/scripts/validate_pythia_negative_memory.py \
+            vendor/LiminalDB/tests/test_validate_lotus_memory.py \
+            vendor/LiminalDB/tests/test_validate_pythia_negative_memory.py
+          (
+            cd vendor/Pythia
+            python3 -m unittest discover -s test -p 'lotus_ltp_acceptance_test.py' -v
+          ) 2>&1 | tee reports/pythia/tests.log
+          (
+            cd vendor/LiminalDB
+            python3 -m unittest \
+              tests/test_validate_lotus_memory.py \
+              tests/test_validate_pythia_negative_memory.py \
+              -v
+          ) 2>&1 | tee reports/liminaldb/tests.log
+
+      - name: Download and verify exact trustworthy-transition artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" \
+            -o reports/source-artifact.zip
+          echo "${SOURCE_ARTIFACT_SHA256}  reports/source-artifact.zip" | sha256sum -c -
+          unzip -q reports/source-artifact.zip -d reports/input
+          test -s reports/input/ltp/ltp-transition-packet.json
+          test -s reports/input/ltp/authorization-record.json
+          test -s reports/input/ltp/observation-record.json
+          test -s reports/input/SHA256SUMS.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root = Path('reports/input')
+          checked = 0
+          for line in (root/'SHA256SUMS.txt').read_text().splitlines():
+              if not line.strip():
+                  continue
+              expected, relative = line.split(None, 1)
+              relative = relative.strip()
+              if relative.startswith('reports/'):
+                  relative = relative[len('reports/'):]
+              path = root / relative
+              if not path.is_file():
+                  raise SystemExit(f'missing manifest file: {relative}')
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f'digest mismatch: {relative}')
+              checked += 1
+          print(f'verified {checked} internal artifact files')
+          PY
+
+      - name: Produce real Pythia Lotus judgment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 vendor/Pythia/tools/lotus_ltp_acceptance.py \
+            --packet reports/input/ltp/ltp-transition-packet.json \
+            --authorization reports/input/ltp/authorization-record.json \
+            --observation reports/input/ltp/observation-record.json \
+            --output-dir reports/pythia \
+            --source-repository safal207/LiminalQAengineer \
+            --source-branch agent/garden-dns-live-ci-v0-1 \
+            --source-commit "$SOURCE_HEAD_SHA" \
+            --pythia-commit "$PYTHIA_SHA" \
+            --generated-at 2026-07-19T23:40:00+03:00 \
+            | tee reports/pythia/stdout.json
+          jq -e '
+            .verdict == "ALLOW" and
+            .verdict_scope == "artifact_only_verified_negative_memory_candidate" and
+            .decision_status == "CONFIRMED" and
+            .result_class == "VERIFIED_NEGATIVE_OBSERVATION" and
+            .evidence_state.verification_level == "FULL_LIFECYCLE_JOINED" and
+            .evidence_state.response_integrity == "VERIFIED" and
+            .evidence_state.fabricated_claim_control == "CONTRADICTED" and
+            .product_observation.confirmed_defect == false and
+            .memory_candidate.durable_memory == false and
+            .authority.external_submission == false and
+            .authority.durable_memory_write == false
+          ' reports/pythia/lotus-ltp-judgment.json >/dev/null
+
+      - name: Validate LiminalDB artifact-only import
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 vendor/LiminalDB/scripts/validate_pythia_negative_memory.py \
+            --events reports/pythia/liminaldb-negative-memory.jsonl \
+            --output reports/liminaldb/import-check.json
+          jq -e '
+            .mode == "dry_run" and
+            .write_performed == false and
+            .event_count == 1 and
+            .verified_negative_count == 1 and
+            .canonical_memory_count == 1 and
+            .authority.durable_memory_accepted == false and
+            .authority.live_ingestion_performed == false and
+            .authority.external_submission_authorized == false
+          ' reports/liminaldb/import-check.json >/dev/null
+          {
+            echo "## Lotus verified-negative memory"
+            echo
+            echo "- Source run: ${SOURCE_RUN_ID}"
+            echo "- Pythia: ALLOW artifact-only memory candidate"
+            echo "- Result class: VERIFIED_NEGATIVE_OBSERVATION"
+            echo "- LiminalDB: dry-run import accepted"
+            echo "- Durable memory write: false"
+            echo "- External submission: false"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Hash and upload downstream evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/input
+          rm -f reports/source-artifact.zip
+          find reports -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > reports/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lotus-negative-memory-${{ github.run_id }}
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14
