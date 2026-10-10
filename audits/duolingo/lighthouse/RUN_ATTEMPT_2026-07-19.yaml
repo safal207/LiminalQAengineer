@@ -1,0 +1,53 @@
+schema: liminalqa.decision-packet.v1
+run_id: DUO-LH-20260719-ENV-001
+timestamp_local: 2026-07-19
+timezone: Europe/Istanbul
+target:
+  owner: external
+  application: Duolingo Web
+  urls_configured: 5
+  profiles: [mobile, desktop]
+  requested_runs_per_url: 3
+scope:
+  mode: passive-public-read-only
+  allowed_methods: [GET, HEAD]
+  authentication_attempted: false
+  state_change_attempted: false
+preflight:
+  pythia: ALLOW_WITH_CONSTRAINTS
+execution:
+  status: BLOCKED_BY_ENVIRONMENT
+  target_observed_by_lighthouse: false
+  lhr_reports_produced: 0
+  environment:
+    node: v22.16.0
+    npm: 10.9.2
+    chromium: 144.0.7559.96
+  blockers:
+    - layer: network
+      evidence: "curl exit 6: Could not resolve host www.duolingo.com"
+    - layer: dependency_install
+      evidence: "Lighthouse CLI installation did not complete within the execution window"
+    - layer: browser_runtime
+      evidence: "Headless Chromium local control failed under container restrictions; crashpad, NETLINK, DBus and timeout evidence recorded"
+evidence_integrity:
+  config_sha256: 2e34607047e1645e61083a5763bf67530c84ff18876520ba8d89d823b46ff2d1
+  seed_sha256: 91249ae690f05624d346b0ac6f8e97f05b30b1a9936c41dca57b59c645d8b832
+  decision_contract_sha256: 0a51e586982127df4779842c0bd076391de20f5925542418d14209088e297009
+analysis:
+  cml_causal_chain:
+    - preflight_allowed_passive_audit
+    - execution_environment_failed_before_target_navigation
+    - no_lighthouse_observation
+    - no_product_inference_permitted
+  ls_user_impact: NOT_ASSESSED
+  liminalosai_hypothesis_allowed: false
+lotus:
+  evidence_sufficiency: FAIL
+  product_verdict: UNKNOWN
+  execution_verdict: RETRY
+  final_decision: BLOCKED_BY_ENVIRONMENT
+next_action:
+  use: .github/workflows/duolingo-lighthouse-manual.yml
+  trigger: workflow_dispatch_only
+  required_result: raw_lhr_json_plus_environment_identity

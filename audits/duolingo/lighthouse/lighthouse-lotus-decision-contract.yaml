@@ -1,0 +1,108 @@
+apiVersion: liminalqa.io/v1alpha1
+kind: LighthouseDecisionContract
+metadata:
+  name: lighthouse-lotus-contract-v0-1
+
+spec:
+  role: advisory-sensor
+  direct_final_verdict_allowed: false
+
+  required_evidence:
+    - exact_seed_hash
+    - runner_image_digest
+    - lighthouse_version
+    - chrome_version
+    - profile
+    - target_url
+    - final_url
+    - http_status
+    - three_run_results
+    - raw_lhr_json
+    - garden_resource_events
+    - observed_network_origins
+
+  normalization:
+    category_scores: median
+    performance_metrics: median
+    accessibility_failures: pessimistic
+    structural_failures: pessimistic
+
+  classifications:
+    BLOCKED_BY_ENVIRONMENT:
+      when:
+        - navigation_blocked
+        - browser_crashed
+        - garden_process_killed
+        - missing_required_evidence
+
+    ENVIRONMENT_SUSPECT:
+      when:
+        - cpu_throttled
+        - memory_pressure
+        - pid_pressure
+        - packet_loss_detected
+        - dns_instability
+
+    NEEDS_EVIDENCE:
+      when:
+        - failed_in_only_one_of_three_runs
+        - score_only_without_failed_audit
+        - result_depends_on_ab_test
+        - result_depends_on_unknown_third_party
+
+    PRODUCT_SIGNAL:
+      when:
+        - same_audit_failed_in_at_least_two_of_three_runs
+        - no_resource_pressure
+        - same_final_url_and_locale
+        - raw_artifact_is_available
+
+    CONFIRMED_PRODUCT_DEFECT:
+      when:
+        - product_signal_reproduced_in_second_profile_or_second_time_window
+        - user_impact_is_described
+        - cml_causal_chain_is_complete
+        - lotus_evidence_review_passed
+
+  verdict_policy:
+    external_target:
+      maximum: WARN
+      block_allowed: false
+
+    owned_repository:
+      maximum: BLOCK
+      block_requires:
+        - explicit_pythia_policy
+        - repeated_regression
+        - baseline_comparison
+        - no_environment_pressure
+        - meaningful_user_impact
+
+  causal_rules:
+    - if: lcp_regression_and_cpu_throttled
+      classify_as: ENVIRONMENT_SUSPECT
+    - if: lcp_regression_without_pressure_and_same_resource_is_slow
+      classify_as: PRODUCT_SIGNAL
+    - if: console_error_from_third_party_only
+      classify_as: THIRD_PARTY_DEPENDENCY_SIGNAL
+    - if: accessibility_score_100
+      conclusion: AUTOMATED_CHECKS_PASSED_NOT_FULL_ACCESSIBILITY
+    - if: locale_route_returns_404_in_two_of_three_runs
+      classify_as: PRODUCT_SIGNAL
+
+  decision_packet_fields:
+    - lighthouse.profile
+    - lighthouse.category_scores
+    - lighthouse.core_metrics
+    - lighthouse.failed_audits
+    - lighthouse.run_variance
+    - lighthouse.final_url
+    - lighthouse.http_status
+    - environment.resource_pressure
+    - environment.network_instability
+    - evidence.lhr_artifact_ids
+    - evidence.seed_hash
+    - evidence.runner_digest
+    - cml.root_cause
+    - ls.user_impact
+    - pythia.verdict

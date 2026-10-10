@@ -1,0 +1,104 @@
+name: Duolingo Lighthouse Manual Audit
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/duolingo-lighthouse-manual.yml
+      - audits/duolingo/lighthouse/**
+  workflow_dispatch:
+    inputs:
+      acknowledgement:
+        description: "Confirm passive public-page audit only"
+        required: true
+        type: choice
+        options:
+          - "I confirm: GET-only public audit"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: duolingo-lighthouse-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    name: Lighthouse (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        profile: [mobile, desktop]
+
+    defaults:
+      run:
+        working-directory: audits/duolingo/lighthouse
+
+    env:
+      LH_PROFILE: ${{ matrix.profile }}
+      LH_RUNS: ${{ github.event_name == 'pull_request' && '1' || '3' }}
+      TZ: Europe/Istanbul
+
+    steps:
+      - name: Checkout adapter
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned Lighthouse CI
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Capture environment identity
+        shell: bash
+        run: |
+          mkdir -p artifacts/environment
+          {
+            echo "run_id=DUO-LH-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${LH_PROFILE}"
+            echo "profile=${LH_PROFILE}"
+            echo "runs_per_url=${LH_RUNS}"
+            echo "runner_image=${ImageOS:-unknown}-${ImageVersion:-unknown}"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "lhci=$(npx lhci --version)"
+            echo "chrome=$(google-chrome --version || chromium --version || true)"
+            echo "started_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            sha256sum lighthouserc.cjs garden-seed.duolingo-lighthouse.yaml lighthouse-lotus-decision-contract.yaml
+          } | tee "artifacts/environment/${LH_PROFILE}.txt"
+
+      - name: Run Lighthouse CI
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/logs artifacts/lighthouse
+          npx lhci autorun --config=./lighthouserc.cjs 2>&1 | tee "artifacts/logs/lhci-${LH_PROFILE}.log"
+          status=${PIPESTATUS[0]}
+          echo "exit_code=${status}" | tee "artifacts/environment/lhci-exit-${LH_PROFILE}.txt"
+          exit 0
+
+      - name: Summarize raw LHRs
+        shell: bash
+        run: |
+          node scripts/summarize-lhr.mjs \
+            artifacts/lighthouse \
+            "artifacts/summary-${LH_PROFILE}.json" \
+            "${LH_PROFILE}"
+
+      - name: Upload immutable evidence bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: duolingo-lighthouse-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            audits/duolingo/lighthouse/artifacts/**
+            audits/duolingo/lighthouse/.lighthouseci/**
+            audits/duolingo/lighthouse/lighthouserc.cjs
+            audits/duolingo/lighthouse/garden-seed.duolingo-lighthouse.yaml
+            audits/duolingo/lighthouse/lighthouse-lotus-decision-contract.yaml
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,87 @@
+# Adapter contract / pseudoconfiguration.
+# Map these fields to the exact GardenLiminal Seed schema used by the repo.
+
+apiVersion: liminalqa.io/v1alpha1
+kind: GardenSeed
+metadata:
+  name: duolingo-lighthouse-public-v0-1
+  labels:
+    product: duolingo-web
+    sensor: lighthouse
+    mode: public-read-only
+
+spec:
+  authorization:
+    owner: external
+    permission_mode: passive-public-audit
+    allowed_http_methods: [GET, HEAD]
+    forbidden_actions:
+      - form-submit
+      - login-attempt
+      - account-enumeration
+      - captcha-bypass
+      - api-fuzzing
+      - load-test
+      - payment-action
+
+  runner:
+    # Pin the real immutable digest before execution.
+    image: liminalqa-lighthouse-runner@sha256:REPLACE_WITH_EXACT_DIGEST
+    workdir: /workspace
+    command:
+      - npx
+      - lhci
+      - autorun
+      - --config=./lighthouserc.cjs
+    environment:
+      TZ: Europe/Istanbul
+      LH_PROFILE: mobile
+
+  isolation:
+    rootless: true
+    read_only_root_filesystem: true
+    no_new_privileges: true
+    drop_capabilities: ["ALL"]
+    seccomp_pact: qa-browser-public@1
+
+  resources:
+    cpu: "2"
+    memory: 2Gi
+    pids: 256
+    timeout: 15m
+
+  network:
+    mode: record-and-observe
+    deny_private_networks: true
+    max_parallel_pages: 1
+    target_origins:
+      - https://www.duolingo.com
+      - https://tr.duolingo.com
+      - https://about.duolingo.com
+    # Third-party page resources may be loaded, but every origin must be recorded.
+    third_party_policy: observe
+
+  matrix:
+    profiles:
+      - name: mobile
+        environment:
+          LH_PROFILE: mobile
+      - name: desktop
+        environment:
+          LH_PROFILE: desktop
+    runs_per_url: 3
+    execution_order: serial
+
+  evidence:
+    run_id: DUO-LH-${GIT_SHA:-external}-${TIMESTAMP}
+    capture:
+      - .lighthouseci/**
+      - artifacts/lighthouse/**
+      - garden-events.jsonl
+      - process-metrics.json
+      - network-origins.json
+    hashes:
+      - seed
+      - runner-image
+      - lighthouserc
+      - lighthouse-json
