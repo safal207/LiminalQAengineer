@@ -1,0 +1,98 @@
+name: Tradernet Duplicate Settings Request Experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/tradernet-zombie-connections-v0-1
+    paths:
+      - .github/workflows/tradernet-duplicate-settings.yml
+      - scripts/tradernet_duplicate_settings_probe.mjs
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tradernet-duplicate-settings.yml
+      - scripts/tradernet_duplicate_settings_probe.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradernet-duplicate-settings-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Three fresh-context duplicate request proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install pinned browser driver
+        run: npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate probe and locate Chrome
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/tradernet_duplicate_settings_probe.mjs
+          chrome="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "${chrome}"
+          echo "chrome=${chrome}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run three bounded fresh-context rounds
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/tradernet-duplicate-settings
+          node scripts/tradernet_duplicate_settings_probe.mjs \
+            --chrome "${{ steps.runtime.outputs.chrome }}" \
+            --output-dir reports/tradernet-duplicate-settings
+          cat reports/tradernet-duplicate-settings/summary.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate privacy and authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="reports/tradernet-duplicate-settings/duplicate-settings-result.json"
+          jq -e '
+            .target == "https://tradernet.ru/charts/MICEXINDEXCF?site_lang=ru" and
+            .endpoint == "https://tradernet.ru/stocks/security-info/ajax-get-user-settings/" and
+            (.rounds | length) == 3 and
+            .boundaries.public_page_only == true and
+            .boundaries.natural_requests_only == true and
+            .boundaries.fresh_contexts == 3 and
+            .boundaries.direct_api_calls == false and
+            .boundaries.raw_response_bodies_stored == false and
+            .boundaries.raw_request_bodies_stored == false and
+            .boundaries.authentication == false and
+            .boundaries.financial_operations == false and
+            .boundaries.load_testing == false and
+            .authority.mode == "audit_only" and
+            .authority.ownership == false and
+            .authority.approval == false and
+            .authority.execution == false and
+            .authority.delivery == false and
+            .authority.external_submission == false and
+            .authority.merge == false
+          ' "${result}" >/dev/null
+          ! grep -R -E '"(response_body|post_data|authorization|cookie)"[[:space:]]*:' reports/tradernet-duplicate-settings
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradernet-duplicate-settings-${{ github.run_id }}
+          path: reports/tradernet-duplicate-settings/
+          if-no-files-found: error
+          retention-days: 14

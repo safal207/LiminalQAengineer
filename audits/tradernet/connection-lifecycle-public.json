@@ -1,0 +1,82 @@
+{
+  "schema_version": "liminalqa-tradernet-connection-lifecycle-v1",
+  "name": "Tradernet public connection lifecycle and zombie-transport audit",
+  "targets": [
+    {
+      "id": "public_chart_desktop",
+      "url": "https://tradernet.ru/charts/MICEXINDEXCF",
+      "role": "realtime_candidate",
+      "profile": "desktop_broadband"
+    },
+    {
+      "id": "terminal_login_desktop_control",
+      "url": "https://tradernet.ru/terminal",
+      "role": "unauthenticated_negative_control",
+      "profile": "desktop_broadband"
+    }
+  ],
+  "profiles": {
+    "desktop_broadband": {
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "hasTouch": false
+      },
+      "network": {
+        "latency_ms": 40,
+        "download_bytes_per_second": 1250000,
+        "upload_bytes_per_second": 625000,
+        "connection_type": "ethernet"
+      },
+      "cpu_throttling_rate": 1
+    }
+  },
+  "timings_ms": {
+    "bootstrap": 20000,
+    "offline": 15000,
+    "recovery": 30000,
+    "post_reload": 20000,
+    "post_navigation_teardown": 12000,
+    "snapshot_interval": 5000
+  },
+  "thresholds": {
+    "duplicate_active_seconds": 5,
+    "zombie_after_reload_grace_ms": 5000,
+    "zombie_after_navigation_grace_ms": 3000,
+    "reconnect_window_ms": 30000,
+    "reconnect_storm_creates": 5,
+    "reconnect_storm_median_interval_ms": 3000,
+    "repeated_first_party_error_count": 3,
+    "overlapping_identical_requests": 2
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_page_requests_only": true,
+    "browser_local_offline_toggle": true,
+    "maximum_navigations_per_target": 3,
+    "authenticated_testing": false,
+    "direct_api_testing": false,
+    "portfolio_access": false,
+    "personal_data_access": false,
+    "market_depth_subscription": false,
+    "order_entry": false,
+    "form_submission": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "raw_websocket_payload_storage": false,
+    "raw_response_body_storage": false
+  },
+  "limitations": [
+    "Only transports naturally initiated by the two allowlisted public pages are observed.",
+    "No absence-of-live-data conclusion is made outside an active market session.",
+    "A WebSocket or request is classified as first-party only when its hostname is tradernet.ru or a subdomain of tradernet.ru.",
+    "Third-party telemetry transports are retained as diagnostics and are not promoted into Tradernet product findings.",
+    "A single laboratory lifecycle run per target is diagnostic; confirmed product claims require explicit deterministic thresholds.",
+    "Browser-local offline mode does not simulate every mobile-radio, proxy, sleep, or OS backgrounding condition."
+  ]
+}
