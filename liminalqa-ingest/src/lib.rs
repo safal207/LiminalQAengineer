@@ -7,12 +7,12 @@ pub mod handlers;
 pub mod resonance;
 
 use axum::{
-    extract::{Request, State},
-    http::{header, StatusCode},
+    extract::{Path, Request, State},
+    http::{header, HeaderValue, StatusCode},
     middleware::{self, Next},
-    response::IntoResponse,
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use liminalqa_core::metrics::SharedMetrics;
 use liminalqa_db::LiminalDB;
@@ -23,7 +23,7 @@ use std::sync::{
     Arc,
 };
 use utoipa::{openapi::security, Modify, OpenApi, ToSchema};
-use utoipa_swagger_ui::SwaggerUi;
+use utoipa_swagger_ui::Config as SwaggerConfig;
 
 use crate::alerting::AlertManager;
 use crate::decision_handler::{get_suite_decision, get_test_decision};
@@ -239,7 +239,7 @@ pub fn app(state: AppState) -> Router {
         ))
         // Public routes (no auth required)
         .route("/health", get(health_check))
-        .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .merge(swagger_docs())
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state)
 }
@@ -247,6 +247,50 @@ pub fn app(state: AppState) -> Router {
 // ---------------------------------------------------------------------------
 // Handlers (public)
 // ---------------------------------------------------------------------------
+
+// Use the framework-independent asset API so patched Swagger UI builds can be
+// used without changing the application's axum version or generated OpenAPI spec.
+fn swagger_docs() -> Router<AppState> {
+    let config = Arc::new(SwaggerConfig::new(["/api-docs/openapi.json"]));
+    let assets = get(swagger_asset).layer(Extension(config));
+    let openapi = ApiDoc::openapi();
+
+    Router::new()
+        .route("/docs", get(|| async { Redirect::to("/docs/") }))
+        .route("/docs/", assets.clone())
+        .route("/docs/*path", assets)
+        .route(
+            "/api-docs/openapi.json",
+            get(move || {
+                let openapi = openapi.clone();
+                async move { Json(openapi) }
+            }),
+        )
+}
+
+async fn swagger_asset(
+    path: Option<Path<String>>,
+    Extension(config): Extension<Arc<SwaggerConfig<'static>>>,
+) -> Response {
+    let path = path.map(|Path(path)| path).unwrap_or_default();
+    match utoipa_swagger_ui::serve(&path, config) {
+        Ok(Some(file)) => {
+            let mut response =
+                ([(header::CONTENT_TYPE, file.content_type)], file.bytes).into_response();
+            if file.gzpipped {
+                response
+                    .headers_mut()
+                    .insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+            }
+            response
+        }
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%error, "Failed to serve Swagger UI asset");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
 
 async fn health_check() -> impl IntoResponse {
     #[derive(Serialize)]
