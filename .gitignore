@@ -3,6 +3,7 @@
 **/*.rs.bk
 *.pdb
 Cargo.lock
+!/Cargo.lock
 
 # LiminalQA data
 /data
