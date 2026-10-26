@@ -28,7 +28,9 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Install Protoc
-        run: sudo apt-get install -y protobuf-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
 
       - name: Cache cargo registry
         uses: actions/cache@v3
@@ -75,7 +77,9 @@ jobs:
           components: clippy
 
       - name: Install Protoc
-        run: sudo apt-get install -y protobuf-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
 
       - name: Run Clippy
         run: cargo clippy --locked --all-targets --all-features --workspace -- -D warnings
@@ -90,7 +94,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install Protoc
-        run: sudo apt-get install -y protobuf-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
 
       - name: Build all packages
         run: cargo build --locked --release --all-features --workspace
