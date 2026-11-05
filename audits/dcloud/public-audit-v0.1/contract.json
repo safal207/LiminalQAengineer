@@ -1,0 +1,240 @@
+{
+  "schema_version": "liminalqa-tri-lens-public-audit-v1",
+  "audit_id": "DCLOUD-OUTSIDE-IN-2026-07-20-V0.1",
+  "name": "DCloud public quality, system, and business audit",
+  "target": {
+    "organization": "DCloud",
+    "canonical_origin": "https://dcloud.tech",
+    "engagement_kind": "independent_outside_in",
+    "authorization_basis": "public_pages_passive_observation_only"
+  },
+  "coordinate_model": {
+    "O": "official public URL + unauthenticated state + observation time",
+    "N": "passive external observer",
+    "X": "domain -> route -> content block -> claim",
+    "Y": "current -> ambiguous -> contradictory -> stale/template",
+    "Z": "raw public response first; rendered desktop/mobile confirmation later",
+    "T": "navigation -> settled response -> evidence normalization -> human judgment"
+  },
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_get_navigation_only": true,
+    "authentication": false,
+    "form_submission": false,
+    "email_or_external_contact": false,
+    "direct_api_testing": false,
+    "active_security_testing": false,
+    "enumeration": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "vulnerability_claim": false,
+    "external_submission_authorized": false,
+    "deployment_authorized": false,
+    "merge_authorized": false
+  },
+  "runtime": {
+    "timeout_seconds": 30,
+    "max_response_bytes": 3000000,
+    "max_parallel": 1,
+    "user_agent": "LiminalQA-Passive-Public-Audit/0.1"
+  },
+  "allowed_paths": [
+    "/",
+    "/en",
+    "/ru/about",
+    "/en/about",
+    "/ru/vacancy",
+    "/ru/vacancy/qa",
+    "/ru/contacts",
+    "/en/contacts",
+    "/page14540121.html",
+    "/page16808528.html"
+  ],
+  "targets": [
+    {
+      "slug": "current-ru-home",
+      "url": "https://dcloud.tech/",
+      "role": "current Russian commercial landing",
+      "assertions": [
+        {
+          "id": "current_ru_identity",
+          "type": "all_of",
+          "markers": ["20+", "клиентов", "Оставьте заявку"]
+        }
+      ]
+    },
+    {
+      "slug": "current-ru-contacts",
+      "url": "https://dcloud.tech/ru/contacts",
+      "role": "current Russian contact surface",
+      "assertions": [
+        {
+          "id": "current_contact_identity",
+          "type": "all_of",
+          "markers": ["hr@dcloud.tech", "© 2025 DCloud"]
+        }
+      ]
+    },
+    {
+      "slug": "legacy-contacts",
+      "url": "https://dcloud.tech/page14540121.html",
+      "role": "legacy contact surface on canonical domain",
+      "assertions": [
+        {
+          "id": "legacy_contact_identity",
+          "type": "all_of",
+          "markers": [
+            "info@dcloud.ru",
+            "www.dcloud.app",
+            "8 (987) 654 32-10",
+            "2014–2022"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "legacy-team-template",
+      "url": "https://dcloud.tech/page16808528.html",
+      "role": "legacy or unfinished team template",
+      "assertions": [
+        {
+          "id": "legacy_team_template_markers",
+          "type": "all_of",
+          "markers": [
+            "Badoo",
+            "Ashley Richadson",
+            "Full-Stack.net (C#) Developer",
+            "Location",
+            "2014–2022"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "qa-vacancy",
+      "url": "https://dcloud.tech/ru/vacancy/qa",
+      "role": "QA candidate acquisition surface",
+      "assertions": [
+        {
+          "id": "qa_schedule_wording",
+          "type": "all_of",
+          "markers": [
+            "Стандартная 8 часовая рабочая неделя",
+            "Работа fulltime",
+            "Оплата почасовая"
+          ]
+        },
+        {
+          "id": "qa_role_mix",
+          "type": "all_of",
+          "markers": [
+            "Live refactoring",
+            "live coding",
+            "джуниор и мидл разработчикам"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "ru-about",
+      "url": "https://dcloud.tech/ru/about",
+      "role": "Russian company and role model",
+      "assertions": [
+        {
+          "id": "role_description_copy",
+          "type": "occurrence",
+          "marker": "Играющий тренер, Backend/Fullstack Developer",
+          "min_occurrences": 4
+        }
+      ]
+    },
+    {
+      "slug": "en-home",
+      "url": "https://dcloud.tech/en",
+      "role": "English commercial landing",
+      "assertions": [
+        {
+          "id": "en_localization_markers",
+          "type": "all_of",
+          "markers": [
+            "Our personality",
+            "come driven professionals",
+            "Focus on outome",
+            "Microservice Personality"
+          ]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "DCL-001",
+      "title": "Unfinished team template remains publicly reachable on the canonical domain",
+      "severity": "HIGH",
+      "evidence_refs": ["legacy-team-template:legacy_team_template_markers"],
+      "quality_lens": "Public content integrity and release hygiene failure.",
+      "system_lens": "Published-page inventory and retirement controls do not reliably exclude stale Tilda assets.",
+      "business_lens": "A candidate or client can encounter unrelated Badoo copy, repeated placeholder staff, and template vacancies, reducing trust.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm visible impact in settled desktop and mobile browser captures before CONFIRMED_PRODUCT_DEFECT."
+    },
+    {
+      "id": "DCL-002",
+      "title": "Legacy and current contact identities conflict on the same canonical domain",
+      "severity": "HIGH",
+      "evidence_refs": [
+        "legacy-contacts:legacy_contact_identity",
+        "current-ru-contacts:current_contact_identity"
+      ],
+      "quality_lens": "Conflicting contact data and copyright years are simultaneously public.",
+      "system_lens": "Contact identity is duplicated across independently maintained pages instead of one governed source.",
+      "business_lens": "Leads and candidates may use an obsolete email, phone, address, or domain and abandon contact.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm browser visibility and link/index discoverability before assigning final user-impact severity."
+    },
+    {
+      "id": "DCL-003",
+      "title": "QA vacancy mixes working-time, developer-interview, and QA role models",
+      "severity": "MEDIUM",
+      "evidence_refs": [
+        "qa-vacancy:qa_schedule_wording",
+        "qa-vacancy:qa_role_mix"
+      ],
+      "quality_lens": "The page contains internally inconsistent or role-incongruent wording.",
+      "system_lens": "Vacancy templates appear copied across disciplines without typed content constraints.",
+      "business_lens": "Qualified QA candidates may misread workload, seniority, and interview expectations, lowering conversion.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Human review must distinguish intentional hiring policy from template leakage."
+    },
+    {
+      "id": "DCL-004",
+      "title": "Multiple specialist roles reuse the Backend/Fullstack Team Lead description",
+      "severity": "MEDIUM",
+      "evidence_refs": ["ru-about:role_description_copy"],
+      "quality_lens": "Role labels and role descriptions are semantically mismatched.",
+      "system_lens": "The content model lacks per-role required fields and duplication checks.",
+      "business_lens": "Customers and candidates receive a weaker signal of actual multidisciplinary expertise.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Confirm card-to-description mapping in rendered layout."
+    },
+    {
+      "id": "DCL-005",
+      "title": "English commercial copy contains repeated mistranslation and placeholder-like terminology",
+      "severity": "MEDIUM",
+      "evidence_refs": ["en-home:en_localization_markers"],
+      "quality_lens": "Visible English copy contains spelling, grammar, and semantic quality signals.",
+      "system_lens": "Localization lacks an editorial acceptance gate and source-language parity checks.",
+      "business_lens": "International prospects may infer weak delivery quality from the public English storefront.",
+      "initial_state": "PRODUCT_SIGNAL",
+      "promotion_rule": "Native-speaker review and rendered context are required for final wording judgment."
+    }
+  ],
+  "lotus_policy": {
+    "search_snippet_only": "NEEDS_EVIDENCE",
+    "public_response_marker_reproduced": "PRODUCT_SIGNAL",
+    "desktop_and_mobile_rendered_reproduction": "CONFIRMED_PRODUCT_DEFECT_CANDIDATE",
+    "root_cause_without_counterfactual": "HYPOTHESIS_ONLY",
+    "security_claim_without_scoped_impact": "BLOCK",
+    "external_reporting": "BLOCK_UNTIL_HUMAN_REVIEW"
+  }
+}
