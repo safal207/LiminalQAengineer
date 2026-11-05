@@ -1,0 +1,41 @@
+{
+  "schema_version": "liminalqa-tradingview-chart-keyboard-v1",
+  "chart_url": "https://www.tradingview.com/chart/?symbol=BITSTAMP%3ABTCUSD",
+  "accessibility_url": "https://www.tradingview.com/accessibility/",
+  "profiles": [
+    {
+      "id": "desktop",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "viewport": {"width": 1440, "height": 1000, "deviceScaleFactor": 1, "isMobile": false, "hasTouch": false}
+    },
+    {
+      "id": "mobile",
+      "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+      "viewport": {"width": 412, "height": 915, "deviceScaleFactor": 2.625, "isMobile": true, "hasTouch": true}
+    }
+  ],
+  "navigation_timeout_ms": 90000,
+  "settle_ms": 10000,
+  "tab_steps": 40,
+  "boundaries": {
+    "public_pages_only": true,
+    "natural_navigation_only": true,
+    "keyboard_and_single_neutral_click_only": true,
+    "authenticated_testing": false,
+    "account_access": false,
+    "direct_api_testing": false,
+    "form_submission": false,
+    "publishing": false,
+    "trading_actions": false,
+    "financial_operations": false,
+    "fuzzing": false,
+    "load_testing": false,
+    "active_security_testing": false,
+    "server_state_change": false
+  },
+  "limitations": [
+    "The neutral click targets an empty chart coordinate and does not submit, trade, publish, or modify server state.",
+    "The result applies to the tested public chart route and browser profiles only.",
+    "Disabled controls without names are recorded separately from enabled controls."
+  ]
+}
